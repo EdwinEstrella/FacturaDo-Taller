@@ -25,7 +25,7 @@ ts-debug.log*
 # Environment variables
 .env
 .env*.local
-
+.mcp.json
 # Vercel
 .vercel
 
