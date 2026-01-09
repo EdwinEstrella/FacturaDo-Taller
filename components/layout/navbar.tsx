@@ -3,7 +3,18 @@
 import { Button } from "@/components/ui/button"
 import { Menu } from "lucide-react"
 
-export function Navbar() {
+interface UserProps {
+    id: string
+    name: string | null
+    username: string
+    role: string
+}
+
+interface NavbarProps {
+    user: UserProps | null
+}
+
+export function Navbar({ user }: NavbarProps) {
     return (
         <div className="flex items-center p-4">
             <Button variant="ghost" size="icon" className="md:hidden">
@@ -13,7 +24,7 @@ export function Navbar() {
                 {/* User Button or identifying info */}
                 <div className="flex items-center gap-x-2">
                     <Button size="sm" variant="outline">
-                        FacturaDO Admin
+                        {user?.name || "Usuario"}
                     </Button>
                 </div>
             </div>

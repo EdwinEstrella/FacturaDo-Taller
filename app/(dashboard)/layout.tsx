@@ -16,7 +16,7 @@ export default async function DashboardLayout({
                 <Sidebar user={user} />
             </div>
             <main className="md:pl-72">
-                <Navbar />
+                <Navbar user={user} />
                 {children}
             </main>
         </div>
