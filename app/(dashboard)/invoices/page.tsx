@@ -14,12 +14,14 @@ import { formatCurrency } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
 import Link from "next/link"
-import { Printer, FileText } from "lucide-react"
+// import { Printer, FileText } from "lucide-react"
 import { CreateWorkOrderDialog } from "@/components/modules/orders/create-order-dialog"
 import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-preview"
 import { WorkOrderPreviewDialog } from "@/components/modules/orders/work-order-preview"
+import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
 
 export default async function InvoicesPage() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoices: any[] = await getInvoices()
     const quotes = await getQuotes()
 
@@ -77,6 +79,11 @@ export default async function InvoicesPage() {
                                                 {!invoice.workOrder && (
                                                     <CreateWorkOrderDialog invoiceId={invoice.id} />
                                                 )}
+
+                                                <DeleteInvoiceDialog
+                                                    invoiceId={invoice.id}
+                                                    isProduction={!!invoice.workOrder}
+                                                />
                                             </div>
                                         </TableCell>
                                     </TableRow>

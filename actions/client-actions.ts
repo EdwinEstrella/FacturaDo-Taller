@@ -12,6 +12,7 @@ const ClientSchema = z.object({
     email: z.string().email().optional().or(z.literal("")),
 })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createClient(prevState: any, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),

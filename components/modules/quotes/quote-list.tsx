@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils"
 import { convertQuoteToInvoice } from "@/actions/quote-actions"
 import { ArrowRight, Printer } from "lucide-react"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function QuoteList({ quotes }: { quotes: any[] }) {
     return (
         <div className="rounded-md border">

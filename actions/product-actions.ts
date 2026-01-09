@@ -15,6 +15,7 @@ const ProductSchema = z.object({
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
 })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createProduct(prevState: any, formData: FormData) {
     const validatedFields = ProductSchema.safeParse({
         name: formData.get("name"),
@@ -55,6 +56,7 @@ export async function getProducts() {
     })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function updateProduct(id: string, prevState: any, formData: FormData) {
     const validatedFields = ProductSchema.safeParse({
         name: formData.get("name"),

@@ -7,17 +7,13 @@ import {
     LayoutDashboard,
     Users,
     Package,
-    ShoppingCart,
     FileText,
     Truck,
     Receipt,
     PiggyBank,
     BarChart3,
-    Settings,
     Archive,
-    ClipboardList,
     BookOpen,
-    StickyNote,
     PieChart,
     Briefcase,
     LogOut
@@ -34,12 +30,11 @@ const routes = [
     { label: "Despacho / Conduce", icon: Truck, href: "/dispatch", color: "text-blue-700" },
     { label: "Cuentas por Cobrar", icon: Receipt, href: "/receivables", color: "text-red-500" },
     { label: "Comprobantes Fiscales", icon: BookOpen, href: "/fiscal", color: "text-indigo-500" },
+    { label: "Notas de Crédito", icon: FileText, href: "/credit-notes", color: "text-red-600" },
     { label: "Contabilidad / Cierre", icon: PieChart, href: "/accounting", color: "text-green-600" },
     { label: "Caja Chica", icon: PiggyBank, href: "/petty-cash", color: "text-pink-500" },
     { label: "Usuarios", icon: Users, href: "/settings/users", color: "text-gray-400" },
 ]
-
-// ... imports
 
 // Define User type interface if not available globally, or use any for now to unblock
 interface UserProps {

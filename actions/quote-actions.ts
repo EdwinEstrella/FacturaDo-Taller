@@ -12,17 +12,17 @@ const QuoteItemSchema = z.object({
     price: z.number().min(0),
 })
 
-const QuoteSchema = z.object({
+/* const QuoteSchema = z.object({
     clientId: z.string(),
     items: z.array(QuoteItemSchema).min(1),
     total: z.number().min(0),
     // Add validity period etc. if needed
-})
+}) */
 
 // Define QuoteFormData type based on the new createQuote function's data structure
 type QuoteFormData = {
     clientId: string;
-    clientName: string;
+    // clientName: string; // Removed as it's not in schema
     items: Array<{
         productId: string;
         productName: string;
@@ -41,7 +41,7 @@ export async function createQuote(data: QuoteFormData) {
         const quote = await prisma.quote.create({
             data: {
                 clientId: data.clientId,
-                clientName: data.clientName,
+                // clientName: data.clientName, // Removed
                 total: total,
                 createdById: user.id,
                 status: "PENDING", // Re-added status as it was in the original schema

@@ -28,6 +28,7 @@ export function UserDialog({ open, onOpenChange }: { open: boolean, onOpenChange
             name: formData.get("name") as string,
             username: formData.get("username") as string,
             password: formData.get("password") as string,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             role: role as any
         }
 

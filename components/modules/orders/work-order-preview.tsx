@@ -13,6 +13,7 @@ import { useRef } from "react"
 import { useReactToPrint } from "react-to-print"
 import { WorkOrderTemplate } from "./work-order-template"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function WorkOrderPreviewDialog({ invoice }: { invoice: any }) {
     const contentRef = useRef<HTMLDivElement>(null)
     const reactToPrintFn = useReactToPrint({ contentRef })

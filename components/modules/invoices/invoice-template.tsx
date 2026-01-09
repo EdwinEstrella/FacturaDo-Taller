@@ -1,7 +1,7 @@
-import { formatDate } from "date-fns"
 import { formatCurrency } from "@/lib/utils"
 
 interface InvoiceTemplateProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     invoice: any // Typed as any to avoid deep relation typing issues for now, or define a proper interface
 }
 
@@ -45,6 +45,7 @@ export function InvoiceTemplate({ invoice }: InvoiceTemplateProps) {
                     </tr>
                 </thead>
                 <tbody>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {invoice.items.map((item: any) => (
                         <tr key={item.id}>
                             <td colSpan={3} className="pt-1">

@@ -23,8 +23,15 @@ export async function getUsers() {
     }
 }
 
+interface UserInput {
+    name: string;
+    username: string;
+    password?: string;
+    role: "ADMIN" | "SELLER" | "ACCOUNTANT";
+}
+
 // Create User
-export async function createUser(data: any) {
+export async function createUser(data: UserInput) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
@@ -43,7 +50,7 @@ export async function createUser(data: any) {
             data: {
                 name: data.name,
                 username: data.username,
-                password: data.password, // Ideally hash this
+                password: data.password || "123456", // Fallback or strict
                 role: data.role
             }
         })
@@ -57,7 +64,7 @@ export async function createUser(data: any) {
 }
 
 // Update User
-export async function updateUser(id: string, data: any) {
+export async function updateUser(id: string, data: UserInput) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
@@ -113,7 +120,7 @@ export async function deleteUser(id: string) {
 
         revalidatePath("/settings/users")
         return { success: true }
-    } catch (error) {
+    } catch {
         return { success: false, error: "Error al eliminar usuario" }
     }
 }

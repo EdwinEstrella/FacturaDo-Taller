@@ -27,7 +27,7 @@ export function DeleteProductButton({ id, name }: { id: string, name: string }) 
                 <AlertDialogHeader>
                     <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción eliminará el producto "<strong>{name}</strong>".
+                        Esta acción eliminará el producto &quot;<strong>{name}</strong>&quot;.
                         Si el producto tiene ventas asociadas, no se podrá eliminar.
                     </AlertDialogDescription>
                 </AlertDialogHeader>

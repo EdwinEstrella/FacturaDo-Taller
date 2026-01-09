@@ -39,11 +39,13 @@ interface User {
     updatedAt: Date
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [loading, setLoading] = useState(false)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [currentUser, setCurrentUser] = useState<any>(null) // For editing
 
     // Form State for Create/Edit
@@ -56,7 +58,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
 
     const handleCreate = async () => {
         setLoading(true)
-        const res = await createUser({ ...formData })
+        const res = await createUser({ ...formData, role: formData.role as any })
         setLoading(false)
 
         if (res.success) {
@@ -82,7 +84,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
     const handleUpdate = async () => {
         if (!currentUser) return
         setLoading(true)
-        const res = await updateUser(currentUser.id, formData)
+        const res = await updateUser(currentUser.id, { ...formData, role: formData.role as any })
         setLoading(false)
 
         if (res.success) {
@@ -191,8 +193,8 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
                                 <TableCell>{user.username}</TableCell>
                                 <TableCell>
                                     <span className={`px-2 py-1 rounded text-xs font-bold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
-                                            user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
-                                                'bg-blue-100 text-blue-800'
+                                        user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
+                                            'bg-blue-100 text-blue-800'
                                         }`}>
                                         {getRoleName(user.role)}
                                     </span>

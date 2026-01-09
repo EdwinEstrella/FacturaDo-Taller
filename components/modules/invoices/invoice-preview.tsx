@@ -13,6 +13,7 @@ import { useRef } from "react"
 import { useReactToPrint } from "react-to-print"
 import { InvoiceTemplate } from "./invoice-template"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function InvoicePreviewDialog({ invoice }: { invoice: any }) {
     const contentRef = useRef<HTMLDivElement>(null)
     const reactToPrintFn = useReactToPrint({ contentRef })

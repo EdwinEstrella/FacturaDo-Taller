@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState } from "react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 // Helper function to merge class names
@@ -59,19 +59,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     className?: string;
 }
 
-const Select = ({ className = "", ...props }: SelectProps) => {
-    return (
-        <div className="relative">
-            <select
-                className={`flex h-10 w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm text-gray-800 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-                {...props}
-            />
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </div>
-        </div>
-    );
-};
+// Local Select removed as it was unused and shadowed import
 
 type RoutePoint = {
     x: number;
@@ -268,7 +256,7 @@ const SignInCard = () => {
             } else {
                 setError(result.error || "Error al iniciar sesión");
             }
-        } catch (err) {
+        } catch {
             setError("Ocurrió un error inesperado.");
         }
     };

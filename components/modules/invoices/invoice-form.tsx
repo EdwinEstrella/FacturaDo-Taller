@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,6 +20,7 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProps) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [items, setItems] = useState<any[]>([])
     const [selectedClientId, setSelectedClientId] = useState<string>("")
     const [isPending, startTransition] = useTransition()
@@ -30,7 +31,6 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
 
     // Product Search State
     const [openProduct, setOpenProduct] = useState(false)
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
     const addItem = (product: Product) => {
         setItems(prev => {
@@ -66,7 +66,7 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
             if (type === "QUOTE") {
                 res = await createQuote({
                     clientId: selectedClientId,
-                    clientName: selectedClient.name,
+                    // clientName: selectedClient.name, // Removed as redundant
                     items,
                     // total is calculated on server
                 })
@@ -119,7 +119,7 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
                         <Popover open={openProduct} onOpenChange={setOpenProduct}>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" role="combobox" aria-expanded={openProduct} className="w-full justify-between">
-                                    {selectedProduct ? selectedProduct.name : "Buscar producto..."}
+                                    Buscar producto...
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
@@ -136,8 +136,7 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
                                             >
                                                 <Check
                                                     className={cn(
-                                                        "mr-2 h-4 w-4",
-                                                        selectedProduct?.id === product.id ? "opacity-100" : "opacity-0"
+                                                        "mr-2 h-4 w-4 opacity-0"
                                                     )}
                                                 />
                                                 <div className="flex flex-col">

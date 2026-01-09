@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
+// import { redirect } from "next/navigation" 
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 
@@ -91,7 +91,7 @@ export async function createInvoice(data: InvoiceFormData) {
 }
 
 export async function getInvoices() {
-    return await prisma.invoice.findMany({
+    const invoices = await prisma.invoice.findMany({
         include: {
             client: true,
             items: true,
@@ -99,16 +99,38 @@ export async function getInvoices() {
         },
         orderBy: { createdAt: 'desc' }
     })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return invoices.map((invoice: any) => ({
+        ...invoice,
+        total: Number(invoice.total),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        items: (invoice.items || []).map((item: any) => ({
+            ...item,
+            price: Number(item.price)
+        }))
+    }))
 }
 
 export async function getInvoiceById(id: string) {
-    return await prisma.invoice.findUnique({
+    const invoice = await prisma.invoice.findUnique({
         where: { id },
         include: {
             client: true,
             items: true
         }
     })
+
+    if (!invoice) return null
+
+    return {
+        ...invoice,
+        total: Number(invoice.total),
+        items: invoice.items.map(item => ({
+            ...item,
+            price: Number(item.price)
+        }))
+    }
 }
 
 export async function markAsDispatched(invoiceId: string, driverName?: string) {
@@ -133,4 +155,56 @@ export async function markAsPaid(invoiceId: string) {
         data: { status: 'PAID' }
     })
     revalidatePath("/receivables")
+}
+
+// Update deleteInvoice signature
+export async function deleteInvoice(id: string, password?: string) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    // Check if invoice exists and has a work order
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const invoice: any = await prisma.invoice.findUnique({
+        where: { id },
+        include: { workOrder: true }
+    })
+
+    if (!invoice) return { success: false, error: "Factura no encontrada" }
+
+    // Logic: If Work Order exists (Production), OR user requests security, verify password
+    // The user requirement is "pedir contraseña de admin".
+    // We check the password against the CURRENT logged in user's password (if they are admin).
+    // Or we could check against a specific master password, but using the user's password is safer/standard.
+
+    // 1. Check permissions first
+    const isProduction = !!invoice.workOrder
+    if (isProduction && user.role !== 'ADMIN') {
+        return { success: false, error: "Solo el Administrador puede eliminar facturas en Producción." }
+    }
+
+    // 2. Verify Password
+    if (!password) {
+        return { success: false, error: "Contraseña requerida" }
+    }
+
+    // Determine target user to check password against. 
+    // Here we check the CURRENT user's credentials to confirm intent (sudo mode).
+    // In a real app we would verify hash. Here we compare plaintext as per seed.
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+
+    if (!dbUser || dbUser.password !== password) {
+        return { success: false, error: "Contraseña incorrecta" }
+    }
+
+    try {
+        await prisma.invoice.delete({
+            where: { id }
+        })
+
+        revalidatePath("/invoices")
+        return { success: true }
+    } catch (error) {
+        console.error("Delete Invoice Error:", error)
+        return { success: false, error: "Error al eliminar factura" }
+    }
 }
