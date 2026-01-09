@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  rnc       String?  // RNC or Cedula
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invoices  Invoice[]
+  quotes    Quote[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal
+  stock       Int      @default(0)
+  minStock    Int      @default(0)
+  isService   Boolean  @default(false) // Deprecated in favor of category, or kept for compat
+  category    String   @default("ARTICULO") // MATERIAL, ARTICULO, SERVICIO
+  sku         String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  invoiceItems InvoiceItem[]
+  quoteItems   QuoteItem[]
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  sequenceNumber  Int           @default(autoincrement()) // Internal sequence
+  ncf             String?       // Comprobante Fiscal
+  ncfType         String?       // Type of NCF (Fiscal, Consumo, etc.)
+  clientId        String?
+  client          Client?       @relation(fields: [clientId], references: [id])
+  clientName      String?       // Snapshot in case client is deleted/null
+  total           Decimal
+  status          String        @default("PAID") // PAID, PENDING, CANCELLED
+  paymentMethod   String?       // PROPOSED: cash, card, transfer
+  items           InvoiceItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  note            String?
+  
+  // Logistics
+  dispatched      Boolean       @default(false)
+  dispatchInfo    Dispatch?
+  workOrder       WorkOrder?
+  
+  // Auditing
+  createdById     String?
+  createdBy       User?         @relation(fields: [createdById], references: [id])
+  creatorName     String?       // Snapshot name
+}
+
+enum Role {
+  ADMIN
+  SELLER
+  ACCOUNTANT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  username  String   @unique
+  password  String   // In a real app, hash this. For now, storing as is or simple hash.
+  role      Role     @default(SELLER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  invoices  Invoice[]
+  quotes    Quote[]
+}
+
+model InvoiceItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  productName String // Snapshot
+  quantity  Int
+  price     Decimal
+}
+
+model Quote {
+  id        String      @id @default(cuid())
+  clientId  String?
+  client    Client?     @relation(fields: [clientId], references: [id])
+  total     Decimal
+  status    String      @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  items     QuoteItem[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  createdById String?
+  createdBy   User?       @relation(fields: [createdById], references: [id])
+}
+
+model QuoteItem {
+  id        String  @id @default(cuid())
+  quoteId   String
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal
+}
+
+model Dispatch {
+  id          String   @id @default(cuid())
+  invoiceId   String   @unique
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  status      String   @default("PENDING") // PENDING, DELIVERED
+  driverName  String?
+  vehicleId   String?
+  deliveredAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  type        String   // INCOME, EXPENSE
+  category    String   // SALE, PETTY_CASH, etc
+  amount      Decimal
+  description String?
+  date        DateTime @default(now())
+  referenceId String?  // Linked Invoice ID, etc
+}
+
+model WorkOrder {
+  id          Int      @id @default(autoincrement()) // "ID de Conduce" usually numeric and sequential for easy ref
+  invoiceId   String   @unique
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  status      String   @default("PRODUCTION") // PRODUCTION, READY, COMPLETED
+  notes       String?  // Medidas / Especificaciones
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Setting {
+  key   String @id
+  value String
+}
