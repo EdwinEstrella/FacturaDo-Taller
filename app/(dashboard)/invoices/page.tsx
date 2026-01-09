@@ -19,11 +19,15 @@ import { CreateWorkOrderDialog } from "@/components/modules/orders/create-order-
 import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-preview"
 import { WorkOrderPreviewDialog } from "@/components/modules/orders/work-order-preview"
 import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
+import { getCurrentUser } from "@/actions/auth-actions"
+import { Pencil } from "lucide-react"
 
 export default async function InvoicesPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoices: any[] = await getInvoices()
     const quotes = await getQuotes()
+    const user = await getCurrentUser()
+    const isAdmin = user?.role === 'ADMIN'
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -68,6 +72,15 @@ export default async function InvoicesPage() {
                                         <TableCell className="text-right font-bold">{formatCurrency(Number(invoice.total))}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
+                                                {/* Edit Button (Admin Only) */}
+                                                {isAdmin && (
+                                                    <Link href={`/invoices/${invoice.id}/edit`}>
+                                                        <Button variant="ghost" size="icon" title="Editar Factura">
+                                                            <Pencil className="h-4 w-4 text-blue-500" />
+                                                        </Button>
+                                                    </Link>
+                                                )}
+
                                                 {/* Invoice Print Preview */}
                                                 <InvoicePreviewDialog invoice={invoice} />
 

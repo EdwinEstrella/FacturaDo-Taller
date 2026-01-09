@@ -1,5 +1,6 @@
 import { getClients } from "@/actions/client-actions"
 import { ClientDialog } from "@/components/modules/clients/client-dialog"
+import { DeleteClientDialog } from "@/components/modules/clients/delete-client-dialog"
 import {
     Table,
     TableBody,
@@ -8,8 +9,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { format } from "date-fns"
 
 export default async function ClientsPage() {
     const clients = await getClients()
@@ -35,6 +34,11 @@ export default async function ClientsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
+                        {clients.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center">No hay clientes registrados.</TableCell>
+                            </TableRow>
+                        )}
                         {clients.map((client) => (
                             <TableRow key={client.id}>
                                 <TableCell className="font-medium">{client.name}</TableCell>
@@ -43,7 +47,10 @@ export default async function ClientsPage() {
                                 <TableCell>{client.email}</TableCell>
                                 <TableCell>{client.address}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">Editar</Button>
+                                    <div className="flex justify-end gap-1">
+                                        <ClientDialog client={client} />
+                                        <DeleteClientDialog clientId={client.id} clientName={client.name} />
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}

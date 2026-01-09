@@ -166,17 +166,13 @@ export async function deleteInvoice(id: string, password?: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoice: any = await prisma.invoice.findUnique({
         where: { id },
-        include: { workOrder: true }
+        include: { workOrder: true, dispatchInfo: true }
     })
 
     if (!invoice) return { success: false, error: "Factura no encontrada" }
 
-    // Logic: If Work Order exists (Production), OR user requests security, verify password
-    // The user requirement is "pedir contraseña de admin".
-    // We check the password against the CURRENT logged in user's password (if they are admin).
-    // Or we could check against a specific master password, but using the user's password is safer/standard.
-
     // 1. Check permissions first
+    // If it has a WorkOrder (Production), strictly require ADMIN
     const isProduction = !!invoice.workOrder
     if (isProduction && user.role !== 'ADMIN') {
         return { success: false, error: "Solo el Administrador puede eliminar facturas en Producción." }
@@ -187,9 +183,6 @@ export async function deleteInvoice(id: string, password?: string) {
         return { success: false, error: "Contraseña requerida" }
     }
 
-    // Determine target user to check password against. 
-    // Here we check the CURRENT user's credentials to confirm intent (sudo mode).
-    // In a real app we would verify hash. Here we compare plaintext as per seed.
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
     if (!dbUser || dbUser.password !== password) {
@@ -197,8 +190,45 @@ export async function deleteInvoice(id: string, password?: string) {
     }
 
     try {
-        await prisma.invoice.delete({
-            where: { id }
+        // Transaction to ensure atomic deletion of dependent records
+        await prisma.$transaction(async (tx) => {
+            // 1. Revert Stock
+            // Get items to restore stock
+            const itemsToRevert = await tx.invoiceItem.findMany({
+                where: { invoiceId: id }
+            })
+
+            for (const item of itemsToRevert) {
+                if (item.productId) {
+                    const product = await tx.product.findUnique({ where: { id: item.productId } })
+                    if (product && !product.isService) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: { increment: item.quantity } }
+                        })
+                    }
+                }
+            }
+
+            // 2. Delete WorkOrder if exists
+            if (invoice.workOrder) {
+                await tx.workOrder.delete({
+                    where: { invoiceId: id }
+                })
+            }
+
+            // 3. Delete Dispatch if exists
+            if (invoice.dispatchInfo) {
+                await tx.dispatch.delete({
+                    where: { invoiceId: id }
+                })
+            }
+
+            // 4. Delete Invoice (Items will be deleted via Cascade in schema, but good to be explicit or rely on schema)
+            // Schema says: invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+            await tx.invoice.delete({
+                where: { id }
+            })
         })
 
         revalidatePath("/invoices")
@@ -206,5 +236,84 @@ export async function deleteInvoice(id: string, password?: string) {
     } catch (error) {
         console.error("Delete Invoice Error:", error)
         return { success: false, error: "Error al eliminar factura" }
+    }
+}
+
+export async function updateInvoice(id: string, data: InvoiceFormData) {
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') throw new Error("Unauthorized: Only Admins can edit invoices")
+
+    // Validate data
+    const validated = InvoiceSchema.safeParse(data)
+    if (!validated.success) return { success: false, error: validated.error.message }
+
+    const { clientId, clientName, items, total } = validated.data
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. Revert Old Stock
+            const oldItems = await tx.invoiceItem.findMany({ where: { invoiceId: id } })
+            for (const item of oldItems) {
+                if (item.productId) {
+                    const product = await tx.product.findUnique({ where: { id: item.productId } })
+                    if (product && !product.isService) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: { increment: item.quantity } }
+                        })
+                    }
+                }
+            }
+
+            // 2. Delete Old Items
+            await tx.invoiceItem.deleteMany({ where: { invoiceId: id } })
+
+            // 3. Update Invoice Details
+            await tx.invoice.update({
+                where: { id },
+                data: {
+                    clientId,
+                    clientName,
+                    total,
+                    // Don't update sequenceNumber, createdBy, etc.
+                }
+            })
+
+            // 4. Create New Items and Deduct Stock
+            for (const item of items) {
+                // Deduct Stock
+                const product = await tx.product.findUnique({ where: { id: item.productId } })
+                if (!product) throw new Error(`Product ${item.productId} not found`)
+
+                if (!product.isService) {
+                    if (product.stock < item.quantity) {
+                        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`)
+                    }
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { decrement: item.quantity } }
+                    })
+                }
+
+                // Create Item
+                await tx.invoiceItem.create({
+                    data: {
+                        invoiceId: id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        price: item.price
+                    }
+                })
+            }
+        })
+
+        revalidatePath("/invoices")
+        revalidatePath(`/invoices/${id}`)
+        return { success: true }
+    } catch (e) {
+        console.error("Update Invoice Error:", e)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return { success: false, error: (e as any).message || "Failed to update invoice" }
     }
 }

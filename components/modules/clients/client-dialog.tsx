@@ -12,73 +12,93 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/actions/client-actions" // Using server action directly
-// In real app, use useFormState
-import { useFormStatus } from "react-dom"
-import { useState } from "react"
+import { createClient, updateClient } from "@/actions/client-actions"
+import { useState, useEffect } from "react"
+// import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
+import { Pencil, Plus } from "lucide-react"
+import { Client } from "@prisma/client"
 
-function SubmitButton() {
-    const { pending } = useFormStatus()
-    return (
-        <Button type="submit" disabled={pending}>
-            {pending ? "Guardando..." : "Guardar Cliente"}
-        </Button>
-    )
-}
-
-export function ClientDialog() {
+export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)
+    const [isPending, setIsPending] = useState(false)
+
+    // Form Action wrapper
+    async function handleSubmit(formData: FormData) {
+        setIsPending(true)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let res: any;
+
+        if (client) {
+            res = await updateClient(client.id, null, formData)
+        } else {
+            res = await createClient(null, formData)
+        }
+
+        setIsPending(false)
+        if (res?.success) {
+            setOpen(false)
+        } else {
+            alert(JSON.stringify(res?.errors || res?.message))
+        }
+    }
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button>Agregar Cliente</Button>
+                {client ? (
+                    <Button variant="ghost" size="icon" title="Editar Cliente">
+                        <Pencil className="h-4 w-4 text-blue-500" />
+                    </Button>
+                ) : (
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" /> Agregar Cliente
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Agregar Cliente</DialogTitle>
+                    <DialogTitle>{client ? "Editar Cliente" : "Agregar Cliente"}</DialogTitle>
                     <DialogDescription>
-                        Crear un nuevo perfil de cliente.
+                        {client ? "Modifique los datos del cliente." : "Crear un nuevo perfil de cliente."}
                     </DialogDescription>
                 </DialogHeader>
-                <form action={async (formData) => {
-                    await createClient(null, formData)
-                    setOpen(false)
-                }}>
+                <form action={handleSubmit}>
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="name" className="text-right">
                                 Nombre
                             </Label>
-                            <Input id="name" name="name" className="col-span-3" required />
+                            <Input id="name" name="name" defaultValue={client?.name} className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="rnc" className="text-right">
                                 RNC/Cedula
                             </Label>
-                            <Input id="rnc" name="rnc" className="col-span-3" />
+                            <Input id="rnc" name="rnc" defaultValue={client?.rnc || ""} className="col-span-3" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="phone" className="text-right">
                                 Teléfono
                             </Label>
-                            <Input id="phone" name="phone" className="col-span-3" />
+                            <Input id="phone" name="phone" defaultValue={client?.phone || ""} className="col-span-3" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="email" className="text-right">
                                 Email
                             </Label>
-                            <Input id="email" name="email" type="email" className="col-span-3" />
+                            <Input id="email" name="email" type="email" defaultValue={client?.email || ""} className="col-span-3" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="address" className="text-right">
                                 Dirección
                             </Label>
-                            <Input id="address" name="address" className="col-span-3" />
+                            <Input id="address" name="address" defaultValue={client?.address || ""} className="col-span-3" />
                         </div>
                     </div>
                     <DialogFooter>
-                        <SubmitButton />
+                        <Button type="submit" disabled={isPending}>
+                            {isPending ? "Guardando..." : "Guardar"}
+                        </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

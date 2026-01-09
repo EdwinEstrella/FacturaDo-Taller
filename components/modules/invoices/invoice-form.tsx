@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Trash2 } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
-import { createInvoice } from "@/actions/invoice-actions"
+import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
 import { Client, Product } from "@prisma/client"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -17,16 +17,22 @@ import { useSearchParams, useRouter } from "next/navigation"
 interface InvoiceFormProps {
     initialProducts: Product[]
     initialClients: Client[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    initialData?: any // Optional initial data for editing
 }
 
-export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProps) {
+export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
+    // Initialize items from initialData if exists
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [items, setItems] = useState<any[]>([])
-    const [selectedClientId, setSelectedClientId] = useState<string>("")
+    const [items, setItems] = useState<any[]>(initialData?.items || [])
+    const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
     const [isPending, startTransition] = useTransition()
 
     const searchParams = useSearchParams()
     const router = useRouter()
+    // Determine type: explicitly QUOTE param, OR if we are editing an Invoice (no param usually)
+    // If initialData exists, we assume we are editing whatever type passing in, but usually Invoice editing.
+    const isEdit = !!initialData
     const type = searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE"
 
     // Product Search State
@@ -63,28 +69,42 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
 
         startTransition(async () => {
             let res;
-            if (type === "QUOTE") {
-                res = await createQuote({
-                    clientId: selectedClientId,
-                    // clientName: selectedClient.name, // Removed as redundant
-                    items,
-                    // total is calculated on server
-                })
-            } else {
-                res = await createInvoice({
+
+            if (isEdit) {
+                // Edit Mode (Always Invoice for now)
+                res = await updateInvoice(initialData.id, {
                     clientId: selectedClientId,
                     clientName: selectedClient.name,
                     items,
-                    total, // Invoice still expects total for validation or snapshot? Let's check schema.
-                    paymentMethod: "CASH"
+                    total,
+                    paymentMethod: initialData.paymentMethod
                 })
+            } else {
+                // Create Mode
+                if (type === "QUOTE") {
+                    res = await createQuote({
+                        clientId: selectedClientId,
+                        items,
+                    })
+                } else {
+                    res = await createInvoice({
+                        clientId: selectedClientId,
+                        clientName: selectedClient.name,
+                        items,
+                        total,
+                        paymentMethod: "CASH"
+                    })
+                }
             }
 
             if (res.success) {
-                alert(type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!")
-                setItems([])
-                setSelectedClientId("")
+                alert(isEdit ? "Factura Actualizada" : (type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!"))
+                if (!isEdit) {
+                    setItems([])
+                    setSelectedClientId("")
+                }
                 router.push("/invoices")
+                router.refresh()
             } else {
                 alert("Error: " + res.error)
             }
@@ -96,10 +116,21 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
             <div className="space-y-6">
                 <Card>
                     <CardContent className="p-4 space-y-4">
-                        <h3 className="font-semibold text-lg">{type === "QUOTE" ? "Nueva Cotización" : "Nueva Factura"}</h3>
-                        <div className="bg-yellow-100 p-2 rounded text-sm mb-2">
-                            {type === "QUOTE" ? "Modo: Cotización (No afecta stock)" : "Modo: Facturación (Descuenta stock)"}
-                        </div>
+                        <h3 className="font-semibold text-lg">
+                            {isEdit ? "Editar Factura" : (type === "QUOTE" ? "Nueva Cotización" : "Nueva Factura")}
+                        </h3>
+                        {/* Only show info box if NOT editing to avoid clutter, or update text */}
+                        {!isEdit && (
+                            <div className="bg-yellow-100 p-2 rounded text-sm mb-2">
+                                {type === "QUOTE" ? "Modo: Cotización (No afecta stock)" : "Modo: Facturación (Descuenta stock)"}
+                            </div>
+                        )}
+                        {isEdit && (
+                            <div className="bg-blue-100 p-2 rounded text-sm mb-2">
+                                Modo Edición: El stock se recalculará automáticamente.
+                            </div>
+                        )}
+
                         <Select value={selectedClientId} onValueChange={setSelectedClientId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Seleccionar Cliente" />
@@ -194,7 +225,7 @@ export function InvoiceForm({ initialProducts, initialClients }: InvoiceFormProp
                             onClick={handleSave}
                             disabled={isPending}
                         >
-                            {isPending ? "Procesando..." : (type === "QUOTE" ? "Guardar Cotización" : "Facturar / Imprimir")}
+                            {isPending ? "Procesando..." : (isEdit ? "Actualizar Factura" : (type === "QUOTE" ? "Guardar Cotización" : "Facturar / Imprimir"))}
                         </Button>
                     </div>
                 </Card>
