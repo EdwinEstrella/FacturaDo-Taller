@@ -247,9 +247,9 @@ const DotMap = () => {
 };
 
 const SignInCard = () => {
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-    const [role, setRole] = useState("VENTA");
+    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
@@ -261,7 +261,7 @@ const SignInCard = () => {
         try {
             // Import dynamic to avoid build issues if mixed component
             const { login } = await import("@/actions/auth-actions");
-            const result = await login(role, password);
+            const result = await login(username, password);
 
             if (result.success) {
                 router.push('/');
@@ -329,19 +329,18 @@ const SignInCard = () => {
 
                         <form className="space-y-5" onSubmit={handleLogin}>
                             <div>
-                                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Perfil / Rol <span className="text-blue-500">*</span>
+                                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Usuario <span className="text-blue-500">*</span>
                                 </label>
-                                <Select
-                                    id="role"
-                                    value={role}
-                                    onChange={(e) => setRole(e.target.value)}
-                                    className="bg-gray-50 border-gray-200 text-gray-800 w-full focus:border-blue-500 focus:ring-blue-500"
-                                >
-                                    <option value="VENTA">Ventas</option>
-                                    <option value="CONTADOR">Contabilidad</option>
-                                    <option value="ADMIN">Administrador</option>
-                                </Select>
+                                <Input
+                                    id="username"
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    placeholder="Usuario (ej. admin)"
+                                    required
+                                    className="bg-gray-50 border-gray-200 placeholder:text-gray-400 text-gray-800 w-full focus:border-blue-500 focus:ring-blue-500"
+                                />
                             </div>
 
                             <div>

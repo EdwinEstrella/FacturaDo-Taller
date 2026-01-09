@@ -11,29 +11,31 @@ async function main() {
     // Seed default Users
     await prisma.user.upsert({
         where: { username: 'admin' },
-        update: {},
+        update: { password: '2025' },
         create: {
             name: 'Administrador Principal',
             username: 'admin',
-            password: 'admin', // Default
+            password: '2025',
             role: 'ADMIN'
         }
     })
 
     await prisma.user.upsert({
-        where: { username: 'venta' },
-        update: {},
+        where: { username: 'rosa' },
+        update: { password: 'rosa', role: 'ADMIN' },
         create: {
-            name: 'Vendedor Turno 1',
-            username: 'venta',
-            password: '2025',
-            role: 'SELLER'
+            name: 'Rosa Ventas',
+            username: 'rosa',
+            password: 'rosa',
+            role: 'ADMIN'
         }
     })
 
+    // Remove old 'venta' user if it exists to avoid confusion, or leave it. 
+    // We'll leave 'contador' for now.
     await prisma.user.upsert({
         where: { username: 'contador' },
-        update: {},
+        update: { password: '2025' },
         create: {
             name: 'Contador General',
             username: 'contador',

@@ -1,55 +1,119 @@
-"use server"
+'use server'
 
-import { prisma } from "@/lib/prisma"
-import { getCurrentUser } from "./auth-actions"
+import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { Role } from "@prisma/client"
+import { getCurrentUser } from "./auth-actions"
 
+// Get all users (Admin only)
 export async function getUsers() {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
     }
-    return prisma.user.findMany({
-        orderBy: { createdAt: 'desc' }
-    })
-}
-
-export async function createUser(data: { name: string, username: string, password: string, role: Role }) {
-    const currentUser = await getCurrentUser()
-    if (currentUser?.role !== 'ADMIN') {
-        return { success: false, error: "Unauthorized" }
-    }
 
     try {
-        await prisma.user.create({
-            data
+        const users = await db.user.findMany({
+            orderBy: {
+                createdAt: 'desc'
+            }
         })
-        revalidatePath('/settings/users')
-        return { success: true }
-    } catch (e) {
-        return { success: false, error: "Error creating user (Username might be taken)" }
+        return { success: true, data: users }
+    } catch (error) {
+        return { success: false, error: "Error fetching users" }
     }
 }
 
-export async function deleteUser(userId: string) {
+// Create User
+export async function createUser(data: any) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
-        return { success: false, error: "Unauthorized" }
-    }
-
-    // Prevent self-deletion
-    if (currentUser.id === userId) {
-        return { success: false, error: "Cannot delete yourself" }
+        throw new Error("Unauthorized")
     }
 
     try {
-        await prisma.user.delete({
-            where: { id: userId }
+        const existingUser = await db.user.findUnique({
+            where: { username: data.username }
         })
-        revalidatePath('/settings/users')
+
+        if (existingUser) {
+            return { success: false, error: "El nombre de usuario ya existe" }
+        }
+
+        await db.user.create({
+            data: {
+                name: data.name,
+                username: data.username,
+                password: data.password, // Ideally hash this
+                role: data.role
+            }
+        })
+
+        revalidatePath("/settings/users")
         return { success: true }
-    } catch (e) {
-        return { success: false, error: "Error deleting user" }
+    } catch (error) {
+        console.error("Create User Error:", error)
+        return { success: false, error: "Error al crear usuario" }
+    }
+}
+
+// Update User
+export async function updateUser(id: string, data: any) {
+    const currentUser = await getCurrentUser()
+    if (currentUser?.role !== 'ADMIN') {
+        throw new Error("Unauthorized")
+    }
+
+    try {
+        // If updating username, check for uniqueness
+        if (data.username) {
+            const existingUser = await db.user.findFirst({
+                where: {
+                    username: data.username,
+                    NOT: { id }
+                }
+            })
+            if (existingUser) {
+                return { success: false, error: "El nombre de usuario ya existe" }
+            }
+        }
+
+        await db.user.update({
+            where: { id },
+            data: {
+                name: data.name,
+                username: data.username,
+                role: data.role,
+                ...(data.password ? { password: data.password } : {}) // Only update password if provided
+            }
+        })
+
+        revalidatePath("/settings/users")
+        return { success: true }
+    } catch (error) {
+        console.error("Update User Error:", error)
+        return { success: false, error: "Error al actualizar usuario" }
+    }
+}
+
+// Delete User
+export async function deleteUser(id: string) {
+    const currentUser = await getCurrentUser()
+    if (currentUser?.role !== 'ADMIN') {
+        throw new Error("Unauthorized")
+    }
+
+    try {
+        if (id === currentUser.id) {
+            return { success: false, error: "No puedes eliminar tu propio usuario" }
+        }
+
+        await db.user.delete({
+            where: { id }
+        })
+
+        revalidatePath("/settings/users")
+        return { success: true }
+    } catch (error) {
+        return { success: false, error: "Error al eliminar usuario" }
     }
 }

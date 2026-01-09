@@ -39,11 +39,23 @@ const routes = [
     { label: "Usuarios", icon: Users, href: "/settings/users", color: "text-gray-400" },
 ]
 
-import { getCurrentUser } from "@/actions/auth-actions"
+// ... imports
 
-export async function Sidebar() {
+// Define User type interface if not available globally, or use any for now to unblock
+interface UserProps {
+    id: string
+    name: string | null
+    username: string
+    role: "ADMIN" | "SELLER" | "ACCOUNTANT" | string
+}
+
+interface SidebarProps {
+    user: UserProps | null
+}
+
+export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
-    const user = await getCurrentUser()
+    // const user = await getCurrentUser() // Removed
     const role = user?.role || "SELLER" // Default to strictest if not found (though middleware blocks)
 
     // Filter Routes based on Role
@@ -58,15 +70,13 @@ export async function Sidebar() {
         if (role === 'ADMIN') return true
 
         if (role === 'SELLER') {
-            const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash'] // Assuming Fiscal/PettyCash blocked too? Keep it safe.
+            const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users'] // Assuming Fiscal/PettyCash blocked too? Keep it safe.
             return !blocked.includes(route.href)
         }
 
         if (role === 'ACCOUNTANT') {
-            // Accountant sees everything? Or mostly accounting/money stuff?
-            // Usually Accountant needs invoices, fiscal, accounting, receivables. Maybe not Warehouse operations?
-            // Let's allow all for Accountant except maybe dangerous settings if we ever add them.
-            return true
+            const blocked = ['/warehouse', '/products', '/settings/users'] // Accountant usually doesn't need warehouse edit access?
+            return !blocked.includes(route.href)
         }
 
         return false
