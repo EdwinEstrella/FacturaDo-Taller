@@ -40,7 +40,7 @@ export default async function OrdersPage() {
                         {orders.map((order) => (
                             <TableRow key={order.id}>
                                 <TableCell className="font-mono">#{order.id}</TableCell>
-                                <TableCell>{order.invoice.clientName || order.invoice.client?.name}</TableCell>
+                                <TableCell>{order.invoice?.clientName || order.invoice?.client?.name}</TableCell>
                                 <TableCell>
                                     <Badge variant={order.status === "PRODUCTION" ? "destructive" : (order.status === "READY" ? "default" : "secondary")}>
                                         {order.status === "PRODUCTION" && "En Producción"}
