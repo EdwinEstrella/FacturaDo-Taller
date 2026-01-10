@@ -60,6 +60,7 @@ const routes: Route[] = [
         color: "text-gray-400",
         children: [
             { label: "Usuarios", icon: Users, href: "/settings/users", color: "text-gray-400" },
+            { label: "General", icon: Settings, href: "/settings/general", color: "text-blue-400" },
             { label: "Comprobantes Fiscales", icon: BookOpen, href: "/fiscal", color: "text-indigo-500" },
         ]
     },
@@ -123,7 +124,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobile }: Sidebar
             if (role === 'ADMIN') return true
 
             if (role === 'SELLER' || role === 'CUSTOM') {
-                const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users', '/technician']
+                const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician']
                 return !blocked.includes(href)
             }
 

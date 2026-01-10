@@ -23,7 +23,7 @@ import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-prev
 import { WorkOrderPreviewDialog } from "@/components/modules/orders/work-order-preview"
 import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
 import { Pencil } from "lucide-react"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDateTimeDO } from "@/lib/utils"
 import Link from "next/link"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -165,7 +165,7 @@ export default function InvoicesPage() {
                                     {filteredInvoices.map((invoice) => (
                                         <TableRow key={invoice.id}>
                                             <TableCell className="font-mono">#{invoice.sequenceNumber}</TableCell>
-                                            <TableCell>{new Date(invoice.createdAt).toLocaleDateString()}</TableCell>
+                                            <TableCell>{formatDateTimeDO(invoice.createdAt)}</TableCell>
                                             <TableCell>{invoice.clientName || invoice.client?.name || "Consumidor Final"}</TableCell>
                                             <TableCell>{invoice.status}</TableCell>
                                             <TableCell className="text-right font-bold">{formatCurrency(Number(invoice.total))}</TableCell>

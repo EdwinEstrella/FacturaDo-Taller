@@ -1,9 +1,11 @@
 import { getUsers } from "@/actions/user-actions"
+import { getCurrentUser } from "@/actions/auth-actions"
 import { UsersClient } from "./client"
 import type { User } from "@/types"
 
 export default async function UsersPage() {
     const { success, data: users } = await getUsers()
+    const currentUser = await getCurrentUser()
 
     // Safety check if error or no users
     const safeUsers = success && users ? users : []
@@ -20,7 +22,7 @@ export default async function UsersPage() {
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h2>
             </div>
-            <UsersClient initialUsers={convertedUsers} />
+            <UsersClient initialUsers={convertedUsers} currentUserRole={currentUser?.role as User["role"]} />
         </div>
     )
 }

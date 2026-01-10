@@ -9,7 +9,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDateDO } from "@/lib/utils"
 // import { format } from "date-fns" // Client side usage
 import { convertQuoteToInvoice } from "@/actions/quote-actions"
 import { ArrowRight, Printer } from "lucide-react"
@@ -32,7 +32,7 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                     {quotes.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No hay cotizaciones</TableCell></TableRow>}
                     {quotes.map((quote) => (
                         <TableRow key={quote.id}>
-                            <TableCell>{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell>{formatDateDO(quote.createdAt)}</TableCell>
                             <TableCell>{quote.clientName || quote.client?.name || "Cliente"}</TableCell>
                             <TableCell className="text-right font-bold">{formatCurrency(Number(quote.total))}</TableCell>
                             <TableCell>{quote.status}</TableCell>

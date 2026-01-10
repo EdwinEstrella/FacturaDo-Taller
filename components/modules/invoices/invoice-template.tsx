@@ -3,10 +3,42 @@ import { formatCurrency } from "@/lib/utils"
 
 interface InvoiceTemplateProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    invoice: any // Typed as any to avoid deep relation typing issues for now, or define a proper interface
+    invoice: any
+    settings?: {
+        companyName: string
+        companyRnc: string
+        companyPhone: string
+        companyAddress: string
+    }
 }
 
-export function InvoiceTemplate({ invoice }: InvoiceTemplateProps) {
+export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
+    const companyName = settings?.companyName || "FacturaDO"
+    const companyRnc = settings?.companyRnc || "101-00000-0"
+    const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
+    const companyPhone = settings?.companyPhone || "809-555-0101"
+
+    // Helper for Santo Domingo timezone date
+    const formatDate = (date: Date | string) => {
+        const d = new Date(date)
+        return new Intl.DateTimeFormat("es-DO", {
+            timeZone: "America/Santo_Domingo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(d)
+    }
+
+    const formatTime = (date: Date | string) => {
+        const d = new Date(date)
+        return new Intl.DateTimeFormat("es-DO", {
+            timeZone: "America/Santo_Domingo",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        }).format(d)
+    }
+
     return (
         <div className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">
             <style>{`
@@ -18,17 +50,17 @@ export function InvoiceTemplate({ invoice }: InvoiceTemplateProps) {
 
             <div className="text-center mb-4">
                 <Image src="/logo.png" alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
-                <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
-                <p>RNC: 101-00000-0</p>
-                <p>Av. Winston Churchill #101</p>
-                <p>Tel: 809-555-0101</p>
+                <h1 className="font-bold text-lg uppercase">{companyName}</h1>
+                <p>RNC: {companyRnc}</p>
+                <p>{companyAddress}</p>
+                <p>Tel: {companyPhone}</p>
             </div>
 
             <div className="border-b border-dashed border-black mb-2"></div>
 
             <div className="mb-2">
                 <p><strong>Factura:</strong> #{invoice.sequenceNumber}</p>
-                <p><strong>Fecha:</strong> {new Date(invoice.createdAt).toLocaleDateString()} {new Date(invoice.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                <p><strong>Fecha:</strong> {formatDate(invoice.createdAt)} {formatTime(invoice.createdAt)}</p>
                 <p><strong>Cliente:</strong> {invoice.clientName || "Consumidor Final"}</p>
                 {invoice.client?.rnc && <p><strong>RNC/Ced:</strong> {invoice.client.rnc}</p>}
                 <p><strong>Tipo:</strong> {invoice.ncfType || "Consumo"}</p>

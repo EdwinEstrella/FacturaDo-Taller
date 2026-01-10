@@ -12,6 +12,7 @@ const ProductSchema = z.object({
     minStock: z.coerce.number().int().min(0).optional(),
     sku: z.string().optional(),
     // isService: z.boolean().optional(), // Removed from input, derived from category
+    variants: z.string().optional(), // JSON string
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
 })
 
@@ -25,6 +26,7 @@ export async function createProduct(prevState: any, formData: FormData) {
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        variants: formData.get("variants"),
     })
 
     if (!validatedFields.success) {
@@ -34,12 +36,30 @@ export async function createProduct(prevState: any, formData: FormData) {
     }
 
     try {
-        const { category, ...rest } = validatedFields.data
+        const { category, variants, ...rest } = validatedFields.data
+        const parsedVariants = variants ? JSON.parse(variants) : []
+        const hasVariants = parsedVariants.length > 0
+
+        // Calculate total stock from variants if they exist
+        const totalStock = hasVariants
+            ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
+            : rest.stock
+
         await prisma.product.create({
             data: {
                 ...rest,
+                stock: totalStock,
                 category,
-                isService: category === "SERVICIO", // Auto-set based on category
+                isService: category === "SERVICIO",
+                hasVariants,
+                variants: {
+                    create: parsedVariants.map((v: any) => ({
+                        name: v.name,
+                        price: v.price,
+                        stock: v.stock,
+                        sku: v.sku
+                    }))
+                }
             },
         })
         revalidatePath("/products")
@@ -52,6 +72,7 @@ export async function createProduct(prevState: any, formData: FormData) {
 
 export async function getProducts() {
     return await prisma.product.findMany({
+        include: { variants: true },
         orderBy: { name: 'asc' }
     })
 }
@@ -66,6 +87,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        variants: formData.get("variants"),
     })
 
     if (!validatedFields.success) {
@@ -73,18 +95,80 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
     }
 
     try {
-        const { category, ...rest } = validatedFields.data
-        await prisma.product.update({
-            where: { id },
-            data: {
-                ...rest,
-                category,
-                isService: category === "SERVICIO",
-            },
+        const { category, variants, ...rest } = validatedFields.data
+        const parsedVariants = variants ? JSON.parse(variants) : []
+        const hasVariants = parsedVariants.length > 0
+
+        // Calculate total stock from variants if they exist
+        const totalStock = hasVariants
+            ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
+            : rest.stock
+
+        await prisma.$transaction(async (tx) => {
+            // Update main product
+            await tx.product.update({
+                where: { id },
+                data: {
+                    ...rest,
+                    stock: totalStock,
+                    category,
+                    isService: category === "SERVICIO",
+                    hasVariants,
+                },
+            })
+
+            if (hasVariants) {
+                // Delete missing variants (careful with existing sales, but user wants ability to manage this)
+                // For safety, we only delete variants that are NOT in the new list AND not used?
+                // For this MVP, we will try to sync.
+                const newVariantIds = parsedVariants.map((v: any) => v.id).filter(Boolean)
+
+                await tx.productVariant.deleteMany({
+                    where: {
+                        productId: id,
+                        id: { notIn: newVariantIds }
+                    }
+                })
+
+                // Upsert variants
+                for (const v of parsedVariants) {
+                    if (v.id) {
+                        await tx.productVariant.update({
+                            where: { id: v.id },
+                            data: {
+                                name: v.name,
+                                price: v.price,
+                                stock: v.stock,
+                                sku: v.sku
+                            }
+                        })
+                    } else {
+                        await tx.productVariant.create({
+                            data: {
+                                productId: id,
+                                name: v.name,
+                                price: v.price,
+                                stock: v.stock,
+                                sku: v.sku
+                            }
+                        })
+                    }
+                }
+            } else {
+                // If no variants in form, maybe user deleted all? 
+                // If hasVariants was true, we should clear?
+                // Let's rely on the flag.
+                // If switching from Variants to No Variants, we might want to keep or delete.
+                // For now, if variants array is empty, we assume no action or delete all? 
+                // Implementing: If empty array passed but productHAD variants, we delete all.
+                await tx.productVariant.deleteMany({ where: { productId: id } })
+            }
         })
+
         revalidatePath("/products")
         return { message: "Producto actualizado correctamente" }
-    } catch {
+    } catch (e) {
+        console.error(e)
         return { message: "Error al actualizar producto" }
     }
 }

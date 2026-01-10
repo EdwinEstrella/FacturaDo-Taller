@@ -15,7 +15,15 @@ interface EditInvoicePageProps {
     }
 }
 
+import { getCurrentUser } from "@/actions/auth-actions"
+import { redirect } from "next/navigation"
+
 export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
+    const user = await getCurrentUser()
+    if (!user || user.role !== "ADMIN") {
+        redirect("/invoices")
+    }
+
     const invoice = await getInvoiceById(params.id)
     const clients = await getClients()
     const products = await getProducts()

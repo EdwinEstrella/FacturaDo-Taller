@@ -86,7 +86,7 @@ const AVAILABLE_PERMISSIONS = {
     },
 }
 
-export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
+export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: User[], currentUserRole?: UserRole }) {
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
@@ -280,38 +280,37 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                     <Label className="font-semibold">Permisos Personalizados</Label>
                                     <p className="text-xs text-gray-500 mb-2">Selecciona los permisos específicos para este usuario:</p>
                                     {Object.entries(AVAILABLE_PERMISSIONS).map(([category, perms]) => (
-                                                                        <div key={category} className="space-y-2">
-                                                                            <p className="text-xs font-medium capitalize text-gray-700 border-b pb-1">
-                                                                                {category === "invoices" ? "Facturas" :
-                                                                                 category === "quotes" ? "Cotizaciones" :
-                                                                                 category === "clients" ? "Clientes" :
-                                                                                 category === "products" ? "Productos" :
-                                                                                 category === "reports" ? "Reportes" :
-                                                                                 category === "settings" ? "Configuración" : category}
-                                                                            </p>
-                                                                            <div className="grid grid-cols-2 gap-2 pl-2">
-                                                                                {Object.entries(perms).map(([key, label]) => {
-                                                                                    const permKey = `${category}.${key}`
-                                                                                    const isChecked = formData.customPermissions?.[permKey] || false
-                                                                                    return (
-                                                                                        <button
-                                                                                            key={permKey}
-                                                                                            type="button"
-                                                                                            onClick={() => togglePermission(permKey)}
-                                                                                            className={`flex items-center gap-2 p-2 text-xs rounded border transition ${
-                                                                                                isChecked
-                                                                                                    ? "bg-blue-50 border-blue-500 text-blue-700"
-                                                                                                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-                                                                                            }`}
-                                                                                        >
-                                                                                            <Check className={`h-3 w-3 ${isChecked ? "opacity-100" : "opacity-0"}`} />
-                                                                                            <span className="text-left">{label}</span>
-                                                                                        </button>
-                                                                                    )
-                                                                                })}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
+                                        <div key={category} className="space-y-2">
+                                            <p className="text-xs font-medium capitalize text-gray-700 border-b pb-1">
+                                                {category === "invoices" ? "Facturas" :
+                                                    category === "quotes" ? "Cotizaciones" :
+                                                        category === "clients" ? "Clientes" :
+                                                            category === "products" ? "Productos" :
+                                                                category === "reports" ? "Reportes" :
+                                                                    category === "settings" ? "Configuración" : category}
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2 pl-2">
+                                                {Object.entries(perms).map(([key, label]) => {
+                                                    const permKey = `${category}.${key}`
+                                                    const isChecked = formData.customPermissions?.[permKey] || false
+                                                    return (
+                                                        <button
+                                                            key={permKey}
+                                                            type="button"
+                                                            onClick={() => togglePermission(permKey)}
+                                                            className={`flex items-center gap-2 p-2 text-xs rounded border transition ${isChecked
+                                                                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                                                                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                                                                }`}
+                                                        >
+                                                            <Check className={`h-3 w-3 ${isChecked ? "opacity-100" : "opacity-0"}`} />
+                                                            <span className="text-left">{label}</span>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -340,14 +339,13 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                 <TableCell className="font-medium">{user.name || ""}</TableCell>
                                 <TableCell>{user.username}</TableCell>
                                 <TableCell>
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                        user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
-                                        user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
-                                        user.role === 'TECHNICIAN' ? 'bg-orange-100 text-orange-800' :
-                                        user.role === 'MANAGER' ? 'bg-indigo-100 text-indigo-800' :
-                                        user.role === 'CUSTOM' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-blue-100 text-blue-800'
-                                    }`}>
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
+                                            user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
+                                                user.role === 'TECHNICIAN' ? 'bg-orange-100 text-orange-800' :
+                                                    user.role === 'MANAGER' ? 'bg-indigo-100 text-indigo-800' :
+                                                        user.role === 'CUSTOM' ? 'bg-yellow-100 text-yellow-800' :
+                                                            'bg-blue-100 text-blue-800'
+                                        }`}>
                                         {getRoleName(user.role)}
                                     </span>
                                 </TableCell>
@@ -355,9 +353,11 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                     <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
                                         <Pencil className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(user.id)}>
-                                        <Trash className="h-4 w-4" />
-                                    </Button>
+                                    {currentUserRole !== 'SELLER' && (
+                                        <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(user.id)}>
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -425,11 +425,11 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                     <div key={category} className="space-y-2">
                                         <p className="text-xs font-medium capitalize text-gray-700 border-b pb-1">
                                             {category === "invoices" ? "Facturas" :
-                                             category === "quotes" ? "Cotizaciones" :
-                                             category === "clients" ? "Clientes" :
-                                             category === "products" ? "Productos" :
-                                             category === "reports" ? "Reportes" :
-                                             category === "settings" ? "Configuración" : category}
+                                                category === "quotes" ? "Cotizaciones" :
+                                                    category === "clients" ? "Clientes" :
+                                                        category === "products" ? "Productos" :
+                                                            category === "reports" ? "Reportes" :
+                                                                category === "settings" ? "Configuración" : category}
                                         </p>
                                         <div className="grid grid-cols-2 gap-2 pl-2">
                                             {Object.entries(perms).map(([key, label]) => {
@@ -440,11 +440,10 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                                         key={permKey}
                                                         type="button"
                                                         onClick={() => togglePermission(permKey)}
-                                                        className={`flex items-center gap-2 p-2 text-xs rounded border transition ${
-                                                            isChecked
+                                                        className={`flex items-center gap-2 p-2 text-xs rounded border transition ${isChecked
                                                                 ? "bg-blue-50 border-blue-500 text-blue-700"
                                                                 : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <Check className={`h-3 w-3 ${isChecked ? "opacity-100" : "opacity-0"}`} />
                                                         <span className="text-left">{label}</span>

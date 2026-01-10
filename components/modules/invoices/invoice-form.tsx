@@ -58,6 +58,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
     // Product Search State
     const [openProduct, setOpenProduct] = useState(false)
+    const [openClient, setOpenClient] = useState(false)
 
     const addItem = (product: SerializedProduct) => {
         setItems(prev => {
@@ -159,16 +160,50 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             </div>
                         )}
 
-                        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar Cliente" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {initialClients.map(c => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Popover open={openClient} onOpenChange={setOpenClient}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openClient}
+                                    className="w-full justify-between"
+                                >
+                                    {selectedClientId
+                                        ? initialClients.find((client) => client.id === selectedClientId)?.name
+                                        : "Seleccionar Cliente..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Buscar cliente por nombre o RNC..." />
+                                    <CommandEmpty>Cliente no encontrado.</CommandEmpty>
+                                    <CommandGroup>
+                                        {initialClients.map((client) => (
+                                            <CommandItem
+                                                key={client.id}
+                                                value={`${client.name} ${client.rnc || ""}`}
+                                                onSelect={() => {
+                                                    setSelectedClientId(client.id)
+                                                    setOpenClient(false)
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        selectedClientId === client.id ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                <div className="flex flex-col">
+                                                    <span>{client.name}</span>
+                                                    {client.rnc && <span className="text-xs text-muted-foreground">RNC: {client.rnc}</span>}
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                     </CardContent>
                 </Card>
 
@@ -190,7 +225,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                         {initialProducts.map((product) => (
                                             <CommandItem
                                                 key={product.id}
-                                                value={product.name}
+                                                value={`${product.name} ${product.sku || ""}`}
                                                 onSelect={() => addItem(product as SerializedProduct)}
                                             >
                                                 <Check
