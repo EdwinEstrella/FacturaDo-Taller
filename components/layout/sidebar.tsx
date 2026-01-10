@@ -93,23 +93,6 @@ export function Sidebar({ user }: SidebarProps) {
         })
     }, [role])
 
-    if (!mounted) {
-        // Return a skeleton/placeholder that matches the server render
-        return (
-            <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
-                <div className="px-3 py-2 flex-1">
-                    <Link href="/" className="flex items-center pl-3 mb-8">
-                        <h1 className="text-2xl font-bold">Factura<span className="text-blue-500">DO</span></h1>
-                    </Link>
-                    <div className="mb-6 px-3">
-                        <div className="h-4 w-24 bg-zinc-700 rounded animate-pulse mb-2"></div>
-                        <div className="h-4 w-16 bg-zinc-700 rounded animate-pulse"></div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
             <div className="px-3 py-2 flex-1">
@@ -118,20 +101,29 @@ export function Sidebar({ user }: SidebarProps) {
                 </Link>
 
                 <div className="mb-6 px-3">
-                    <p className="text-xs text-zinc-400 uppercase font-bold mb-1">
-                        {user?.name || "Usuario"}
-                    </p>
-                    <p className="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded w-fit capitalize">
-                        {role === 'SELLER' ? 'Ventas' :
-                         (role === 'ACCOUNTANT' ? 'Contabilidad' :
-                         (role === 'TECHNICIAN' ? 'Técnico' :
-                         (role === 'MANAGER' ? 'Supervisor' :
-                         (role === 'CUSTOM' ? 'Personalizado' : 'Administrador'))))}
-                    </p>
+                    {!mounted ? (
+                        <>
+                            <div className="h-4 w-24 bg-zinc-700 rounded animate-pulse mb-2"></div>
+                            <div className="h-4 w-16 bg-zinc-700 rounded animate-pulse"></div>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-xs text-zinc-400 uppercase font-bold mb-1">
+                                {user?.name || "Usuario"}
+                            </p>
+                            <p className="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded w-fit capitalize">
+                                {role === 'SELLER' ? 'Ventas' :
+                                    (role === 'ACCOUNTANT' ? 'Contabilidad' :
+                                        (role === 'TECHNICIAN' ? 'Técnico' :
+                                            (role === 'MANAGER' ? 'Supervisor' :
+                                                (role === 'CUSTOM' ? 'Personalizado' : 'Administrador'))))}
+                            </p>
+                        </>
+                    )}
                 </div>
 
                 <div className="space-y-1">
-                    {filteredRoutes.map((route) => (
+                    {mounted && filteredRoutes.map((route) => (
                         <Link
                             key={route.href}
                             href={route.href}
@@ -150,20 +142,22 @@ export function Sidebar({ user }: SidebarProps) {
                 </div>
             </div>
 
-            <div className="px-3 py-2">
-                <button
-                    onClick={async () => {
-                        const { logout } = await import("@/actions/auth-actions")
-                        await logout()
-                    }}
-                    className="text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition text-zinc-400"
-                >
-                    <div className="flex items-center flex-1">
-                        <LogOut className="h-5 w-5 mr-3 text-red-500" />
-                        Cerrar Sesión
-                    </div>
-                </button>
-            </div>
+            {mounted && (
+                <div className="px-3 py-2">
+                    <button
+                        onClick={async () => {
+                            const { logout } = await import("@/actions/auth-actions")
+                            await logout()
+                        }}
+                        className="text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition text-zinc-400"
+                    >
+                        <div className="flex items-center flex-1">
+                            <LogOut className="h-5 w-5 mr-3 text-red-500" />
+                            Cerrar Sesión
+                        </div>
+                    </button>
+                </div>
+            )}
         </div>
     )
 }
