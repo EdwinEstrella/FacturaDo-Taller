@@ -22,7 +22,18 @@ export async function getTechnicianDispatches(technicianId: string) {
         orderBy: { createdAt: 'asc' }
     })
 
-    return dispatches
+    // Serialize Decimal to number for client components
+    return dispatches.map(dispatch => ({
+        ...dispatch,
+        invoice: dispatch.invoice ? {
+            ...dispatch.invoice,
+            total: Number(dispatch.invoice.total),
+            items: dispatch.invoice.items.map(item => ({
+                ...item,
+                price: Number(item.price)
+            }))
+        } : null
+    }))
 }
 
 export async function updateDispatchStatus(
@@ -75,7 +86,7 @@ export async function updateDispatchStatus(
 }
 
 export async function getDispatchById(dispatchId: string) {
-    return prisma.dispatch.findUnique({
+    const dispatch = await prisma.dispatch.findUnique({
         where: { id: dispatchId },
         include: {
             invoice: {
@@ -88,4 +99,19 @@ export async function getDispatchById(dispatchId: string) {
             technician: true
         }
     })
+
+    if (!dispatch) return null
+
+    // Serialize Decimal to number for client components
+    return {
+        ...dispatch,
+        invoice: dispatch.invoice ? {
+            ...dispatch.invoice,
+            total: Number(dispatch.invoice.total),
+            items: dispatch.invoice.items.map(item => ({
+                ...item,
+                price: Number(item.price)
+            }))
+        } : null
+    }
 }

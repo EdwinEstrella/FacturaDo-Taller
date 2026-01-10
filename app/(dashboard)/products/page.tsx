@@ -11,9 +11,20 @@ import { formatCurrency } from "@/lib/utils"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
 import { Badge } from "@/components/ui/badge"
+import type { Product } from "@prisma/client"
+
+interface SerializedProduct extends Omit<Product, 'price'> {
+    price: number
+}
 
 export default async function ProductsPage() {
     const products = await getProducts()
+
+    // Serialize Decimal to number for client components
+    const serializedProducts: SerializedProduct[] = products.map(product => ({
+        ...product,
+        price: Number(product.price)
+    }))
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -37,14 +48,14 @@ export default async function ProductsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {products.map((product) => (
+                        {serializedProducts.map((product) => (
                             <TableRow key={product.id}>
                                 <TableCell className="font-medium">{product.name}</TableCell>
                                 <TableCell>
                                     <Badge variant="outline">{product.category}</Badge>
                                 </TableCell>
                                 <TableCell>{product.sku || "-"}</TableCell>
-                                <TableCell>{formatCurrency(Number(product.price))}</TableCell>
+                                <TableCell>{formatCurrency(product.price)}</TableCell>
                                 <TableCell>
                                     {product.isService ? (
                                         <span className="text-muted-foreground italic">Servicio</span>
@@ -63,7 +74,7 @@ export default async function ProductsPage() {
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {products.length === 0 && (
+                        {serializedProducts.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center h-24">No hay productos registrados.</TableCell>
                             </TableRow>

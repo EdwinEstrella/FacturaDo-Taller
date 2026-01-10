@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 // Optimización: importar solo los iconos necesarios para tree-shaking
 import {
     LayoutDashboard,
@@ -56,7 +56,13 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
+    const [mounted, setMounted] = useState(false)
     const role = user?.role || "SELLER"
+
+    // Prevent hydration mismatch by only rendering client-dependent content after mount
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     // Filter Routes based on Role - use useMemo to prevent recalculation
     const filteredRoutes = useMemo(() => {
@@ -86,6 +92,23 @@ export function Sidebar({ user }: SidebarProps) {
             return false
         })
     }, [role])
+
+    if (!mounted) {
+        // Return a skeleton/placeholder that matches the server render
+        return (
+            <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
+                <div className="px-3 py-2 flex-1">
+                    <Link href="/" className="flex items-center pl-3 mb-8">
+                        <h1 className="text-2xl font-bold">Factura<span className="text-blue-500">DO</span></h1>
+                    </Link>
+                    <div className="mb-6 px-3">
+                        <div className="h-4 w-24 bg-zinc-700 rounded animate-pulse mb-2"></div>
+                        <div className="h-4 w-16 bg-zinc-700 rounded animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">

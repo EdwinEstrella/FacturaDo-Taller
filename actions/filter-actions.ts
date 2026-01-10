@@ -145,7 +145,11 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
     // Convertir Decimal a number
     return invoices.map(invoice => ({
         ...invoice,
-        total: Number(invoice.total)
+        total: Number(invoice.total),
+        items: invoice.items.map(item => ({
+            ...item,
+            price: Number(item.price)
+        }))
     }))
 }
 

@@ -65,13 +65,23 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 export async function getQuotes() {
-    return await prisma.quote.findMany({
+    const quotes = await prisma.quote.findMany({
         include: {
             client: true,
-            items: true // We might need items for summary or conversion
+            items: true
         },
         orderBy: { createdAt: 'desc' }
     })
+
+    // Serialize Decimal to number for client components
+    return quotes.map(quote => ({
+        ...quote,
+        total: Number(quote.total),
+        items: quote.items.map(item => ({
+            ...item,
+            price: Number(item.price)
+        }))
+    }))
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {

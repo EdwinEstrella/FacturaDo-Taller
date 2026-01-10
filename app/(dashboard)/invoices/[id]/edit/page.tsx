@@ -3,6 +3,11 @@ import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import { notFound } from "next/navigation"
+import type { Product } from "@prisma/client"
+
+interface SerializedProduct extends Omit<Product, 'price'> {
+    price: number
+}
 
 interface EditInvoicePageProps {
     params: {
@@ -19,13 +24,19 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         notFound()
     }
 
+    // Serialize Decimal to number for client component
+    const serializedProducts: SerializedProduct[] = products.map(product => ({
+        ...product,
+        price: Number(product.price)
+    }))
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Editar Factura #{invoice.sequenceNumber}</h2>
             </div>
             <InvoiceForm
-                initialProducts={products}
+                initialProducts={serializedProducts}
                 initialClients={clients}
                 initialData={invoice}
             />

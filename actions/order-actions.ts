@@ -35,7 +35,7 @@ export async function updateWorkOrderStatus(id: number, status: string) {
 }
 
 export async function getWorkOrders() {
-    return await prisma.workOrder.findMany({
+    const workOrders = await prisma.workOrder.findMany({
         include: {
             invoice: {
                 include: { items: true, client: true }
@@ -43,4 +43,17 @@ export async function getWorkOrders() {
         },
         orderBy: { createdAt: 'desc' }
     })
+
+    // Serialize Decimal to number for client components
+    return workOrders.map(order => ({
+        ...order,
+        invoice: order.invoice ? {
+            ...order.invoice,
+            total: Number(order.invoice.total),
+            items: order.invoice.items.map(item => ({
+                ...item,
+                price: Number(item.price)
+            }))
+        } : null
+    }))
 }
