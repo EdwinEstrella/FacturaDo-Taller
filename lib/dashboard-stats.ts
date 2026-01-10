@@ -165,3 +165,73 @@ export async function getInvoiceComparison(): Promise<ComparisonResult & { text:
         text,
     }
 }
+
+/**
+ * Obtiene el historial de ingresos de los últimos 6 meses para el gráfico
+ */
+export async function getFinancialHistory() {
+    const today = new Date()
+    const months: { name: string; date: Date; total: number }[] = []
+
+    // Generar nombres de los últimos 6 meses
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+        months.push({
+            name: d.toLocaleString('es-ES', { month: 'short' }).charAt(0).toUpperCase() + d.toLocaleString('es-ES', { month: 'short' }).slice(1),
+            date: d,
+            total: 0
+        })
+    }
+
+    const startPeriod = months[0].date
+
+    // Agrupar facturas por mes
+    const invoices = await prisma.invoice.groupBy({
+        by: ['createdAt'],
+        where: {
+            status: 'PAID',
+            createdAt: {
+                gte: startPeriod
+            }
+        },
+        _sum: {
+            total: true
+        }
+    })
+
+    // Mapear resultados a los meses generados
+    // Nota: groupBy de prisma retorna fechas exactas, necesitamos sumarizar manualmente o usar raw query si es mucho dato.
+    // Para simplificar y mantener compatibilidad con cualquier DB, procesamos en JS (asumiendo volumen razonable)
+    // O mejor, iteramos las facturas para sumar al mes correspondiente.
+
+    // Fetch all paid invoices in range (more precise aggregation control)
+    const paidInvoices = await prisma.invoice.findMany({
+        where: {
+            status: 'PAID',
+            createdAt: {
+                gte: startPeriod
+            }
+        },
+        select: {
+            createdAt: true,
+            total: true
+        }
+    })
+
+    paidInvoices.forEach(invoice => {
+        const invoiceDate = new Date(invoice.createdAt)
+        const monthIndex = months.findIndex(m =>
+            m.date.getMonth() === invoiceDate.getMonth() &&
+            m.date.getFullYear() === invoiceDate.getFullYear()
+        )
+
+        if (monthIndex !== -1) {
+            months[monthIndex].total += Number(invoice.total)
+        }
+    })
+
+    return months.map(m => ({
+        name: m.name,
+        total: Math.round(m.total)
+    }))
+}

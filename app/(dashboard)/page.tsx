@@ -6,11 +6,13 @@ import {
     getRevenueComparison,
     getClientComparison,
     getInvoiceComparison,
+    getFinancialHistory,
 } from "@/lib/dashboard-stats"
+import { Overview } from "@/components/dashboard/overview"
 
 export default async function DashboardPage() {
     // Obtener datos reales con comparativas
-    const [, , productCount, revenueStats, clientStats, invoiceStats] =
+    const [, , productCount, revenueStats, clientStats, invoiceStats, financialHistory] =
         await Promise.all([
             prisma.invoice.count(),
             prisma.client.count(),
@@ -18,6 +20,7 @@ export default async function DashboardPage() {
             getRevenueComparison(),
             getClientComparison(),
             getInvoiceComparison(),
+            getFinancialHistory(),
         ])
 
     return (
@@ -95,6 +98,14 @@ export default async function DashboardPage() {
                     </CardContent>
                 </Card>
             </div>
+            <Card className="col-span-4">
+                <CardHeader>
+                    <CardTitle>Resumen</CardTitle>
+                </CardHeader>
+                <CardContent className="pl-2">
+                    <Overview data={financialHistory} />
+                </CardContent>
+            </Card>
         </div>
     )
 }
