@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
-import { markAsPaid } from "@/actions/invoice-actions"
+// import { markAsPaid } from "@/actions/invoice-actions" // Unused
 import { Button } from "@/components/ui/button"
+import { PaymentDialog } from "@/components/modules/receivables/payment-dialog"
 import {
     Table,
     TableBody,
@@ -9,7 +10,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { CheckCircle2 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 export default async function ReceivablesPage() {
@@ -42,16 +42,9 @@ export default async function ReceivablesPage() {
                                 <TableCell>#{inv.sequenceNumber}</TableCell>
                                 <TableCell>{inv.clientName}</TableCell>
                                 <TableCell>{inv.client?.phone || "-"}</TableCell>
-                                <TableCell className="text-right font-bold text-red-500">{formatCurrency(Number(inv.total))}</TableCell>
+                                <TableCell className="text-right font-bold text-red-500">{formatCurrency(Number(inv.balance))}</TableCell>
                                 <TableCell className="text-right">
-                                    <form action={async () => {
-                                        "use server"
-                                        await markAsPaid(inv.id)
-                                    }}>
-                                        <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
-                                            <CheckCircle2 className="mr-2 h-4 w-4" /> Marcar Pagado
-                                        </Button>
-                                    </form>
+                                    <PaymentDialog invoice={inv} />
                                 </TableCell>
                             </TableRow>
                         ))}

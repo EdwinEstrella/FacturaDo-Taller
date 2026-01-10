@@ -21,7 +21,9 @@ const InvoiceSchema = z.object({
     total: z.number().min(0),
     paymentMethod: z.string().optional(),
     ncfType: z.string().optional(),
-    // Add other fields as needed
+    shippingCost: z.number().min(0).optional(),
+    deliveryDate: z.date().optional(),
+    notes: z.string().optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -48,7 +50,9 @@ export async function createInvoice(data: InvoiceFormData) {
         }
     }
 
-    const { clientId, clientName, items, total, paymentMethod } = validated.data
+    const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes } = validated.data
+
+    const isCredit = paymentMethod === "CREDIT"
 
     try {
         // 1. Create Invoice
@@ -57,8 +61,12 @@ export async function createInvoice(data: InvoiceFormData) {
                 clientId: clientId,
                 clientName: clientName, // Snapshot
                 total: total,
-                status: "PAID", // Direct invoice acts as POS sale usually
+                status: isCredit ? "PENDING" : "PAID",
                 paymentMethod: paymentMethod,
+                shippingCost: shippingCost || 0,
+                deliveryDate: deliveryDate,
+                notes: notes,
+                balance: isCredit ? total : 0,
                 createdById: user.id,
                 items: {
                     create: items.map(item => ({
@@ -258,7 +266,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
     const validated = InvoiceSchema.safeParse(data)
     if (!validated.success) return { success: false, error: validated.error.message }
 
-    const { clientId, clientName, items, total } = validated.data
+    const { clientId, clientName, items, total, shippingCost, deliveryDate, notes } = validated.data
 
     try {
         await prisma.$transaction(async (tx) => {
@@ -286,6 +294,9 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                     clientId,
                     clientName,
                     total,
+                    shippingCost: shippingCost || 0,
+                    deliveryDate: deliveryDate,
+                    notes: notes,
                     // Don't update sequenceNumber, createdBy, etc.
                 }
             })

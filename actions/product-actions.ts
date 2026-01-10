@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
 
 const ProductSchema = z.object({
     name: z.string().min(1),
@@ -42,6 +43,7 @@ export async function createProduct(prevState: any, formData: FormData) {
 
         // Calculate total stock from variants if they exist
         const totalStock = hasVariants
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
@@ -50,9 +52,10 @@ export async function createProduct(prevState: any, formData: FormData) {
                 ...rest,
                 stock: totalStock,
                 category,
-                isService: category === "SERVICIO",
+                isService: category === "SERVICIO", // Auto-set based on category
                 hasVariants,
                 variants: {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     create: parsedVariants.map((v: any) => ({
                         name: v.name,
                         price: v.price,
@@ -101,6 +104,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
 
         // Calculate total stock from variants if they exist
         const totalStock = hasVariants
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
@@ -121,6 +125,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                 // Delete missing variants (careful with existing sales, but user wants ability to manage this)
                 // For safety, we only delete variants that are NOT in the new list AND not used?
                 // For this MVP, we will try to sync.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const newVariantIds = parsedVariants.map((v: any) => v.id).filter(Boolean)
 
                 await tx.productVariant.deleteMany({

@@ -23,11 +23,13 @@ import {
     Hammer,
     ChevronDown,
     ChevronRight,
+    DollarSign,
 } from "lucide-react"
 
 // Definir tipo para las rutas
 type Route = {
     label: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any
     href?: string
     color?: string
@@ -54,6 +56,8 @@ const routes: Route[] = [
     { label: "Notas de Crédito", icon: FileText, href: "/credit-notes", color: "text-red-600" },
     { label: "Contabilidad / Cierre", icon: PieChart, href: "/accounting", color: "text-green-600" },
     { label: "Caja Chica", icon: PiggyBank, href: "/petty-cash", color: "text-pink-500" },
+    { label: "Cierre del Día", icon: FileText, href: "/daily-close", color: "text-emerald-600" },
+    { label: "Liquidaciones", icon: DollarSign, href: "/liquidations", color: "text-yellow-600" },
     {
         label: "Configuración",
         icon: Settings,
@@ -124,7 +128,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobile }: Sidebar
             if (role === 'ADMIN') return true
 
             if (role === 'SELLER' || role === 'CUSTOM') {
-                const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician']
+                const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician', '/liquidations']
                 return !blocked.includes(href)
             }
 
@@ -139,6 +143,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobile }: Sidebar
             }
 
             if (role === 'MANAGER') {
+                // Manager can see Liquidations
                 const blocked = ['/settings/users']
                 return !blocked.includes(href)
             }

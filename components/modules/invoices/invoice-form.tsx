@@ -4,7 +4,6 @@ import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import {
@@ -29,6 +28,15 @@ import { createQuote } from "@/actions/quote-actions"
 import type { Client, Product } from "@prisma/client"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { DatePicker } from "@/components/ui/date-picker"
+import { Textarea } from "@/components/ui/textarea"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 interface SerializedProduct extends Omit<Product, 'price'> {
     price: number
@@ -41,13 +49,26 @@ interface InvoiceFormProps {
     initialData?: any // Optional initial data for editing
 }
 
+interface InvoiceItemState {
+    productId: string
+    productName: string
+    price: number
+    quantity: number
+}
+
 export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
-    // Initialize items from initialData if exists
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [items, setItems] = useState<any[]>(initialData?.items || [])
+
+    const [items, setItems] = useState<InvoiceItemState[]>(initialData?.items || [])
     const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
     const [isPending, startTransition] = useTransition()
     const [showPreview, setShowPreview] = useState(false)
+
+    // New Fields State
+    const [shippingCost, setShippingCost] = useState<number>(initialData?.shippingCost || 0)
+    const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(initialData?.deliveryDate ? new Date(initialData.deliveryDate) : undefined)
+    const [notes, setNotes] = useState<string>(initialData?.notes || "")
+    const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || "CASH")
+    const [amountTendered, setAmountTendered] = useState<number>(0)
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -80,7 +101,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         setItems(prev => prev.map(p => p.productId === id ? { ...p, quantity: q } : p))
     }
 
-    const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+    const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+    const total = subtotal + shippingCost
+    const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
     const handlePreview = () => {
         if (!selectedClientId) return toast.error("Seleccione un cliente")
@@ -104,7 +127,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     clientName: selectedClient.name,
                     items,
                     total,
-                    paymentMethod: initialData.paymentMethod
+                    paymentMethod,
+                    shippingCost,
+                    deliveryDate,
+                    notes
                 })
             } else {
                 // Create Mode
@@ -112,6 +138,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     res = await createQuote({
                         clientId: selectedClientId,
                         items,
+                        // Quote doesn't support shipping/notes yet in schema? 
+                        // Wait, I didn't update Quote schema. Let's ignore new fields for Quote or just pass them if schema allowed (it doesn't).
+                        // I will ignore for Quote for now as user asked for Invoice enhancements.
                     })
                 } else {
                     res = await createInvoice({
@@ -119,7 +148,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         clientName: selectedClient.name,
                         items,
                         total,
-                        paymentMethod: "CASH"
+                        paymentMethod,
+                        shippingCost,
+                        deliveryDate,
+                        notes
                     })
                 }
             }
@@ -245,6 +277,37 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         </Popover>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardContent className="p-4 space-y-4">
+                        <h3 className="font-semibold">Detalles de Facturación y Envío</h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Costo de Envío</label>
+                                <Input
+                                    type="number"
+                                    value={shippingCost}
+                                    onChange={(e) => setShippingCost(Number(e.target.value))}
+                                    min={0}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Fecha de Entrega</label>
+                                <DatePicker date={deliveryDate} setDate={setDeliveryDate} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Notas / Observaciones</label>
+                            <Textarea
+                                placeholder="Instrucciones de entrega, notas internas..."
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="space-y-6">
@@ -277,11 +340,62 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             {items.length === 0 && <p className="text-center text-muted-foreground py-8">El carrito está vacío</p>}
                         </div>
                     </CardContent>
-                    <div className="p-4 border-t bg-gray-50 rounded-b-lg">
-                        <div className="flex justify-between items-center text-lg font-bold">
-                            <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
+                    <div className="p-4 border-t bg-gray-50 rounded-b-lg space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                                <span>Subtotal</span>
+                                <span>{formatCurrency(subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-muted-foreground">
+                                <span>Envío</span>
+                                <span>{formatCurrency(shippingCost)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
+                                <span>Total</span>
+                                <span>{formatCurrency(total)}</span>
+                            </div>
                         </div>
+
+                        {/* Payment Details Section */}
+                        {!isEdit && type !== "QUOTE" && (
+                            <div className="border-t pt-4 space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Método de Pago</label>
+                                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="CASH">Efectivo</SelectItem>
+                                            <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                                            <SelectItem value="CARD">Tarjeta</SelectItem>
+                                            <SelectItem value="CREDIT">Crédito</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {paymentMethod === "CASH" && (
+                                    <div className="grid grid-cols-2 gap-4 bg-green-50 p-3 rounded-md border border-green-100">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-green-700">Recibido (Efectivo)</label>
+                                            <Input
+                                                type="number"
+                                                className="bg-white"
+                                                value={amountTendered || ""}
+                                                onChange={(e) => setAmountTendered(Number(e.target.value))}
+                                            />
+                                        </div>
+                                        <div className="space-y-1 text-right">
+                                            <label className="text-xs font-bold text-green-700 block">Devuelta</label>
+                                            <div className="text-xl font-bold text-green-800 h-9 flex items-center justify-end">
+                                                {formatCurrency(change)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {!isEdit && (
                             <div className="flex gap-2 mt-4">
                                 <Button
@@ -383,11 +497,25 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             </div>
 
                             {/* Totals */}
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <div className="flex justify-between items-center text-xl font-bold">
+                            <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span>Subtotal:</span>
+                                    <span>{formatCurrency(subtotal)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span>Envío:</span>
+                                    <span>{formatCurrency(shippingCost)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xl font-bold border-t border-blue-200 pt-2">
                                     <span>Total a Pagar:</span>
                                     <span className="text-blue-600">{formatCurrency(total)}</span>
                                 </div>
+                                {paymentMethod === "CASH" && amountTendered > 0 && (
+                                    <div className="flex justify-between text-sm text-green-700 font-medium pt-2">
+                                        <span>Recibido: {formatCurrency(amountTendered)}</span>
+                                        <span>Devuelta: {formatCurrency(change)}</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Actions */}

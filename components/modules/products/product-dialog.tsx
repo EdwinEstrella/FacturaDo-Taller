@@ -39,8 +39,17 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
+
+    interface Variant {
+        id?: string
+        name: string
+        price: number
+        stock: number
+        sku: string
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [variants, setVariants] = useState<any[]>((product as any)?.variants || [])
+    const [variants, setVariants] = useState<Variant[]>((product as any)?.variants || [])
 
     const addVariant = () => {
         setVariants([...variants, { name: "", price: Number(product?.price || 0), stock: 0, sku: "" }])
@@ -50,9 +59,10 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
         setVariants(variants.filter((_, i) => i !== index))
     }
 
-    const updateVariant = (index: number, field: string, value: any) => {
+    const updateVariant = (index: number, field: keyof Variant, value: string | number) => {
         const newVariants = [...variants]
-        newVariants[index] = { ...newVariants[index], [field]: value }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        newVariants[index] = { ...newVariants[index], [field]: value } as any
         setVariants(newVariants)
     }
 
