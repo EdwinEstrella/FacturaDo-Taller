@@ -63,7 +63,7 @@ export function DispatchReportPrint({ dispatches }: DispatchReportPrintProps) {
             {dispatches.map((dispatch) => {
                 const invoice = dispatch.invoice
                 const client = invoice?.client
-                const items = invoice?.items || []
+                const items: { id: string; productName: string; quantity: number }[] = invoice?.items || []
 
                 return (
                     <div key={dispatch.id} className="mb-8 p-4 border-2 border-gray-300 rounded-lg">
@@ -78,18 +78,17 @@ export function DispatchReportPrint({ dispatches }: DispatchReportPrintProps) {
                                 </p>
                             </div>
                             <div className="text-right">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    dispatch.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                    dispatch.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                                    dispatch.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                                    dispatch.status === 'INSTALLED' ? 'bg-emerald-100 text-emerald-800' :
-                                    'bg-gray-100 text-gray-800'
-                                }`}>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${dispatch.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                        dispatch.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                                            dispatch.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                                                dispatch.status === 'INSTALLED' ? 'bg-emerald-100 text-emerald-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                    }`}>
                                     {dispatch.status === 'PENDING' ? 'PENDIENTE' :
-                                     dispatch.status === 'IN_PROGRESS' ? 'EN PROGRESO' :
-                                     dispatch.status === 'DELIVERED' ? 'ENTREGADO' :
-                                     dispatch.status === 'INSTALLED' ? 'INSTALADO' :
-                                     dispatch.status}
+                                        dispatch.status === 'IN_PROGRESS' ? 'EN PROGRESO' :
+                                            dispatch.status === 'DELIVERED' ? 'ENTREGADO' :
+                                                dispatch.status === 'INSTALLED' ? 'INSTALADO' :
+                                                    dispatch.status}
                                 </span>
                             </div>
                         </div>

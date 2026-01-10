@@ -22,7 +22,7 @@ interface DispatchWithInvoice {
             productName: string
             quantity: number
         }>
-    }
+    } | null
     notes?: string | null
 }
 

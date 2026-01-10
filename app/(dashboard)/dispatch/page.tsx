@@ -74,12 +74,16 @@ export default function DispatchPage() {
         return <div className="p-8">Cargando...</div>
     }
 
-    const allDispatches = [...dispatches, ...invoices.filter((inv) => !inv.dispatched).map((inv) => ({
-        id: inv.id,
-        invoice: inv,
-        status: 'PENDING',
-        createdAt: inv.createdAt
-    }))]
+    const allDispatches: (Dispatch | (Invoice & { status: string, technician?: undefined, invoice: Invoice }))[] = [
+        ...dispatches,
+        ...invoices.filter((inv) => !inv.dispatched).map((inv) => ({
+            id: inv.id,
+            invoice: inv,
+            status: 'PENDING',
+            createdAt: inv.createdAt,
+            // explicitly undefined to match the union type if needed, or rely on TS structural typing
+        }))
+    ]
 
     return (
         <>
@@ -112,7 +116,7 @@ export default function DispatchPage() {
                                 </TableRow>
                             )}
                             {allDispatches.map((dispatch) => {
-                                const invoice = dispatch.invoice || (dispatch as any)
+                                const invoice = dispatch.invoice || (dispatch as unknown as Invoice)
                                 const client = invoice?.client
                                 const status: string = dispatch.status || 'PENDING'
                                 const statusColors: Record<string, string> = {
@@ -137,17 +141,19 @@ export default function DispatchPage() {
                                                 {statusLabels[status] || status}
                                             </span>
                                         </TableCell>
-                                        <TableCell>#{invoice.sequenceNumber}</TableCell>
-                                        <TableCell>{invoice.clientName || client?.name}</TableCell>
+                                        <TableCell>#{invoice?.sequenceNumber}</TableCell>
+                                        <TableCell>{invoice?.clientName || client?.name}</TableCell>
                                         <TableCell>{client?.address || "N/A"}</TableCell>
-                                        <TableCell>{(dispatch as any).technician?.name || "-"}</TableCell>
+                                        <TableCell>{dispatch.technician?.name || "-"}</TableCell>
                                         <TableCell className="text-right">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={async () => {
-                                                    await markAsDispatched(invoice.id)
-                                                    window.location.reload()
+                                                    if (invoice?.id) {
+                                                        await markAsDispatched(invoice.id)
+                                                        window.location.reload()
+                                                    }
                                                 }}
                                             >
                                                 <Truck className="mr-2 h-4 w-4" /> Despachar

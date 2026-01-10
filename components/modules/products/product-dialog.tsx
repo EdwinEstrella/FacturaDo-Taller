@@ -35,7 +35,7 @@ function SubmitButton({ isEdit }: { isEdit: boolean }) {
     )
 }
 
-export function ProductDialog({ product }: { product?: Product }) {
+export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & { price: number | Product['price'] } }) {
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")

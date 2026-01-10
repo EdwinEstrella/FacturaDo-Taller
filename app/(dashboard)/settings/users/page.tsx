@@ -11,7 +11,8 @@ export default async function UsersPage() {
     // Convert Prisma Role to UserRole
     const convertedUsers: User[] = safeUsers.map((user) => ({
         ...user,
-        role: user.role as User["role"]
+        role: user.role as User["role"],
+        customPermissions: user.customPermissions as Record<string, unknown> | null
     }))
 
     return (
