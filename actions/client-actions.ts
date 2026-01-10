@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { addClientHistoryEntry } from "./client-history-actions"
 
 const ClientSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -29,9 +30,18 @@ export async function createClient(prevState: any, formData: FormData) {
     }
 
     try {
-        await prisma.client.create({
+        const client = await prisma.client.create({
             data: validatedFields.data,
         })
+
+        // Agregar al historial
+        await addClientHistoryEntry(
+            client.id,
+            "CREATED",
+            `Cliente creado: ${client.name}`,
+            { ...validatedFields.data }
+        )
+
         revalidatePath("/clients")
         return { message: "Client created successfully", success: true }
     } catch {
@@ -56,10 +66,19 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
     }
 
     try {
-        await prisma.client.update({
+        const client = await prisma.client.update({
             where: { id },
             data: validatedFields.data,
         })
+
+        // Agregar al historial
+        await addClientHistoryEntry(
+            client.id,
+            "UPDATED",
+            `Cliente actualizado: ${client.name}`,
+            { changes: validatedFields.data }
+        )
+
         revalidatePath("/clients")
         return { message: "Client updated successfully", success: true }
     } catch {

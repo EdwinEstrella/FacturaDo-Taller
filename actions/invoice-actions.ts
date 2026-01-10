@@ -2,9 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-// import { redirect } from "next/navigation" 
+// import { redirect } from "next/navigation"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
+import { addClientHistoryEntry } from "./client-history-actions"
 
 const InvoiceItemSchema = z.object({
     productId: z.string(),
@@ -80,6 +81,16 @@ export async function createInvoice(data: InvoiceFormData) {
                     data: { stock: { decrement: item.quantity } }
                 })
             }
+        }
+
+        // Agregar al historial del cliente
+        if (clientId) {
+            await addClientHistoryEntry(
+                clientId,
+                "INVOICE_CREATED",
+                `Factura creada por ${Number(total).toFixed(2)}`,
+                { invoiceId: invoice.id, invoiceNumber: invoice.sequenceNumber }
+            )
         }
 
         revalidatePath("/invoices")

@@ -1,6 +1,7 @@
 import { getClients } from "@/actions/client-actions"
 import { ClientDialog } from "@/components/modules/clients/client-dialog"
 import { DeleteClientDialog } from "@/components/modules/clients/delete-client-dialog"
+import { ClientHistoryDialog } from "@/components/modules/clients/client-history-dialog"
 import {
     Table,
     TableBody,
@@ -48,6 +49,7 @@ export default async function ClientsPage() {
                                 <TableCell>{client.address}</TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
+                                        <ClientHistoryDialog client={client} />
                                         <ClientDialog client={client} />
                                         <DeleteClientDialog clientId={client.id} clientName={client.name} />
                                     </div>

@@ -9,16 +9,29 @@ datasource db {
 }
 
 model Client {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   name      String
-  rnc       String?  // RNC or Cedula
+  rnc       String?        // RNC or Cedula
   address   String?
   phone     String?
   email     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   invoices  Invoice[]
   quotes    Quote[]
+  history   ClientHistory[]
+}
+
+model ClientHistory {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  action      String   // CREATED, UPDATED, INVOICE_CREATED, INVOICE_PAID, QUOTE_CREATED
+  description String?  // Detalles de la acción
+  metadata    String?  // JSON para datos adicionales
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, createdAt])
 }
 
 model Product {
