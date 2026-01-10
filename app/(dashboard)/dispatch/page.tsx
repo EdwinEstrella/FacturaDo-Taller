@@ -14,9 +14,31 @@ import {
 import { Truck, Printer } from "lucide-react"
 import { DispatchReportPrint } from "@/components/modules/reports/dispatch-report-print"
 
+interface Invoice {
+    id: string
+    sequenceNumber?: number
+    clientName?: string | null
+    client?: {
+        name?: string
+        address?: string
+    }
+    dispatched: boolean
+    createdAt: Date | string
+}
+
+interface Dispatch {
+    id: string
+    invoice?: Invoice
+    status?: string
+    technician?: {
+        name?: string
+    }
+    createdAt: Date | string
+}
+
 export default function DispatchPage() {
-    const [invoices, setInvoices] = useState([])
-    const [dispatches, setDispatches] = useState([])
+    const [invoices, setInvoices] = useState<Invoice[]>([])
+    const [dispatches, setDispatches] = useState<Dispatch[]>([])
     const [showPrint, setShowPrint] = useState(false)
     const [loading, setLoading] = useState(true)
 
@@ -90,8 +112,8 @@ export default function DispatchPage() {
                                 </TableRow>
                             )}
                             {allDispatches.map((dispatch) => {
-                                const invoice = dispatch.invoice || dispatch
-                                const client = invoice.client
+                                const invoice = dispatch.invoice || (dispatch as any)
+                                const client = invoice?.client
                                 const status: string = dispatch.status || 'PENDING'
                                 const statusColors: Record<string, string> = {
                                     'PENDING': 'bg-yellow-100 text-yellow-800',
@@ -118,7 +140,7 @@ export default function DispatchPage() {
                                         <TableCell>#{invoice.sequenceNumber}</TableCell>
                                         <TableCell>{invoice.clientName || client?.name}</TableCell>
                                         <TableCell>{client?.address || "N/A"}</TableCell>
-                                        <TableCell>{dispatch.technician?.name || "-"}</TableCell>
+                                        <TableCell>{(dispatch as any).technician?.name || "-"}</TableCell>
                                         <TableCell className="text-right">
                                             <Button
                                                 size="sm"
