@@ -4,13 +4,15 @@
  */
 
 // ==================== User Types ====================
-export type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT"
+export type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM"
 
 export interface User {
     id: string
     name: string | null
     username: string
+    password: string
     role: UserRole
+    customPermissions?: Record<string, unknown> | null
     createdAt: Date
     updatedAt: Date
 }

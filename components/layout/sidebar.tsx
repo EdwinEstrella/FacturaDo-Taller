@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { useMemo } from "react"
 // Optimización: importar solo los iconos necesarios para tree-shaking
 import {
     LayoutDashboard,
@@ -17,6 +18,7 @@ import {
     FileText,
     PieChart,
     PiggyBank,
+    Wrench,
     LogOut
 } from "lucide-react"
 
@@ -31,6 +33,7 @@ const routes = [
     { label: "Facturación", icon: Receipt, href: "/invoices", color: "text-blue-600" },
     { label: "Pedidos / Producción", icon: Briefcase, href: "/orders", color: "text-purple-600" },
     { label: "Despacho / Conduce", icon: Truck, href: "/dispatch", color: "text-blue-700" },
+    { label: "Módulo Técnico", icon: Wrench, href: "/technician", color: "text-orange-600" },
     { label: "Cuentas por Cobrar", icon: Receipt, href: "/receivables", color: "text-red-500" },
     { label: "Comprobantes Fiscales", icon: BookOpen, href: "/fiscal", color: "text-indigo-500" },
     { label: "Notas de Crédito", icon: FileText, href: "/credit-notes", color: "text-red-600" },
@@ -44,7 +47,7 @@ interface UserProps {
     id: string
     name: string | null
     username: string
-    role: "ADMIN" | "SELLER" | "ACCOUNTANT" | string
+    role: "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM" | string
 }
 
 interface SidebarProps {
@@ -55,22 +58,34 @@ export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
     const role = user?.role || "SELLER"
 
-    // Filter Routes based on Role
-    const filteredRoutes = routes.filter(route => {
-        if (role === 'ADMIN') return true
+    // Filter Routes based on Role - use useMemo to prevent recalculation
+    const filteredRoutes = useMemo(() => {
+        return routes.filter(route => {
+            if (role === 'ADMIN') return true
 
-        if (role === 'SELLER') {
-            const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users']
-            return !blocked.includes(route.href)
-        }
+            if (role === 'SELLER' || role === 'CUSTOM') {
+                const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users', '/technician']
+                return !blocked.includes(route.href)
+            }
 
-        if (role === 'ACCOUNTANT') {
-            const blocked = ['/warehouse', '/products', '/settings/users']
-            return !blocked.includes(route.href)
-        }
+            if (role === 'ACCOUNTANT') {
+                const blocked = ['/warehouse', '/products', '/settings/users', '/technician']
+                return !blocked.includes(route.href)
+            }
 
-        return false
-    })
+            if (role === 'TECHNICIAN') {
+                const allowed = ['/technician']
+                return allowed.includes(route.href)
+            }
+
+            if (role === 'MANAGER') {
+                const blocked = ['/settings/users']
+                return !blocked.includes(route.href)
+            }
+
+            return false
+        })
+    }, [role])
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
@@ -81,10 +96,14 @@ export function Sidebar({ user }: SidebarProps) {
 
                 <div className="mb-6 px-3">
                     <p className="text-xs text-zinc-400 uppercase font-bold mb-1">
-                        {user?.name}
+                        {user?.name || "Usuario"}
                     </p>
                     <p className="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded w-fit capitalize">
-                        {role === 'SELLER' ? 'Ventas' : (role === 'ACCOUNTANT' ? 'Contabilidad' : 'Administrador')}
+                        {role === 'SELLER' ? 'Ventas' :
+                         (role === 'ACCOUNTANT' ? 'Contabilidad' :
+                         (role === 'TECHNICIAN' ? 'Técnico' :
+                         (role === 'MANAGER' ? 'Supervisor' :
+                         (role === 'CUSTOM' ? 'Personalizado' : 'Administrador'))))}
                     </p>
                 </div>
 

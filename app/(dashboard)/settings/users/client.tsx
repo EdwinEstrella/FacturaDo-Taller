@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Pencil, Trash } from "lucide-react"
+import { Plus, Pencil, Trash, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Table,
@@ -30,22 +30,60 @@ import {
 import { createUser, updateUser, deleteUser } from "@/actions/user-actions"
 import { useRouter } from "next/navigation"
 
-type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT"
+type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM"
 
 interface User {
     id: string
-    name: string
+    name: string | null
     username: string
+    password: string
     role: UserRole
+    customPermissions?: Record<string, unknown> | null
     createdAt: Date
     updatedAt: Date
 }
 
 interface CreateUserFormData {
-    name: string
+    name: string | null
     username: string
     password: string
     role: UserRole
+    customPermissions?: Record<string, boolean>
+}
+
+// Define available permissions
+const AVAILABLE_PERMISSIONS = {
+    invoices: {
+        create: "Crear Facturas",
+        read: "Ver Facturas",
+        update: "Editar Facturas",
+        delete: "Eliminar Facturas",
+    },
+    quotes: {
+        create: "Crear Cotizaciones",
+        read: "Ver Cotizaciones",
+        update: "Editar Cotizaciones",
+        delete: "Eliminar Cotizaciones",
+    },
+    clients: {
+        create: "Crear Clientes",
+        read: "Ver Clientes",
+        update: "Editar Clientes",
+        delete: "Eliminar Clientes",
+    },
+    products: {
+        create: "Crear Productos",
+        read: "Ver Productos",
+        update: "Editar Productos",
+        delete: "Eliminar Productos",
+    },
+    reports: {
+        view: "Ver Reportes",
+        export: "Exportar Reportes",
+    },
+    settings: {
+        users: "Gestionar Usuarios",
+    },
 }
 
 export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
@@ -60,17 +98,68 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
         name: "",
         username: "",
         password: "",
-        role: "SELLER"
+        role: "SELLER",
+        customPermissions: {}
     })
+
+    // Helper to get default permissions based on role
+    const getDefaultPermissions = (role: UserRole): Record<string, boolean> => {
+        switch (role) {
+            case "ADMIN":
+                return { all: true }
+            case "SELLER":
+                return {
+                    "invoices.create": true,
+                    "invoices.read": true,
+                    "clients.read": true,
+                    "products.read": true,
+                }
+            case "ACCOUNTANT":
+                return {
+                    "invoices.read": true,
+                    "invoices.update": true,
+                    "reports.view": true,
+                    "reports.export": true,
+                }
+            case "TECHNICIAN":
+                return {
+                    "invoices.read": true,
+                }
+            case "MANAGER":
+                return {
+                    "invoices.read": true,
+                    "clients.read": true,
+                    "products.read": true,
+                    "reports.view": true,
+                }
+            case "CUSTOM":
+            default:
+                return {}
+        }
+    }
+
+    // Toggle permission
+    const togglePermission = (key: string) => {
+        setFormData(prev => ({
+            ...prev,
+            customPermissions: {
+                ...(prev.customPermissions || {}),
+                [key]: !(prev.customPermissions?.[key] || false)
+            }
+        }))
+    }
 
     const handleCreate = async () => {
         setLoading(true)
-        const res = await createUser(formData)
+        const res = await createUser({
+            ...formData,
+            customPermissions: formData.role === "CUSTOM" ? formData.customPermissions : undefined
+        })
         setLoading(false)
 
         if (res.success) {
             setIsOpen(false)
-            setFormData({ name: "", username: "", password: "", role: "SELLER" })
+            setFormData({ name: "", username: "", password: "", role: "SELLER", customPermissions: {} })
             router.refresh()
         } else {
             alert(res.error)
@@ -83,7 +172,8 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
             name: user.name,
             username: user.username,
             password: "", // Don't show current password
-            role: user.role
+            role: user.role,
+            customPermissions: (user.customPermissions as Record<string, boolean>) || {}
         })
         setIsEditOpen(true)
     }
@@ -91,7 +181,10 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
     const handleUpdate = async () => {
         if (!currentUser) return
         setLoading(true)
-        const res = await updateUser(currentUser.id, formData)
+        const res = await updateUser(currentUser.id, {
+            ...formData,
+            customPermissions: formData.role === "CUSTOM" ? formData.customPermissions : undefined
+        })
         setLoading(false)
 
         if (res.success) {
@@ -118,6 +211,9 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
         if (role === 'ADMIN') return 'Administrador'
         if (role === 'SELLER') return 'Vendedor'
         if (role === 'ACCOUNTANT') return 'Contador'
+        if (role === 'TECHNICIAN') return 'Técnico'
+        if (role === 'MANAGER') return 'Supervisor'
+        if (role === 'CUSTOM') return 'Personalizado'
         return role
     }
 
@@ -138,7 +234,7 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                             <div className="grid gap-2">
                                 <Label>Nombre</Label>
                                 <Input
-                                    value={formData.name}
+                                    value={formData.name || ""}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 />
                             </div>
@@ -161,7 +257,9 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                 <Label>Rol</Label>
                                 <Select
                                     value={formData.role}
-                                    onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
+                                    onValueChange={(val: UserRole) => {
+                                        setFormData({ ...formData, role: val, customPermissions: getDefaultPermissions(val) })
+                                    }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccionar Rol" />
@@ -170,9 +268,52 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                         <SelectItem value="ADMIN">Administrador</SelectItem>
                                         <SelectItem value="SELLER">Vendedor</SelectItem>
                                         <SelectItem value="ACCOUNTANT">Contador</SelectItem>
+                                        <SelectItem value="TECHNICIAN">Técnico</SelectItem>
+                                        <SelectItem value="MANAGER">Supervisor</SelectItem>
+                                        <SelectItem value="CUSTOM">Personalizado</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {formData.role === "CUSTOM" && (
+                                <div className="grid gap-3 mt-4 p-4 bg-gray-50 rounded-lg border">
+                                    <Label className="font-semibold">Permisos Personalizados</Label>
+                                    <p className="text-xs text-gray-500 mb-2">Selecciona los permisos específicos para este usuario:</p>
+                                    {Object.entries(AVAILABLE_PERMISSIONS).map(([category, perms]) => (
+                                                                        <div key={category} className="space-y-2">
+                                                                            <p className="text-xs font-medium capitalize text-gray-700 border-b pb-1">
+                                                                                {category === "invoices" ? "Facturas" :
+                                                                                 category === "quotes" ? "Cotizaciones" :
+                                                                                 category === "clients" ? "Clientes" :
+                                                                                 category === "products" ? "Productos" :
+                                                                                 category === "reports" ? "Reportes" :
+                                                                                 category === "settings" ? "Configuración" : category}
+                                                                            </p>
+                                                                            <div className="grid grid-cols-2 gap-2 pl-2">
+                                                                                {Object.entries(perms).map(([key, label]) => {
+                                                                                    const permKey = `${category}.${key}`
+                                                                                    const isChecked = formData.customPermissions?.[permKey] || false
+                                                                                    return (
+                                                                                        <button
+                                                                                            key={permKey}
+                                                                                            type="button"
+                                                                                            onClick={() => togglePermission(permKey)}
+                                                                                            className={`flex items-center gap-2 p-2 text-xs rounded border transition ${
+                                                                                                isChecked
+                                                                                                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                                                                                                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                                                                                            }`}
+                                                                                        >
+                                                                                            <Check className={`h-3 w-3 ${isChecked ? "opacity-100" : "opacity-0"}`} />
+                                                                                            <span className="text-left">{label}</span>
+                                                                                        </button>
+                                                                                    )
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div className="flex justify-end">
                             <Button onClick={handleCreate} disabled={loading}>
@@ -196,13 +337,17 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                     <TableBody>
                         {initialUsers.map((user) => (
                             <TableRow key={user.id}>
-                                <TableCell className="font-medium">{user.name}</TableCell>
+                                <TableCell className="font-medium">{user.name || ""}</TableCell>
                                 <TableCell>{user.username}</TableCell>
                                 <TableCell>
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                        user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
                                         user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
-                                            'bg-blue-100 text-blue-800'
-                                        }`}>
+                                        user.role === 'TECHNICIAN' ? 'bg-orange-100 text-orange-800' :
+                                        user.role === 'MANAGER' ? 'bg-indigo-100 text-indigo-800' :
+                                        user.role === 'CUSTOM' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-blue-100 text-blue-800'
+                                    }`}>
                                         {getRoleName(user.role)}
                                     </span>
                                 </TableCell>
@@ -230,7 +375,7 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                         <div className="grid gap-2">
                             <Label>Nombre</Label>
                             <Input
-                                value={formData.name}
+                                value={formData.name || ""}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
                         </div>
@@ -254,7 +399,9 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                             <Label>Rol</Label>
                             <Select
                                 value={formData.role}
-                                onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
+                                onValueChange={(val: UserRole) => {
+                                    setFormData({ ...formData, role: val, customPermissions: getDefaultPermissions(val) })
+                                }}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Seleccionar Rol" />
@@ -263,9 +410,52 @@ export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
                                     <SelectItem value="ADMIN">Administrador</SelectItem>
                                     <SelectItem value="SELLER">Vendedor</SelectItem>
                                     <SelectItem value="ACCOUNTANT">Contador</SelectItem>
+                                    <SelectItem value="TECHNICIAN">Técnico</SelectItem>
+                                    <SelectItem value="MANAGER">Supervisor</SelectItem>
+                                    <SelectItem value="CUSTOM">Personalizado</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {formData.role === "CUSTOM" && (
+                            <div className="grid gap-3 mt-4 p-4 bg-gray-50 rounded-lg border">
+                                <Label className="font-semibold">Permisos Personalizados</Label>
+                                <p className="text-xs text-gray-500 mb-2">Selecciona los permisos específicos para este usuario:</p>
+                                {Object.entries(AVAILABLE_PERMISSIONS).map(([category, perms]) => (
+                                    <div key={category} className="space-y-2">
+                                        <p className="text-xs font-medium capitalize text-gray-700 border-b pb-1">
+                                            {category === "invoices" ? "Facturas" :
+                                             category === "quotes" ? "Cotizaciones" :
+                                             category === "clients" ? "Clientes" :
+                                             category === "products" ? "Productos" :
+                                             category === "reports" ? "Reportes" :
+                                             category === "settings" ? "Configuración" : category}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2 pl-2">
+                                            {Object.entries(perms).map(([key, label]) => {
+                                                const permKey = `${category}.${key}`
+                                                const isChecked = formData.customPermissions?.[permKey] || false
+                                                return (
+                                                    <button
+                                                        key={permKey}
+                                                        type="button"
+                                                        onClick={() => togglePermission(permKey)}
+                                                        className={`flex items-center gap-2 p-2 text-xs rounded border transition ${
+                                                            isChecked
+                                                                ? "bg-blue-50 border-blue-500 text-blue-700"
+                                                                : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                                                        }`}
+                                                    >
+                                                        <Check className={`h-3 w-3 ${isChecked ? "opacity-100" : "opacity-0"}`} />
+                                                        <span className="text-left">{label}</span>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="flex justify-end">
                         <Button onClick={handleUpdate} disabled={loading}>

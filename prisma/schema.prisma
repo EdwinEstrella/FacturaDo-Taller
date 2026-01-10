@@ -81,19 +81,34 @@ enum Role {
   ADMIN
   SELLER
   ACCOUNTANT
+  TECHNICIAN
+  MANAGER
+  CUSTOM
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   name      String
-  username  String   @unique
-  password  String   // In a real app, hash this. For now, storing as is or simple hash.
-  role      Role     @default(SELLER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  invoices  Invoice[]
-  quotes    Quote[]
+  username  String        @unique
+  password  String        // In a real app, hash this. For now, storing as is or simple hash.
+  role      Role          @default(SELLER)
+  customPermissions Json?  // Permisos personalizados: { canDeleteInvoices: true, canEditProducts: false, ... }
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  invoices     Invoice[]
+  quotes       Quote[]
+  permissions  Permission?
+  dispatches   Dispatch[]  @relation("DispatchTechnician")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions Json     // { invoices: { create: true, read: true, update: false, delete: false }, ... }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model InvoiceItem {
@@ -132,14 +147,34 @@ model QuoteItem {
 }
 
 model Dispatch {
-  id          String   @id @default(cuid())
-  invoiceId   String   @unique
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
-  status      String   @default("PENDING") // PENDING, DELIVERED
+  id          String         @id @default(cuid())
+  invoiceId   String         @unique
+  invoice     Invoice        @relation(fields: [invoiceId], references: [id])
+  status      String         @default("PENDING") // PENDING, ASSIGNED, IN_PROGRESS, DELIVERED, INSTALLED
   driverName  String?
+  technicianId String?
+  technician  User?          @relation("DispatchTechnician", fields: [technicianId], references: [id])
   vehicleId   String?
   deliveredAt DateTime?
-  createdAt   DateTime @default(now())
+  installedAt DateTime?
+  notes       String?        // Notas de instalación/entrega
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  photos      DispatchPhoto[]
+
+  @@index([technicianId])
+}
+
+model DispatchPhoto {
+  id          String   @id @default(cuid())
+  dispatchId  String
+  dispatch    Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  photoUrl    String   // URL de la foto en storage
+  caption     String?  // Descripción opcional
+  takenAt     DateTime @default(now())
+  takenBy     String?  // ID del usuario que tomó la foto
+
+  @@index([dispatchId])
 }
 
 model Transaction {

@@ -31,9 +31,12 @@ export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
 
             <div className="border-b-2 border-black pb-4 mb-4">
                 <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-bold uppercase">Conduce de Trabajo</h1>
-                        <p className="text-lg">Orden #: {invoice.workOrder.id}</p>
+                    <div className="flex items-center gap-4">
+                        <img src="/logo.png" alt="Logo" className="h-14 w-auto" />
+                        <div>
+                            <h1 className="text-2xl font-bold uppercase">Conduce de Trabajo</h1>
+                            <p className="text-lg">Orden #: {invoice.workOrder.id}</p>
+                        </div>
                     </div>
                     <div className="text-right">
                         <p className="font-bold">Factura Ref: #{invoice.sequenceNumber}</p>

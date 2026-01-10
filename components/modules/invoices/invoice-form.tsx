@@ -30,6 +30,7 @@ import type { Client, Product } from "@prisma/client"
 import { useSearchParams, useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { toast } from "sonner"
 
 interface SerializedProduct extends Omit<Product, 'price'> {
     price: number
@@ -83,8 +84,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
     const handlePreview = () => {
-        if (!selectedClientId) return alert("Seleccione un cliente")
-        if (items.length === 0) return alert("Agregue productos")
+        if (!selectedClientId) return toast.error("Seleccione un cliente")
+        if (items.length === 0) return toast.error("Agregue productos")
         setShowPreview(true)
     }
 
@@ -92,7 +93,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         setShowPreview(false)
 
         const selectedClient = initialClients.find(c => c.id === selectedClientId)
-        if (!selectedClient) return alert("Cliente inválido")
+        if (!selectedClient) return toast.error("Cliente inválido")
 
         startTransition(async () => {
             let res;
@@ -125,7 +126,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
             }
 
             if (res.success) {
-                alert(isEdit ? "Factura Actualizada" : (type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!"))
+                toast.success(isEdit ? "Factura Actualizada" : (type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!"))
                 if (!isEdit) {
                     setItems([])
                     setSelectedClientId("")
@@ -133,7 +134,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                 router.push("/invoices")
                 router.refresh()
             } else {
-                alert("Error: " + res.error)
+                toast.error("Error: " + res.error)
             }
         })
     }

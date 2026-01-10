@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Clock, FileText, UserPlus, Edit } from "lucide-react"
+import { Clock, FileText, UserPlus, Edit, Printer, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -24,6 +24,7 @@ import { getClientStats } from "@/actions/client-history-actions"
 import type { Client } from "@prisma/client"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import Link from "next/link"
 
 interface ClientHistoryDialogProps {
     client: Client
@@ -184,15 +185,54 @@ export function ClientHistoryDialog({ client }: ClientHistoryDialogProps) {
                                         <TableCell>{entry.description || "-"}</TableCell>
                                         <TableCell>
                                             {entry.metadata && (
-                                                <div className="text-xs text-gray-500">
-                                                    <details>
-                                                        <summary className="cursor-pointer hover:text-gray-700">
-                                                            Ver detalles
-                                                        </summary>
-                                                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                                            {JSON.stringify(JSON.parse(entry.metadata), null, 2)}
-                                                        </pre>
-                                                    </details>
+                                                <div className="flex gap-2">
+                                                    {(() => {
+                                                        try {
+                                                            const metadata = JSON.parse(entry.metadata)
+                                                            if (metadata.invoiceId) {
+                                                                return (
+                                                                    <>
+                                                                        <Link
+                                                                            href={`/invoices/${metadata.invoiceId}/print`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                        >
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                        className="h-7 text-xs"
+                                                                            >
+                                                                                <Printer className="h-3 w-3 mr-1" />
+                                                                                Imprimir
+                                                                            </Button>
+                                                                        </Link>
+                                                                        <Link href={`/invoices/${metadata.invoiceId}/edit`}>
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="h-7 text-xs"
+                                                                            >
+                                                                                <ExternalLink className="h-3 w-3 mr-1" />
+                                                                                Ver Factura
+                                                                            </Button>
+                                                                        </Link>
+                                                                    </>
+                                                                )
+                                                            }
+                                                            return (
+                                                                <details className="text-xs text-gray-500">
+                                                                    <summary className="cursor-pointer hover:text-gray-700">
+                                                                        Ver detalles
+                                                                    </summary>
+                                                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                                                        {JSON.stringify(metadata, null, 2)}
+                                                                    </pre>
+                                                                </details>
+                                                            )
+                                                        } catch {
+                                                            return null
+                                                        }
+                                                    })()}
                                                 </div>
                                             )}
                                         </TableCell>
