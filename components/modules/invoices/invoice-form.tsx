@@ -7,15 +7,36 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
-import { Check, ChevronsUpDown, Trash2 } from "lucide-react"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
+import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
-import { Client, Product } from "@prisma/client"
+import type { Client, Product } from "@prisma/client"
 import { useSearchParams, useRouter } from "next/navigation"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+
+interface SerializedProduct extends Omit<Product, 'price'> {
+    price: number
+}
 
 interface InvoiceFormProps {
-    initialProducts: Product[]
+    initialProducts: SerializedProduct[] | Product[]
     initialClients: Client[]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     initialData?: any // Optional initial data for editing
@@ -27,6 +48,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const [items, setItems] = useState<any[]>(initialData?.items || [])
     const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
     const [isPending, startTransition] = useTransition()
+    const [showPreview, setShowPreview] = useState(false)
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -38,7 +60,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     // Product Search State
     const [openProduct, setOpenProduct] = useState(false)
 
-    const addItem = (product: Product) => {
+    const addItem = (product: SerializedProduct) => {
         setItems(prev => {
             const existing = prev.find(p => p.productId === product.id)
             if (existing) {
@@ -60,9 +82,14 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
     const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-    const handleSave = () => {
+    const handlePreview = () => {
         if (!selectedClientId) return alert("Seleccione un cliente")
         if (items.length === 0) return alert("Agregue productos")
+        setShowPreview(true)
+    }
+
+    const handleConfirm = () => {
+        setShowPreview(false)
 
         const selectedClient = initialClients.find(c => c.id === selectedClientId)
         if (!selectedClient) return alert("Cliente inválido")
@@ -110,6 +137,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
             }
         })
     }
+
+    const selectedClient = initialClients.find(c => c.id === selectedClientId)
 
     return (
         <div className="grid gap-6 md:grid-cols-2">
@@ -163,7 +192,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                             <CommandItem
                                                 key={product.id}
                                                 value={product.name}
-                                                onSelect={() => addItem(product)}
+                                                onSelect={() => addItem(product as SerializedProduct)}
                                             >
                                                 <Check
                                                     className={cn(
@@ -219,17 +248,135 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             <span>Total</span>
                             <span>{formatCurrency(total)}</span>
                         </div>
-                        <Button
-                            className={cn("w-full mt-4", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
-                            size="lg"
-                            onClick={handleSave}
-                            disabled={isPending}
-                        >
-                            {isPending ? "Procesando..." : (isEdit ? "Actualizar Factura" : (type === "QUOTE" ? "Guardar Cotización" : "Facturar / Imprimir"))}
-                        </Button>
+                        {!isEdit && (
+                            <div className="flex gap-2 mt-4">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    size="lg"
+                                    onClick={handlePreview}
+                                    disabled={isPending || items.length === 0}
+                                >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Previsualizar
+                                </Button>
+                                <Button
+                                    className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                    size="lg"
+                                    onClick={handlePreview}
+                                    disabled={isPending || items.length === 0}
+                                >
+                                    {isPending ? "Procesando..." : (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
+                                </Button>
+                            </div>
+                        )}
+                        {isEdit && (
+                            <Button
+                                className={cn("w-full mt-4", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                size="lg"
+                                onClick={handleConfirm}
+                                disabled={isPending}
+                            >
+                                {isPending ? "Procesando..." : "Actualizar Factura"}
+                            </Button>
+                        )}
                     </div>
                 </Card>
             </div>
+
+            {/* Preview Dialog */}
+            <Dialog open={showPreview} onOpenChange={setShowPreview}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Eye className="h-5 w-5" />
+                            {type === "QUOTE" ? "Vista Previa de Cotización" : "Vista Previa de Factura"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Revise los detalles antes de confirmar
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedClient && (
+                        <div className="space-y-6">
+                            {/* Client Info */}
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <h3 className="font-semibold text-lg mb-3">Información del Cliente</h3>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="font-medium">Nombre:</span> {selectedClient.name}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">RNC/Cédula:</span> {selectedClient.rnc}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Teléfono:</span> {selectedClient.phone}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Email:</span> {selectedClient.email}
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="font-medium">Dirección:</span> {selectedClient.address}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Invoice Items */}
+                            <div>
+                                <h3 className="font-semibold text-lg mb-3">Detalle de Productos/Servicios</h3>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Descripción</TableHead>
+                                            <TableHead className="text-right">Cantidad</TableHead>
+                                            <TableHead className="text-right">Precio Unitario</TableHead>
+                                            <TableHead className="text-right">Subtotal</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {items.map((item) => (
+                                            <TableRow key={item.productId}>
+                                                <TableCell>{item.productName}</TableCell>
+                                                <TableCell className="text-right">{item.quantity}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                                                <TableCell className="text-right font-medium">
+                                                    {formatCurrency(item.price * item.quantity)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* Totals */}
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <div className="flex justify-between items-center text-xl font-bold">
+                                    <span>Total a Pagar:</span>
+                                    <span className="text-blue-600">{formatCurrency(total)}</span>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 justify-end pt-4 border-t">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowPreview(false)}
+                                    disabled={isPending}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    className={cn(type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                    onClick={handleConfirm}
+                                    disabled={isPending}
+                                >
+                                    {isPending ? "Procesando..." : "Confirmar y " + (type === "QUOTE" ? "Crear Cotización" : "Facturar")}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
