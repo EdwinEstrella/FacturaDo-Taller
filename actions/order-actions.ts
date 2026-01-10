@@ -29,7 +29,7 @@ export async function updateWorkOrderStatus(id: number, status: string) {
         })
         revalidatePath("/orders")
         return { success: true }
-    } catch (e) {
+    } catch {
         return { success: false, error: "Error al actualizar estado" }
     }
 }

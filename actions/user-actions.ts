@@ -18,7 +18,7 @@ export async function getUsers() {
             }
         })
         return { success: true, data: users }
-    } catch (error) {
+    } catch {
         return { success: false, error: "Error fetching users" }
     }
 }

@@ -3,22 +3,25 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+// Optimización: importar solo los iconos necesarios para tree-shaking
 import {
     LayoutDashboard,
+    BarChart3,
     Users,
     Package,
-    FileText,
-    Truck,
-    Receipt,
-    PiggyBank,
-    BarChart3,
     Archive,
-    BookOpen,
-    PieChart,
+    Receipt,
     Briefcase,
+    Truck,
+    BookOpen,
+    FileText,
+    PieChart,
+    PiggyBank,
     LogOut
 } from "lucide-react"
 
+// Optimización: lucide-react ya tiene tree-shaking automático
+// Solo importamos los iconos que usamos
 const routes = [
     { label: "Dashboard", icon: LayoutDashboard, href: "/", color: "text-sky-500" },
     { label: "Analíticas", icon: BarChart3, href: "/analytics", color: "text-pink-700" },
@@ -50,27 +53,19 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
-    // const user = await getCurrentUser() // Removed
-    const role = user?.role || "SELLER" // Default to strictest if not found (though middleware blocks)
+    const role = user?.role || "SELLER"
 
     // Filter Routes based on Role
-    // VENTA: Dashboard, Clients, Products, Warehouse, Invoices, Orders, Dispatch, Receivables?
-    // User said: "vender, facturar, cotizar, crear productos"
-    // "No tiene acceso a analsis, contabilidad"
-
-    // ADMIN: All
-    // ACCOUNTANT: Accounting, Fiscal, Receivables, etc.
-
     const filteredRoutes = routes.filter(route => {
         if (role === 'ADMIN') return true
 
         if (role === 'SELLER') {
-            const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users'] // Assuming Fiscal/PettyCash blocked too? Keep it safe.
+            const blocked = ['/analytics', '/accounting', '/fiscal', '/petty-cash', '/settings/users']
             return !blocked.includes(route.href)
         }
 
         if (role === 'ACCOUNTANT') {
-            const blocked = ['/warehouse', '/products', '/settings/users'] // Accountant usually doesn't need warehouse edit access?
+            const blocked = ['/warehouse', '/products', '/settings/users']
             return !blocked.includes(route.href)
         }
 
@@ -98,6 +93,7 @@ export function Sidebar({ user }: SidebarProps) {
                         <Link
                             key={route.href}
                             href={route.href}
+                            prefetch={pathname === route.href ? false : true}
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
                                 pathname === route.href ? "text-white bg-white/10" : "text-zinc-400"

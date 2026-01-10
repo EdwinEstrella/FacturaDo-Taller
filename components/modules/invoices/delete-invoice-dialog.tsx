@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Trash, Lock } from "lucide-react"
+import { Trash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -47,7 +47,7 @@ export function DeleteInvoiceDialog({ invoiceId, isProduction }: DeleteInvoiceDi
             } else {
                 setError(res.error || "Error al eliminar")
             }
-        } catch (e) {
+        } catch {
             setError("Error de conexión")
         } finally {
             setLoading(false)

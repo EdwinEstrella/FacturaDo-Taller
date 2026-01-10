@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient, updateClient } from "@/actions/client-actions"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 // import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
 import { Pencil, Plus } from "lucide-react"
 import { Client } from "@prisma/client"

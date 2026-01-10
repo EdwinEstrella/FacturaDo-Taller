@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-// import { cookies } from "next/headers" // Removed unused import
 
-// Simple middleware to check for session cookie
-export async function middleware(request: NextRequest) {
+/**
+ * Proxy configuration for Next.js 16+
+ * Anteriormente conocido como middleware.ts
+ * Maneja la autenticación y redirección de rutas protegidas
+ */
+
+// Simple proxy to check for session cookie
+export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname
 
     // Public paths

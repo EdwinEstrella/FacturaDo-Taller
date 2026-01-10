@@ -34,7 +34,7 @@ export async function createClient(prevState: any, formData: FormData) {
         })
         revalidatePath("/clients")
         return { message: "Client created successfully", success: true }
-    } catch (e) {
+    } catch {
         return { message: "Failed to create client", success: false }
     }
 }
@@ -62,7 +62,7 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
         })
         revalidatePath("/clients")
         return { message: "Client updated successfully", success: true }
-    } catch (e) {
+    } catch {
         return { message: "Failed to update client", success: false }
     }
 }
@@ -86,8 +86,8 @@ export async function deleteClient(id: string) {
         await prisma.client.delete({ where: { id } })
         revalidatePath("/clients")
         return { success: true }
-    } catch (e) {
-        console.error(e)
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al eliminar cliente" }
     }
 }

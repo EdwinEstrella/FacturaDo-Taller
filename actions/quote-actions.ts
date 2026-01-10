@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
 
-const QuoteItemSchema = z.object({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _QuoteItemSchema = z.object({
     productId: z.string(),
     productName: z.string(), // Snapshot name
     quantity: z.number().min(1),

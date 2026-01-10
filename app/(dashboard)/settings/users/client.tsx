@@ -30,26 +30,33 @@ import {
 import { createUser, updateUser, deleteUser } from "@/actions/user-actions"
 import { useRouter } from "next/navigation"
 
+type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT"
+
 interface User {
     id: string
     name: string
     username: string
-    role: string
+    role: UserRole
     createdAt: Date
     updatedAt: Date
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
+interface CreateUserFormData {
+    name: string
+    username: string
+    password: string
+    role: UserRole
+}
+
+export function UsersClient({ initialUsers }: { initialUsers: User[] }) {
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [loading, setLoading] = useState(false)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [currentUser, setCurrentUser] = useState<any>(null) // For editing
+    const [currentUser, setCurrentUser] = useState<User | null>(null)
 
     // Form State for Create/Edit
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<CreateUserFormData>({
         name: "",
         username: "",
         password: "",
@@ -58,7 +65,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
 
     const handleCreate = async () => {
         setLoading(true)
-        const res = await createUser({ ...formData, role: formData.role as any })
+        const res = await createUser(formData)
         setLoading(false)
 
         if (res.success) {
@@ -70,7 +77,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
         }
     }
 
-    const openEdit = (user: any) => {
+    const openEdit = (user: User) => {
         setCurrentUser(user)
         setFormData({
             name: user.name,
@@ -84,7 +91,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
     const handleUpdate = async () => {
         if (!currentUser) return
         setLoading(true)
-        const res = await updateUser(currentUser.id, { ...formData, role: formData.role as any })
+        const res = await updateUser(currentUser.id, formData)
         setLoading(false)
 
         if (res.success) {
@@ -154,7 +161,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
                                 <Label>Rol</Label>
                                 <Select
                                     value={formData.role}
-                                    onValueChange={(val) => setFormData({ ...formData, role: val })}
+                                    onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccionar Rol" />
@@ -247,7 +254,7 @@ export function UsersClient({ initialUsers }: { initialUsers: any[] }) {
                             <Label>Rol</Label>
                             <Select
                                 value={formData.role}
-                                onValueChange={(val) => setFormData({ ...formData, role: val })}
+                                onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Seleccionar Rol" />

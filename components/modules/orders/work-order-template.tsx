@@ -1,5 +1,21 @@
+import type { Invoice, InvoiceItem } from "@/types"
+
+interface WorkOrder {
+    id: string
+    status: string
+    notes?: string | null
+    createdAt: Date
+    updatedAt: Date
+}
+
+interface InvoiceWithWorkOrder extends Invoice {
+    workOrder: WorkOrder
+    clientName?: string | null
+    sequenceNumber?: string | null
+}
+
 interface WorkOrderTemplateProps {
-    invoice: any
+    invoice: InvoiceWithWorkOrder
 }
 
 export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
@@ -56,7 +72,7 @@ export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {invoice.items.map((item: any) => (
+                        {invoice.items.map((item: InvoiceItem) => (
                             <tr key={item.id}>
                                 <td className="border border-black p-2">{item.productName}</td>
                                 <td className="border border-black p-2 text-center">{item.quantity}</td>

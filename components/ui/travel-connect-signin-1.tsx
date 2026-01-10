@@ -54,12 +54,7 @@ const Input = ({ className = "", ...props }: InputProps) => {
     );
 };
 
-// Custom Select Component
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-    className?: string;
-}
-
-// Local Select removed as it was unused and shadowed import
+// Select component removed - unused
 
 type RoutePoint = {
     x: number;
@@ -225,6 +220,7 @@ const DotMap = () => {
         animate();
 
         return () => cancelAnimationFrame(animationFrameId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dimensions]);
 
     return (

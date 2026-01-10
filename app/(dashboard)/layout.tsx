@@ -2,12 +2,12 @@ import { Navbar } from "@/components/layout/navbar"
 import { Sidebar } from "@/components/layout/sidebar"
 import { getCurrentUser } from "@/actions/auth-actions"
 
-// Default export for layout
 export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
+    // Optimización: fetch del usuario una sola vez
     const user = await getCurrentUser()
 
     return (

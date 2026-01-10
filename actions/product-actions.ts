@@ -84,7 +84,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         })
         revalidatePath("/products")
         return { message: "Producto actualizado correctamente" }
-    } catch (e) {
+    } catch {
         return { message: "Error al actualizar producto" }
     }
 }
@@ -102,7 +102,7 @@ export async function deleteProduct(id: string) {
         await prisma.product.delete({ where: { id } })
         revalidatePath("/products")
         return { success: true }
-    } catch (e) {
+    } catch {
         return { success: false, error: "Error al eliminar producto" }
     }
 }

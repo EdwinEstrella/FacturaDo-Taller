@@ -59,7 +59,7 @@ export async function getCurrentUser() {
             select: { id: true, name: true, username: true, role: true }
         })
         return user
-    } catch (e) {
+    } catch {
         return null
     }
 }
