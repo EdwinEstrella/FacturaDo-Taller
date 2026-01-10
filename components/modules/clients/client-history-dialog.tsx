@@ -104,8 +104,6 @@ export function ClientHistoryDialog({ client }: ClientHistoryDialogProps) {
         }
     }
 
-    const Icon = Clock
-
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>

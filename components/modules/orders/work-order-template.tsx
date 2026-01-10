@@ -1,3 +1,4 @@
+import Image from "next/image"
 import type { Invoice, InvoiceItem } from "@/types"
 
 interface WorkOrder {
@@ -32,7 +33,7 @@ export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
             <div className="border-b-2 border-black pb-4 mb-4">
                 <div className="flex justify-between items-start">
                     <div className="flex items-center gap-4">
-                        <img src="/logo.png" alt="Logo" className="h-14 w-auto" />
+                        <Image src="/logo.png" alt="Logo" width={56} height={56} className="h-14 w-auto" unoptimized />
                         <div>
                             <h1 className="text-2xl font-bold uppercase">Conduce de Trabajo</h1>
                             <p className="text-lg">Orden #: {invoice.workOrder.id}</p>

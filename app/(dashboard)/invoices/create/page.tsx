@@ -1,7 +1,7 @@
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
-import type { Product, Client } from "@prisma/client"
+import type { Product } from "@prisma/client"
 
 interface SerializedProduct extends Omit<Product, 'price'> {
     price: number

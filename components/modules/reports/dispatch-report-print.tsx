@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { MapPin, Package, Phone, User } from "lucide-react"
@@ -22,7 +23,7 @@ export function DispatchReportPrint({ dispatches }: DispatchReportPrintProps) {
 
             {/* Header */}
             <div className="text-center mb-8 border-b-2 border-black pb-4">
-                <img src="/logo.png" alt="Logo" className="h-11 mx-auto mb-2" />
+                <Image src="/logo.png" alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
                 <h1 className="text-2xl font-bold uppercase">Reporte de Despachos</h1>
                 <p className="text-gray-600 mt-1">Listado de entregas e instalaciones</p>
                 <p className="text-xs text-gray-500 mt-2">
@@ -59,7 +60,7 @@ export function DispatchReportPrint({ dispatches }: DispatchReportPrintProps) {
             </div>
 
             {/* Lista de Despachos */}
-            {dispatches.map((dispatch, index) => {
+            {dispatches.map((dispatch) => {
                 const invoice = dispatch.invoice
                 const client = invoice?.client
                 const items = invoice?.items || []
@@ -143,7 +144,7 @@ export function DispatchReportPrint({ dispatches }: DispatchReportPrintProps) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {items.map((item: any) => (
+                                            {items.map((item) => (
                                                 <tr key={item.id} className="border-b last:border-0">
                                                     <td className="py-1">{item.productName}</td>
                                                     <td className="text-center py-1">{item.quantity}</td>

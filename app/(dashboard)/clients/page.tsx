@@ -19,22 +19,19 @@ import {
 import type { Client } from "@prisma/client"
 
 export default function ClientsPage() {
-    const [clients, setClients] = useState<Client[]>([])
     const [filteredClients, setFilteredClients] = useState<Client[]>([])
     const [showPrint, setShowPrint] = useState(false)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        const loadClients = async () => {
+            setLoading(true)
+            const data = await getClients()
+            setFilteredClients(data)
+            setLoading(false)
+        }
         loadClients()
     }, [])
-
-    const loadClients = async () => {
-        setLoading(true)
-        const data = await getClients()
-        setClients(data)
-        setFilteredClients(data)
-        setLoading(false)
-    }
 
     const handleFilter = async (filters: {
         name?: string

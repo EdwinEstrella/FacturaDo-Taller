@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Client } from "@prisma/client"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -27,7 +28,7 @@ export function ClientReportPrint({ clients, filters }: ClientReportPrintProps) 
 
             {/* Header */}
             <div className="text-center mb-8 border-b-2 border-black pb-4">
-                <img src="/logo.png" alt="Logo" className="h-16 mx-auto mb-2" />
+                <Image src="/logo.png" alt="Logo" width={64} height={64} className="h-16 mx-auto mb-2" unoptimized />
                 <h1 className="text-2xl font-bold uppercase">Reporte de Clientes</h1>
                 <p className="text-gray-600 mt-1">Listado completo de clientes registrados</p>
                 <p className="text-xs text-gray-500 mt-2">

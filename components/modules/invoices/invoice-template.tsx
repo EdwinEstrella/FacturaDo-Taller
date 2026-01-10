@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { formatCurrency } from "@/lib/utils"
 
 interface InvoiceTemplateProps {
@@ -16,7 +17,7 @@ export function InvoiceTemplate({ invoice }: InvoiceTemplateProps) {
             `}</style>
 
             <div className="text-center mb-4">
-                <img src="/logo.png" alt="Logo" className="h-11 mx-auto mb-2" />
+                <Image src="/logo.png" alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
                 <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
                 <p>RNC: 101-00000-0</p>
                 <p>Av. Winston Churchill #101</p>

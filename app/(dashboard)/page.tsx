@@ -10,7 +10,7 @@ import {
 
 export default async function DashboardPage() {
     // Obtener datos reales con comparativas
-    const [invoiceCount, clientCount, productCount, revenueStats, clientStats, invoiceStats] =
+    const [, , productCount, revenueStats, clientStats, invoiceStats] =
         await Promise.all([
             prisma.invoice.count(),
             prisma.client.count(),

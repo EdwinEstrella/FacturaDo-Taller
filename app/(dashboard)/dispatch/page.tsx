@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { prisma } from "@/lib/prisma"
 import { markAsDispatched } from "@/actions/invoice-actions"
 import { Button } from "@/components/ui/button"
 import {
@@ -53,7 +52,7 @@ export default function DispatchPage() {
         return <div className="p-8">Cargando...</div>
     }
 
-    const allDispatches = [...dispatches, ...invoices.filter((inv: any) => !inv.dispatched).map((inv: any) => ({
+    const allDispatches = [...dispatches, ...invoices.filter((inv) => !inv.dispatched).map((inv) => ({
         id: inv.id,
         invoice: inv,
         status: 'PENDING',
@@ -90,7 +89,7 @@ export default function DispatchPage() {
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {allDispatches.map((dispatch: any) => {
+                            {allDispatches.map((dispatch) => {
                                 const invoice = dispatch.invoice || dispatch
                                 const client = invoice.client
                                 const status: string = dispatch.status || 'PENDING'

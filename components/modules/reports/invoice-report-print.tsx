@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Invoice } from "@prisma/client"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -35,7 +36,7 @@ export function InvoiceReportPrint({ invoices, stats, filters }: InvoiceReportPr
 
             {/* Header */}
             <div className="text-center mb-8 border-b-2 border-black pb-4">
-                <img src="/logo.png" alt="Logo" className="h-11 mx-auto mb-2" />
+                <Image src="/logo.png" alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
                 <h1 className="text-2xl font-bold uppercase">Reporte de Facturas</h1>
                 <p className="text-gray-600 mt-1">Reporte detallado de ventas y facturación</p>
                 <p className="text-xs text-gray-500 mt-2">
@@ -93,7 +94,7 @@ export function InvoiceReportPrint({ invoices, stats, filters }: InvoiceReportPr
                             </td>
                         </tr>
                     ) : (
-                        invoices.map((invoice, index) => (
+                        invoices.map((invoice) => (
                             <tr key={invoice.id}>
                                 <td className="border border-black p-2">{invoice.sequenceNumber}</td>
                                 <td className="border border-black p-2">

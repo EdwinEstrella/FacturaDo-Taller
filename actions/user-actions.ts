@@ -53,7 +53,7 @@ export async function createUser(data: UserInput) {
                 username: data.username,
                 password: data.password || "123456", // Fallback or strict
                 role: data.role,
-                ...(data.customPermissions && { customPermissions: data.customPermissions as any })
+                ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })
             }
         })
 
@@ -93,7 +93,7 @@ export async function updateUser(id: string, data: UserInput) {
                 username: data.username,
                 role: data.role,
                 ...(data.password ? { password: data.password } : {}), // Only update password if provided
-                ...(data.customPermissions && { customPermissions: data.customPermissions as any })
+                ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })
             }
         })
 

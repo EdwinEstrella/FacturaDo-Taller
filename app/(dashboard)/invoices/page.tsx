@@ -32,7 +32,6 @@ type InvoiceType = any
 type QuoteType = any
 
 export default function InvoicesPage() {
-    const [invoices, setInvoices] = useState<InvoiceType[]>([])
     const [filteredInvoices, setFilteredInvoices] = useState<InvoiceType[]>([])
     const [quotes, setQuotes] = useState<QuoteType[]>([])
     const [stats, setStats] = useState({ count: 0, total: 0, paid: 0, pending: 0 })
@@ -42,22 +41,20 @@ export default function InvoicesPage() {
     const [currentFilters, setCurrentFilters] = useState<Record<string, string>>({})
 
     useEffect(() => {
+        const loadData = async () => {
+            setLoading(true)
+            const [invoicesData, quotesData, userData] = await Promise.all([
+                getInvoices(),
+                getQuotes(),
+                getCurrentUser()
+            ])
+            setFilteredInvoices(invoicesData)
+            setQuotes(quotesData)
+            setUser(userData)
+            setLoading(false)
+        }
         loadData()
     }, [])
-
-    const loadData = async () => {
-        setLoading(true)
-        const [invoicesData, quotesData, userData] = await Promise.all([
-            getInvoices(),
-            getQuotes(),
-            getCurrentUser()
-        ])
-        setInvoices(invoicesData)
-        setFilteredInvoices(invoicesData)
-        setQuotes(quotesData)
-        setUser(userData)
-        setLoading(false)
-    }
 
     const handleFilter = async (filters: {
         startDate?: string
