@@ -20,6 +20,16 @@ export default async function ReceivablesPage() {
         orderBy: { createdAt: 'desc' }
     })
 
+    // Serialize Decimal to number for client component
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serializedInvoices = invoices.map((inv: any) => ({
+        ...inv,
+        total: Number(inv.total),
+        balance: Number(inv.balance),
+        tax: Number(inv.tax),
+        shippingCost: Number(inv.shippingCost)
+    }))
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight text-red-600">Cuentas por Cobrar</h2>
@@ -35,13 +45,13 @@ export default async function ReceivablesPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {invoices.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No hay cuentas por cobrar</TableCell></TableRow>}
-                        {invoices.map((inv) => (
+                        {serializedInvoices.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No hay cuentas por cobrar</TableCell></TableRow>}
+                        {serializedInvoices.map((inv) => (
                             <TableRow key={inv.id}>
                                 <TableCell>#{inv.sequenceNumber}</TableCell>
                                 <TableCell>{inv.clientName}</TableCell>
                                 <TableCell>{inv.client?.phone || "-"}</TableCell>
-                                <TableCell className="text-right font-bold text-red-500">{formatCurrency(Number(inv.balance))}</TableCell>
+                                <TableCell className="text-right font-bold text-red-500">{formatCurrency(inv.balance)}</TableCell>
                                 <TableCell className="text-right">
                                     <PaymentDialog invoice={inv} />
                                 </TableCell>

@@ -26,8 +26,14 @@ import { registerPayment } from "@/actions/receivables-actions"
 import { toast } from "sonner"
 import { DollarSign } from "lucide-react"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function PaymentDialog({ invoice }: { invoice: any }) {
+interface SerializedInvoice {
+    id: string
+    sequenceNumber: number
+    balance: number
+    total: number
+}
+
+export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const [open, setOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
 
@@ -94,7 +100,7 @@ export function PaymentDialog({ invoice }: { invoice: any }) {
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="z-[101]">
                                 <SelectItem value="CASH">Efectivo</SelectItem>
                                 <SelectItem value="TRANSFER">Transferencia</SelectItem>
                                 <SelectItem value="CHECK">Cheque</SelectItem>
