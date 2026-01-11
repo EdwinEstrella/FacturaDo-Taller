@@ -35,10 +35,47 @@ function SubmitButton({ isEdit }: { isEdit: boolean }) {
     )
 }
 
-export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & { price: number | Product['price'] } }) {
+export function ProductDialog({ product }: { product?: Omit<Product, 'price' | 'cost'> & { price: number, cost: number } }) {
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
+
+    // Price/Cost/Margin State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const initialCost = (product as any)?.cost ? Number((product as any).cost) : 0
+    const initialPrice = Number(product?.price || 0)
+    const [cost, setCost] = useState(initialCost)
+    const [price, setPrice] = useState(initialPrice)
+    const [margin, setMargin] = useState(() => {
+        if (initialCost > 0 && initialPrice > 0) {
+            return parseFloat((((initialPrice - initialCost) / initialCost) * 100).toFixed(2))
+        }
+        return 30 // Default 30% margin
+    })
+
+    const handleCostChange = (val: number) => {
+        setCost(val)
+        // Auto-update price based on margin
+        const newPrice = val * (1 + margin / 100)
+        setPrice(parseFloat(newPrice.toFixed(2)))
+    }
+
+    const handleMarginChange = (val: number) => {
+        setMargin(val)
+        // Auto-update price based on cost
+        const newPrice = cost * (1 + val / 100)
+        setPrice(parseFloat(newPrice.toFixed(2)))
+    }
+
+    const handlePriceChange = (val: number) => {
+        setPrice(val)
+        // Auto-update margin based on cost? Or just leave it?
+        // Usually if I edit price, I want to see the new margin.
+        if (cost > 0) {
+            const newMargin = ((val - cost) / cost) * 100
+            setMargin(parseFloat(newMargin.toFixed(2)))
+        }
+    }
 
     interface Variant {
         id?: string
@@ -46,13 +83,15 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
         price: number
         stock: number
         sku: string
+        cost: number
+        margin?: number
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [variants, setVariants] = useState<Variant[]>((product as any)?.variants || [])
+    const [variants, setVariants] = useState<Variant[]>((product as any)?.variants?.map((v: any) => ({ ...v, cost: Number(v.cost || 0) })) || [])
 
     const addVariant = () => {
-        setVariants([...variants, { name: "", price: Number(product?.price || 0), stock: 0, sku: "" }])
+        setVariants([...variants, { name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
     }
 
     const removeVariant = (index: number) => {
@@ -62,7 +101,22 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
     const updateVariant = (index: number, field: keyof Variant, value: string | number) => {
         const newVariants = [...variants]
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        newVariants[index] = { ...newVariants[index], [field]: value } as any
+        const v = { ...newVariants[index], [field]: value } as any
+
+        // internal calculation for variant logic similar to main product?
+        // If cost changes, update price?
+        if (field === "cost") {
+            const c = Number(value)
+            const m = v.margin || 30
+            v.price = parseFloat((c * (1 + m / 100)).toFixed(2))
+        } else if (field === "price") {
+            // update margin logic if needed, but maybe keep simple for variants
+            if (v.cost > 0) {
+                v.margin = parseFloat((((Number(value) - v.cost) / v.cost) * 100).toFixed(2))
+            }
+        }
+
+        newVariants[index] = v
         setVariants(newVariants)
     }
 
@@ -75,15 +129,18 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
                     <Button>Agregar Producto</Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? "Editar Producto" : "Agregar Producto"}</DialogTitle>
                     <DialogDescription>
-                        Detalles del producto.
+                        Ingrese el costo y margen para calcular el precio automáticamente.
                     </DialogDescription>
                 </DialogHeader>
                 <form action={async (formData) => {
                     formData.set("variants", JSON.stringify(variants))
+                    // Ensure price/cost are set from state if controlled
+                    // But input fields with name attribute will override?
+                    // Best to use hidden inputs or ensure inputs have correct values
                     if (isEdit && product) {
                         await updateProduct(product.id, null, formData)
                     } else {
@@ -118,9 +175,45 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
                             <Input id="sku" name="sku" defaultValue={product?.sku || ""} className="col-span-3" />
                         </div>
 
+                        {/* Cost / Margin / Price Section */}
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="price" className="text-right">Precio Base</Label>
-                            <Input id="price" name="price" type="number" step="0.01" defaultValue={Number(product?.price || 0)} className="col-span-3" required />
+                            <Label htmlFor="cost" className="text-right font-semibold">Costo Compra</Label>
+                            <Input
+                                id="cost"
+                                name="cost"
+                                type="number"
+                                step="0.01"
+                                value={cost}
+                                onChange={(e) => handleCostChange(parseFloat(e.target.value) || 0)}
+                                className="col-span-3"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="margin" className="text-right text-blue-600">% Ganancia</Label>
+                            <div className="col-span-3 flex items-center gap-2">
+                                <Input
+                                    id="margin"
+                                    type="number"
+                                    step="0.1"
+                                    value={margin}
+                                    onChange={(e) => handleMarginChange(parseFloat(e.target.value) || 0)}
+                                    className="w-24"
+                                />
+                                <span className="text-muted-foreground text-sm">%</span>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="price" className="text-right font-bold text-green-700">Precio Venta</Label>
+                            <Input
+                                id="price"
+                                name="price"
+                                type="number"
+                                step="0.01"
+                                value={price}
+                                onChange={(e) => handlePriceChange(parseFloat(e.target.value) || 0)}
+                                className="col-span-3 font-bold"
+                                required
+                            />
                         </div>
 
                         {category !== "SERVICIO" && variants.length === 0 && (
@@ -168,7 +261,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">SKU (Opcional)</Label>
+                                                    <Label className="text-xs">SKU</Label>
                                                     <Input
                                                         value={variant.sku}
                                                         onChange={(e) => updateVariant(index, "sku", e.target.value)}
@@ -177,14 +270,23 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price'> & 
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid grid-cols-3 gap-2">
                                                 <div>
-                                                    <Label className="text-xs">Precio</Label>
+                                                    <Label className="text-xs text-muted-foreground">Costo</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={variant.cost}
+                                                        onChange={(e) => updateVariant(index, "cost", parseFloat(e.target.value))}
+                                                        className="h-8 text-sm"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs font-bold text-green-700">Precio</Label>
                                                     <Input
                                                         type="number"
                                                         value={variant.price}
                                                         onChange={(e) => updateVariant(index, "price", parseFloat(e.target.value))}
-                                                        className="h-8 text-sm"
+                                                        className="h-8 text-sm font-bold"
                                                     />
                                                 </div>
                                                 <div>

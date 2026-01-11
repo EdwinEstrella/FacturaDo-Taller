@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { cn } from "@/lib/utils"
+// Imports removed
 import AppSidebar from "@/components/layout/app-sidebar"
 import { Navbar } from "@/components/layout/navbar"
 

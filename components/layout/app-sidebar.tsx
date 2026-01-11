@@ -636,7 +636,7 @@ export default function AppSidebar({ user, isMobile }: { user: UserProps | null,
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setActiveSection(newSection);
         }
-    }, [pathname]); // activeSection removed to prevent reset on manual selection
+    }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div className="flex flex-row h-screen bg-white text-black">

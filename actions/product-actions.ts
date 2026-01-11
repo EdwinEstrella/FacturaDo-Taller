@@ -8,6 +8,7 @@ const ProductSchema = z.object({
     name: z.string().min(1),
     description: z.string().optional(),
     price: z.coerce.number().min(0),
+    cost: z.coerce.number().min(0).optional(),
     stock: z.coerce.number().int().min(0),
     minStock: z.coerce.number().int().min(0).optional(),
     sku: z.string().optional(),
@@ -22,6 +23,7 @@ export async function createProduct(prevState: any, formData: FormData) {
         name: formData.get("name"),
         description: formData.get("description"),
         price: formData.get("price"),
+        cost: formData.get("cost"),
         stock: formData.get("stock"),
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
@@ -58,6 +60,7 @@ export async function createProduct(prevState: any, formData: FormData) {
                     create: parsedVariants.map((v: any) => ({
                         name: v.name,
                         price: v.price,
+                        cost: v.cost || 0,
                         stock: v.stock,
                         sku: v.sku
                     }))
@@ -73,10 +76,21 @@ export async function createProduct(prevState: any, formData: FormData) {
 }
 
 export async function getProducts() {
-    return await prisma.product.findMany({
+    const products = await prisma.product.findMany({
         include: { variants: true },
         orderBy: { name: 'asc' }
     })
+
+    return products.map(product => ({
+        ...product,
+        price: Number(product.price),
+        cost: product.cost ? Number(product.cost) : 0,
+        variants: product.variants.map(variant => ({
+            ...variant,
+            price: Number(variant.price),
+            cost: variant.cost ? Number(variant.cost) : 0
+        }))
+    }))
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,6 +99,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         name: formData.get("name"),
         description: formData.get("description"),
         price: formData.get("price"),
+        cost: formData.get("cost"),
         stock: formData.get("stock"),
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
@@ -142,6 +157,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                             data: {
                                 name: v.name,
                                 price: v.price,
+                                cost: v.cost || 0,
                                 stock: v.stock,
                                 sku: v.sku
                             }
@@ -152,6 +168,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                                 productId: id,
                                 name: v.name,
                                 price: v.price,
+                                cost: v.cost || 0,
                                 stock: v.stock,
                                 sku: v.sku
                             }
@@ -192,5 +209,34 @@ export async function deleteProduct(id: string) {
         return { success: true }
     } catch {
         return { success: false, error: "Error al eliminar producto" }
+    }
+}
+
+// Quick create for purchase form (JSON based)
+export async function quickCreateProduct(data: { name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
+    try {
+        const product = await prisma.product.create({
+            data: {
+                name: data.name,
+                price: data.price,
+                sku: data.sku,
+                category: data.category || "ARTICULO",
+                stock: 0, // Stock will be added by the purchase
+                cost: 0 // Cost will be set by the purchase
+            }
+        })
+        revalidatePath("/products")
+        // Serialize return
+        return {
+            success: true,
+            product: {
+                ...product,
+                price: Number(product.price),
+                cost: product.cost ? Number(product.cost) : 0
+            }
+        }
+    } catch (e) {
+        console.error("Quick Create Product Error:", e)
+        return { success: false, error: "Error al crear producto" }
     }
 }

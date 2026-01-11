@@ -13,8 +13,9 @@ import { DeleteProductWrapper } from "@/components/modules/products/delete-produ
 import { Badge } from "@/components/ui/badge"
 import type { Product } from "@prisma/client"
 
-interface SerializedProduct extends Omit<Product, 'price'> {
+interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number
+    cost: number
 }
 
 export default async function ProductsPage() {

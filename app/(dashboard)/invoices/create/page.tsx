@@ -3,8 +3,9 @@ import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import type { Product } from "@prisma/client"
 
-interface SerializedProduct extends Omit<Product, 'price'> {
+interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number
+    cost: number
 }
 
 export default async function CreateInvoicePage() {

@@ -25,6 +25,8 @@ const InvoiceSchema = z.object({
     deliveryDate: z.date().optional(),
     notes: z.string().optional(),
     amountPaid: z.number().min(0).optional(),
+    tax: z.number().min(0).optional(),
+    hasNcf: z.boolean().optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -86,6 +88,8 @@ export async function createInvoice(data: InvoiceFormData) {
                 deliveryDate: deliveryDate,
                 notes: notes,
                 balance: balance,
+                tax: validated.data.tax || 0,
+                hasNcf: validated.data.hasNcf || false,
                 createdById: user.id,
                 items: {
                     create: items.map(item => ({
@@ -158,6 +162,8 @@ export async function getInvoices() {
         total: Number(invoice.total),
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
+        tax: invoice.tax ? Number(invoice.tax) : 0,
+        hasNcf: invoice.hasNcf,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         items: (invoice.items || []).map((item: any) => ({
             ...item,
@@ -182,6 +188,8 @@ export async function getInvoiceById(id: string) {
         total: Number(invoice.total),
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
+        tax: invoice.tax ? Number(invoice.tax) : 0,
+        hasNcf: invoice.hasNcf,
         items: invoice.items.map(item => ({
             ...item,
             price: Number(item.price)
@@ -333,6 +341,8 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                     shippingCost: shippingCost || 0,
                     deliveryDate: deliveryDate,
                     notes: notes,
+                    tax: validated.data.tax || 0,
+                    hasNcf: validated.data.hasNcf || false,
                     // Don't update sequenceNumber, createdBy, etc.
                 }
             })

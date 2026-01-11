@@ -5,8 +5,9 @@ import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import { notFound } from "next/navigation"
 import type { Product } from "@prisma/client"
 
-interface SerializedProduct extends Omit<Product, 'price'> {
+interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number
+    cost: number
 }
 
 interface EditInvoicePageProps {

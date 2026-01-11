@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -38,8 +40,9 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 
-interface SerializedProduct extends Omit<Product, 'price'> {
+interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number
+    cost: number
 }
 
 interface InvoiceFormProps {
@@ -102,8 +105,11 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         setItems(prev => prev.map(p => p.productId === id ? { ...p, quantity: q } : p))
     }
 
+    const [hasNcf, setHasNcf] = useState<boolean>(initialData?.hasNcf || false)
+
     const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-    const total = subtotal + shippingCost
+    const taxAmount = subtotal * 0.18 // Always 18% ITBIS
+    const total = subtotal + taxAmount + shippingCost
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
     const handlePreview = () => {
@@ -300,6 +306,15 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             </div>
                         </div>
 
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox
+                                id="ncf"
+                                checked={hasNcf}
+                                onCheckedChange={(c) => setHasNcf(!!c)}
+                            />
+                            <Label htmlFor="ncf">Requiere Comprobante Fiscal (NCF)</Label>
+                        </div>
+
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Notas / Observaciones</label>
                             <Textarea
@@ -351,6 +366,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
                                 <span>Envío</span>
                                 <span>{formatCurrency(shippingCost)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-red-600">
+                                <span>ITBIS (18%)</span>
+                                <span>{formatCurrency(taxAmount)}</span>
                             </div>
                             <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
                                 <span>Total</span>
@@ -518,6 +537,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 <div className="flex justify-between text-sm">
                                     <span>Envío:</span>
                                     <span>{formatCurrency(shippingCost)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-red-600">
+                                    <span>ITBIS (18%):</span>
+                                    <span>{formatCurrency(taxAmount)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xl font-bold border-t border-blue-200 pt-2">
                                     <span>Total a Pagar:</span>

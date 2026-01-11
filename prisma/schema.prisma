@@ -39,6 +39,7 @@ model Product {
   name        String
   description String?
   price       Decimal
+  cost        Decimal  @default(0) // Purchase Price
   stock       Int      @default(0)
   minStock    Int      @default(0)
   isService   Boolean  @default(false) // Deprecated in favor of category, or kept for compat
@@ -50,6 +51,7 @@ model Product {
   quoteItems   QuoteItem[]
   variants     ProductVariant[]
   hasVariants  Boolean @default(false)
+  purchaseItems PurchaseItem[]
 }
 
 model ProductVariant {
@@ -58,6 +60,7 @@ model ProductVariant {
   product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   name        String         // e.g. "Red / XL" or just "XL"
   price       Decimal
+  cost        Decimal        @default(0)
   stock       Int            @default(0)
   sku         String?
   createdAt   DateTime       @default(now())
@@ -100,6 +103,8 @@ model Invoice {
   deliveryDate DateTime?
   notes        String?
   balance      Decimal  @default(0) // For Receivables
+  tax          Decimal  @default(0) // ITBIS
+  hasNcf       Boolean  @default(false) // Explicit flag for "Con Comprobante"
 
   payments     Payment[]
   creditNotes  CreditNote[]
@@ -257,4 +262,41 @@ model WorkOrder {
 model Setting {
   key   String @id
   value String
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  purchases Purchase[]
+}
+
+model Purchase {
+  id             String         @id @default(cuid())
+  sequenceNumber Int            @default(autoincrement())
+  supplierId     String?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  supplierName   String?        // Snapshot or manual entry
+  date           DateTime       @default(now())
+  total          Decimal
+  status         String         @default("COMPLETED") // COMPLETED, CANCELLED
+  items          PurchaseItem[]
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitCost   Decimal
+  total      Decimal
 }
