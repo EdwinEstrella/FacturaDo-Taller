@@ -44,7 +44,7 @@ export default function SetupPage() {
             } else {
                 toast.error("Error de conexión", { description: res.message });
             }
-        } catch (error) {
+        } catch {
             toast.error("Error desconocido probar conexión");
         } finally {
             setTesting(false);
@@ -93,8 +93,9 @@ export default function SetupPage() {
                 window.electron?.restart();
             }, 3000);
 
-        } catch (error: any) {
-            toast.error("Error en el proceso de configuración", { description: error.message });
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error("Error en el proceso de configuración", { description: msg });
         } finally {
             setLoading(false);
         }

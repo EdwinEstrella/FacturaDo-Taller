@@ -129,7 +129,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     // Better approach: Calculate on changes, but only if user hasn't manually overridden? 
     // Simplest: Calculate on change of [quantity, unitCost, selectedProductId].
 
-    // Effect for Avg Cost
+    // Effect for Avg Cost & Selling Price
     useEffect(() => {
         if (!selectedProduct) return
 
@@ -138,23 +138,26 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const newQty = quantity
         const newUnitCost = unitCost
 
-        // Avoid division by zero
+        // 1. Calculate Avg Cost
+        let currentAvgCost = 0
         const totalQty = currentStock + newQty
+
         if (totalQty === 0) {
-            setAvgCost(newUnitCost)
-            return
+            currentAvgCost = newUnitCost
+        } else {
+            currentAvgCost = ((currentStock * currentCost) + (newQty * newUnitCost)) / totalQty
         }
 
-        const weightedCost = ((currentStock * currentCost) + (newQty * newUnitCost)) / totalQty
-        setAvgCost(parseFloat(weightedCost.toFixed(2)))
-    }, [quantity, unitCost, selectedProduct])
+        const finalAvgCost = parseFloat(currentAvgCost.toFixed(2))
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setAvgCost(finalAvgCost)
 
-    // Effect for Selling Price based on Margin + AvgCost
-    useEffect(() => {
-        // Suggested Price = AvgCost * (1 + margin/100)
-        const price = avgCost * (1 + (margin / 100))
+        // 2. Calculate Selling Price based on this NEW Avg Cost (not proper state which might be stale)
+        const price = finalAvgCost * (1 + (margin / 100))
         setNewSellingPrice(parseFloat(price.toFixed(2)))
-    }, [avgCost, margin])
+
+
+    }, [quantity, unitCost, selectedProduct, margin])
 
 
     // Handlers

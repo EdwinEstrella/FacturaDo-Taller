@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { getInvoices } from "@/actions/invoice-actions"
-import { getQuotes } from "@/actions/quote-actions"
 import { filterInvoices, getInvoiceStats } from "@/actions/filter-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
 import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
@@ -15,8 +14,6 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { QuoteList } from "@/components/modules/quotes/quote-list"
 import { InvoiceFilters } from "@/components/modules/invoices/invoice-filters"
 import { InvoiceReportPrint } from "@/components/modules/reports/invoice-report-print"
 import { CreateWorkOrderDialog } from "@/components/modules/orders/create-order-dialog"
@@ -27,16 +24,12 @@ import { Pencil } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateTimeDO } from "@/lib/date-utils"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type InvoiceType = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type QuoteType = any
 
 export default function InvoicesPage() {
     const [filteredInvoices, setFilteredInvoices] = useState<InvoiceType[]>([])
-    const [quotes, setQuotes] = useState<QuoteType[]>([])
     const [stats, setStats] = useState({ count: 0, total: 0, paid: 0, pending: 0 })
     const [user, setUser] = useState<{ role: string } | null>(null)
     const [settings, setSettings] = useState<CompanySettings | null>(null)
@@ -47,14 +40,12 @@ export default function InvoicesPage() {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true)
-            const [invoicesData, quotesData, userData, settingsData] = await Promise.all([
+            const [invoicesData, userData, settingsData] = await Promise.all([
                 getInvoices(),
-                getQuotes(),
                 getCurrentUser(),
                 getCompanySettings()
             ])
             setFilteredInvoices(invoicesData)
-            setQuotes(quotesData)
             setUser(userData)
             setSettings(settingsData)
             setLoading(false)
@@ -118,86 +109,86 @@ export default function InvoicesPage() {
                 <div className="space-y-4">
                     <InvoiceFilters onFilter={handleFilter} onPrint={handlePrint} />
 
-                        {/* Stats Summary */}
-                        {(currentFilters.startDate || currentFilters.endDate || currentFilters.period || currentFilters.minAmount) && (
-                            <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border">
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-blue-600">{stats.count}</p>
-                                    <p className="text-xs text-gray-600">Facturas</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.total)}</p>
-                                    <p className="text-xs text-gray-600">Total</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-emerald-600">{stats.paid}</p>
-                                    <p className="text-xs text-gray-600">Pagadas</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
-                                    <p className="text-xs text-gray-600">Pendientes</p>
-                                </div>
+                    {/* Stats Summary */}
+                    {(currentFilters.startDate || currentFilters.endDate || currentFilters.period || currentFilters.minAmount) && (
+                        <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border">
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-blue-600">{stats.count}</p>
+                                <p className="text-xs text-gray-600">Facturas</p>
                             </div>
-                        )}
-
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>No.</TableHead>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead>Cliente</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead className="text-right">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredInvoices.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="text-center">No hay facturas</TableCell>
-                                        </TableRow>
-                                    )}
-                                    {filteredInvoices.map((invoice) => (
-                                        <TableRow key={invoice.id}>
-                                            <TableCell className="font-mono">#{invoice.sequenceNumber}</TableCell>
-                                            <TableCell>{formatDateTimeDO(invoice.createdAt)}</TableCell>
-                                            <TableCell>{invoice.clientName || invoice.client?.name || "Consumidor Final"}</TableCell>
-                                            <TableCell>{invoice.status}</TableCell>
-                                            <TableCell className="text-right font-bold">{formatCurrency(Number(invoice.total))}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    {isAdmin && (
-                                                        <Link href={`/invoices/${invoice.id}/edit`}>
-                                                            <Button variant="ghost" size="icon" title="Editar Factura">
-                                                                <Pencil className="h-4 w-4 text-blue-500" />
-                                                            </Button>
-                                                        </Link>
-                                                    )}
-
-                                                    <InvoicePreviewDialog invoice={invoice} settings={settings || undefined} />
-
-                                                    {invoice.workOrder && (
-                                                        <WorkOrderPreviewDialog invoice={invoice} />
-                                                    )}
-
-                                                    {!invoice.workOrder && (
-                                                        <CreateWorkOrderDialog invoiceId={invoice.id} />
-                                                    )}
-
-                                                    {isAdmin && (
-                                                        <DeleteInvoiceDialog
-                                                            invoiceId={invoice.id}
-                                                            isProduction={!!invoice.workOrder}
-                                                        />
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.total)}</p>
+                                <p className="text-xs text-gray-600">Total</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-emerald-600">{stats.paid}</p>
+                                <p className="text-xs text-gray-600">Pagadas</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
+                                <p className="text-xs text-gray-600">Pendientes</p>
+                            </div>
                         </div>
+                    )}
+
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>No.</TableHead>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead>Cliente</TableHead>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredInvoices.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center">No hay facturas</TableCell>
+                                    </TableRow>
+                                )}
+                                {filteredInvoices.map((invoice) => (
+                                    <TableRow key={invoice.id}>
+                                        <TableCell className="font-mono">#{invoice.sequenceNumber}</TableCell>
+                                        <TableCell>{formatDateTimeDO(invoice.createdAt)}</TableCell>
+                                        <TableCell>{invoice.clientName || invoice.client?.name || "Consumidor Final"}</TableCell>
+                                        <TableCell>{invoice.status}</TableCell>
+                                        <TableCell className="text-right font-bold">{formatCurrency(Number(invoice.total))}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                {isAdmin && (
+                                                    <Link href={`/invoices/${invoice.id}/edit`}>
+                                                        <Button variant="ghost" size="icon" title="Editar Factura">
+                                                            <Pencil className="h-4 w-4 text-blue-500" />
+                                                        </Button>
+                                                    </Link>
+                                                )}
+
+                                                <InvoicePreviewDialog invoice={invoice} settings={settings || undefined} />
+
+                                                {invoice.workOrder && (
+                                                    <WorkOrderPreviewDialog invoice={invoice} />
+                                                )}
+
+                                                {!invoice.workOrder && (
+                                                    <CreateWorkOrderDialog invoiceId={invoice.id} />
+                                                )}
+
+                                                {isAdmin && (
+                                                    <DeleteInvoiceDialog
+                                                        invoiceId={invoice.id}
+                                                        isProduction={!!invoice.workOrder}
+                                                    />
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             </div>
 

@@ -10,8 +10,10 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+type QuoteAny = any
+
 export default function QuotesPage() {
-    const [quotes, setQuotes] = useState<any[]>([])
+    const [quotes, setQuotes] = useState<QuoteAny[]>([])
     const [loading, setLoading] = useState(true)
     const searchParams = useSearchParams()
     const query = searchParams.get("q") ?? ""
@@ -22,7 +24,7 @@ export default function QuotesPage() {
             const data = await getQuotes()
             // filtro simple en cliente por ahora: cliente o estado o total en texto
             const filtered = query
-                ? data.filter((q: any) => {
+                ? data.filter((q: QuoteAny) => {
                     const text = `${q.clientName || q.client?.name || ""} ${q.status || ""} ${q.total}`.toLowerCase()
                     return text.includes(query.toLowerCase())
                 })

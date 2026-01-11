@@ -95,6 +95,7 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
             // 2. Update Inventory & Cost for each product
             for (const item of items) {
                 // Prepare update data
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const updateData: any = {
                     stock: { increment: item.quantity }
                 }

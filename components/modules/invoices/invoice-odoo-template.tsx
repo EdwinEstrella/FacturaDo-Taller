@@ -25,6 +25,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
   const issueDate = new Date(invoice.createdAt)
 
   const subtotal = invoice.items.reduce(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (acc: number, item: any) => acc + Number(item.price) * item.quantity,
     0
   )
@@ -164,6 +165,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
             </tr>
           </thead>
           <tbody>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {invoice.items.map((item: any) => (
               <tr key={item.id}>
                 <td className="border px-2 py-1 align-top">

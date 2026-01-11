@@ -46,6 +46,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     const users = await prisma.user.findMany({ select: { id: true, name: true } })
 
     // 2. Build Query Filters
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereInvoice: any = {
         createdAt: {
             gte: start,

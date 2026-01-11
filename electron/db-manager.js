@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 const { Client } = require('pg');
 const { exec } = require('child_process');
 const path = require('path');
