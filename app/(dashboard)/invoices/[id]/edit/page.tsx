@@ -10,21 +10,22 @@ interface SerializedProduct extends Omit<Product, 'price'> {
 }
 
 interface EditInvoicePageProps {
-    params: {
+    params: Promise<{
         id: string
-    }
+    }>
 }
 
 import { getCurrentUser } from "@/actions/auth-actions"
 import { redirect } from "next/navigation"
 
 export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
+    const { id } = await params
     const user = await getCurrentUser()
     if (!user || user.role !== "ADMIN") {
         redirect("/invoices")
     }
 
-    const invoice = await getInvoiceById(params.id)
+    const invoice = await getInvoiceById(id)
     const clients = await getClients()
     const products = await getProducts()
 
@@ -33,9 +34,15 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     }
 
     // Serialize Decimal to number for client component
-    const serializedProducts: SerializedProduct[] = products.map(product => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serializedProducts: SerializedProduct[] = products.map((product: any) => ({
         ...product,
-        price: Number(product.price)
+        price: Number(product.price),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        variants: product.variants?.map((v: any) => ({
+            ...v,
+            price: Number(v.price)
+        }))
     }))
 
     return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Navbar } from "@/components/layout/navbar"
@@ -22,12 +22,6 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     // but here we just default to expanded for desktop as requested or standard behavior.
     // However, user might want to persist this state. For now, local state.
     const [isCollapsed, setIsCollapsed] = useState(false)
-    const [mounted, setMounted] = useState(false)
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMounted(true)
-    }, [])
 
     return (
         <div className="h-full relative">

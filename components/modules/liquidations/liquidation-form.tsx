@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarIcon, Loader2, Printer } from "lucide-react"
-import { cn, formatCurrency, formatDateTimeDO } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
+import { formatDateTimeDO } from "@/lib/date-utils"
 import { getLiquidationData } from "@/actions/liquidation-actions"
 import { toast } from "sonner"
 import {
@@ -38,20 +39,41 @@ interface User {
     role: string
 }
 
+import { DateRange } from "react-day-picker"
+
+interface LiquidationInvoice {
+    id: string
+    createdAt: Date
+    sequenceNumber: number
+    clientName: string | null
+    status: string
+    total: number
+}
+
+interface LiquidationResult {
+    user: { name: string }
+    summary: {
+        totalSales: number
+        totalPaid: number
+        initialPending: number
+    }
+    invoices: LiquidationInvoice[]
+}
+
 interface LiquidationFormProps {
     users: User[]
 }
 
 export default function LiquidationForm({ users }: LiquidationFormProps) {
     const [selectedUserId, setSelectedUserId] = useState("")
-    const [date, setDate] = useState<{ from: Date; to: Date } | undefined>({
+    const [date, setDate] = useState<DateRange | undefined>({
         from: new Date(),
         to: new Date(),
     })
     const [commissionRate, setCommissionRate] = useState<number>(0) // Percentage
 
     // Results
-    const [results, setResults] = useState<any>(null)
+    const [results, setResults] = useState<LiquidationResult | null>(null)
     const [isPending, startTransition] = useTransition()
 
     const handleGenerate = () => {
@@ -66,7 +88,7 @@ export default function LiquidationForm({ users }: LiquidationFormProps) {
             })
 
             if (res.success) {
-                setResults(res.data)
+                setResults(res.data as LiquidationResult)
             } else {
                 toast.error("Error: " + res.error)
             }
@@ -131,8 +153,8 @@ export default function LiquidationForm({ users }: LiquidationFormProps) {
                                         initialFocus
                                         mode="range"
                                         defaultMonth={date?.from}
-                                        selected={date as any} // DateRange type issue in newer shadcn/react-day-picker
-                                        onSelect={(val: any) => setDate(val)}
+                                        selected={date}
+                                        onSelect={setDate}
                                         numberOfMonths={2}
                                     />
                                 </PopoverContent>
@@ -169,7 +191,7 @@ export default function LiquidationForm({ users }: LiquidationFormProps) {
                             <div>
                                 <CardTitle>Reporte de Liquidación</CardTitle>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    {results.user.name} | {format(date!.from, "dd/MM/yyyy")} - {format(date!.to, "dd/MM/yyyy")}
+                                    {results.user.name} | {format(date!.from!, "dd/MM/yyyy")} - {format(date!.to!, "dd/MM/yyyy")}
                                 </p>
                             </div>
                             <Button variant="outline" size="icon" onClick={() => window.print()} className="print:hidden">
@@ -214,7 +236,7 @@ export default function LiquidationForm({ users }: LiquidationFormProps) {
                                                 <TableCell colSpan={5} className="text-center">No se encontraron ventas</TableCell>
                                             </TableRow>
                                         )}
-                                        {results.invoices.map((inv: any) => (
+                                        {results.invoices.map((inv) => (
                                             <TableRow key={inv.id}>
                                                 <TableCell>{formatDateTimeDO(inv.createdAt)}</TableCell>
                                                 <TableCell>#{inv.sequenceNumber}</TableCell>

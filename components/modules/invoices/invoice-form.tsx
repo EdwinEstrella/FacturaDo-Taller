@@ -57,6 +57,7 @@ interface InvoiceItemState {
 }
 
 export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
+    // Handling form state changes for HMR sync
 
     const [items, setItems] = useState<InvoiceItemState[]>(initialData?.items || [])
     const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
@@ -151,7 +152,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         paymentMethod,
                         shippingCost,
                         deliveryDate,
-                        notes
+                        notes,
+                        amountPaid: paymentMethod === "CASH" ? amountTendered : undefined
                     })
                 }
             }
@@ -419,14 +421,25 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             </div>
                         )}
                         {isEdit && (
-                            <Button
-                                className={cn("w-full mt-4", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
-                                size="lg"
-                                onClick={handleConfirm}
-                                disabled={isPending}
-                            >
-                                {isPending ? "Procesando..." : "Actualizar Factura"}
-                            </Button>
+                            <div className="flex gap-2 mt-4">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    size="lg"
+                                    onClick={() => router.push("/invoices")}
+                                    disabled={isPending}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                    size="lg"
+                                    onClick={handleConfirm}
+                                    disabled={isPending}
+                                >
+                                    {isPending ? "Procesando..." : "Actualizar Factura"}
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </Card>

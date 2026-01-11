@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { formatCurrency, formatDateTimeDO } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
+import { formatDateTimeDO } from "@/lib/date-utils"
 // import { Plus } from "lucide-react"
 
 export default async function CreditNotesPage() {

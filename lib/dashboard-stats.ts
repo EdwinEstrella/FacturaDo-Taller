@@ -186,47 +186,27 @@ export async function getFinancialHistory() {
     const startPeriod = months[0].date
 
     // Agrupar facturas por mes
-    const invoices = await prisma.invoice.groupBy({
-        by: ['createdAt'],
-        where: {
-            status: 'PAID',
-            createdAt: {
-                gte: startPeriod
-            }
-        },
-        _sum: {
-            total: true
-        }
-    })
-
-    // Mapear resultados a los meses generados
-    // Nota: groupBy de prisma retorna fechas exactas, necesitamos sumarizar manualmente o usar raw query si es mucho dato.
-    // Para simplificar y mantener compatibilidad con cualquier DB, procesamos en JS (asumiendo volumen razonable)
-    // O mejor, iteramos las facturas para sumar al mes correspondiente.
-
-    // Fetch all paid invoices in range (more precise aggregation control)
+    // Use aggregation to sum totals per month
     const paidInvoices = await prisma.invoice.findMany({
         where: {
             status: 'PAID',
-            createdAt: {
-                gte: startPeriod
-            }
+            createdAt: { gte: startPeriod }
         },
         select: {
-            createdAt: true,
-            total: true
+            total: true,
+            createdAt: true
         }
     })
 
-    paidInvoices.forEach(invoice => {
-        const invoiceDate = new Date(invoice.createdAt)
+    // Sum by month
+    paidInvoices.forEach(inv => {
+        // Find matching month
         const monthIndex = months.findIndex(m =>
-            m.date.getMonth() === invoiceDate.getMonth() &&
-            m.date.getFullYear() === invoiceDate.getFullYear()
+            inv.createdAt.getFullYear() === m.date.getFullYear() &&
+            inv.createdAt.getMonth() === m.date.getMonth()
         )
-
         if (monthIndex !== -1) {
-            months[monthIndex].total += Number(invoice.total)
+            months[monthIndex].total += Number(inv.total)
         }
     })
 

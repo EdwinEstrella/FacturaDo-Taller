@@ -101,6 +101,34 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                 <span>{formatCurrency(Number(invoice.total))}</span>
             </div>
 
+            {invoice.shippingCost > 0 && (
+                <div className="flex justify-between text-xs mt-1">
+                    <span>Envío:</span>
+                    <span>{formatCurrency(Number(invoice.shippingCost))}</span>
+                </div>
+            )}
+
+            {/* Payment Details */}
+            <div className="border-t border-dashed border-black my-2"></div>
+            <div className="text-right space-y-1">
+                <div className="flex justify-between">
+                    <span>Estado:</span>
+                    <span className="font-bold">{invoice.status === 'PAID' ? 'PAGADO' : 'PENDIENTE'}</span>
+                </div>
+                {invoice.status === 'PENDIENTE' && (
+                    <>
+                        <div className="flex justify-between">
+                            <span>Abonado:</span>
+                            <span>{formatCurrency(Number(invoice.total) - Number(invoice.balance))}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-base mt-2">
+                            <span>RESTA:</span>
+                            <span>{formatCurrency(Number(invoice.balance))}</span>
+                        </div>
+                    </>
+                )}
+            </div>
+
             <div className="text-xs text-center mt-4 mb-4">
                 <p>Gracias por su compra!</p>
                 <p>Factura Generada por FacturaDO</p>

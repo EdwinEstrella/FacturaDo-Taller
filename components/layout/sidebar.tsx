@@ -108,7 +108,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobile }: Sidebar
             }
         })
         setOpenGroups(prev => ({ ...prev, ...newOpenGroups }))
-    }, [pathname, mounted])
+    }, [pathname, mounted, openGroups])
 
     const toggleGroup = (label: string) => {
         if (isCollapsed && setIsCollapsed) {
@@ -128,7 +128,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobile }: Sidebar
             if (role === 'ADMIN') return true
 
             if (role === 'SELLER' || role === 'CUSTOM') {
-                const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician', '/liquidations']
+                const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician']
                 return !blocked.includes(href)
             }
 

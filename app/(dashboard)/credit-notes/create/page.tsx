@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { CreateCreditNoteForm } from "@/components/modules/credit-notes/create-credit-note-form"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type InvoiceWithItems = any
-
 export default async function CreateCreditNotePage() {
     // Look up recent invoices. Ideally filter by those that handle stock?
     const recentInvoices = await prisma.invoice.findMany({

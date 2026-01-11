@@ -9,7 +9,8 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { formatCurrency, formatDateDO } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
+import { formatDateDO } from "@/lib/date-utils"
 // import { format } from "date-fns" // Client side usage
 import { convertQuoteToInvoice } from "@/actions/quote-actions"
 import { ArrowRight, Printer } from "lucide-react"

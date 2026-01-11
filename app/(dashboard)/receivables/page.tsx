@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma"
 // import { markAsPaid } from "@/actions/invoice-actions" // Unused
-import { Button } from "@/components/ui/button"
 import { PaymentDialog } from "@/components/modules/receivables/payment-dialog"
 import {
     Table,

@@ -14,7 +14,7 @@ import { useReactToPrint } from "react-to-print"
 import { InvoiceTemplate } from "./invoice-template"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function InvoicePreviewDialog({ invoice }: { invoice: any }) {
+export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, settings?: any }) {
     const contentRef = useRef<HTMLDivElement>(null)
     const reactToPrintFn = useReactToPrint({ contentRef })
 
@@ -32,7 +32,7 @@ export function InvoicePreviewDialog({ invoice }: { invoice: any }) {
 
                 <div className="border p-2 bg-gray-100 flex justify-center">
                     <div ref={contentRef}>
-                        <InvoiceTemplate invoice={invoice} />
+                        <InvoiceTemplate invoice={invoice} settings={settings} />
                     </div>
                 </div>
 

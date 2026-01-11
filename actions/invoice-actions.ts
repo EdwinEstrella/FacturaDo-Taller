@@ -24,6 +24,7 @@ const InvoiceSchema = z.object({
     shippingCost: z.number().min(0).optional(),
     deliveryDate: z.date().optional(),
     notes: z.string().optional(),
+    amountPaid: z.number().min(0).optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -50,9 +51,27 @@ export async function createInvoice(data: InvoiceFormData) {
         }
     }
 
-    const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes } = validated.data
+    const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes, amountPaid } = validated.data
 
     const isCredit = paymentMethod === "CREDIT"
+
+    // Calculate initial status and balance
+    // If Credit: PENDING, Balance = Total
+    // If Paid Amount provided:
+    //    If Paid < Total: PENDING, Balance = Total - Paid
+    //    If Paid >= Total: PAID, Balance = 0
+    // If neither (Default Cash/Card): PAID, Balance = 0
+
+    let status = "PAID"
+    let balance = 0
+
+    if (isCredit) {
+        status = "PENDING"
+        balance = total
+    } else if (amountPaid !== undefined && amountPaid < total) {
+        status = "PENDING"
+        balance = total - amountPaid
+    }
 
     try {
         // 1. Create Invoice
@@ -61,12 +80,12 @@ export async function createInvoice(data: InvoiceFormData) {
                 clientId: clientId,
                 clientName: clientName, // Snapshot
                 total: total,
-                status: isCredit ? "PENDING" : "PAID",
+                status: status,
                 paymentMethod: paymentMethod,
                 shippingCost: shippingCost || 0,
                 deliveryDate: deliveryDate,
                 notes: notes,
-                balance: isCredit ? total : 0,
+                balance: balance,
                 createdById: user.id,
                 items: {
                     create: items.map(item => ({
@@ -78,6 +97,20 @@ export async function createInvoice(data: InvoiceFormData) {
                 }
             }
         })
+
+        // 1.5 Register Initial Payment if amountPaid > 0 and it's not Credit (or even if it is credit but has downpayment?)
+        // For simple "Cash" with partial:
+        if (amountPaid && amountPaid > 0) {
+            await prisma.payment.create({
+                data: {
+                    invoiceId: invoice.id,
+                    amount: amountPaid,
+                    method: paymentMethod || "CASH",
+                    date: new Date(),
+                    notes: "Pago Inicial / Abono"
+                }
+            })
+        }
 
         // 2. Update Stock
         for (const item of items) {
@@ -123,6 +156,8 @@ export async function getInvoices() {
     return invoices.map((invoice: any) => ({
         ...invoice,
         total: Number(invoice.total),
+        balance: invoice.balance ? Number(invoice.balance) : 0,
+        shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         items: (invoice.items || []).map((item: any) => ({
             ...item,
@@ -145,6 +180,8 @@ export async function getInvoiceById(id: string) {
     return {
         ...invoice,
         total: Number(invoice.total),
+        balance: invoice.balance ? Number(invoice.balance) : 0,
+        shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         items: invoice.items.map(item => ({
             ...item,
             price: Number(item.price)
@@ -191,10 +228,9 @@ export async function deleteInvoice(id: string, password?: string) {
     if (!invoice) return { success: false, error: "Factura no encontrada" }
 
     // 1. Check permissions first
-    // If it has a WorkOrder (Production), strictly require ADMIN
-    const isProduction = !!invoice.workOrder
-    if (isProduction && user.role !== 'ADMIN') {
-        return { success: false, error: "Solo el Administrador puede eliminar facturas en Producción." }
+    // Strictly require ADMIN for any deletion
+    if (user.role !== 'ADMIN') {
+        return { success: false, error: "Solo el Administrador puede eliminar facturas." }
     }
 
     // 2. Verify Password

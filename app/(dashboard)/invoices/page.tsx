@@ -5,6 +5,7 @@ import { getInvoices } from "@/actions/invoice-actions"
 import { getQuotes } from "@/actions/quote-actions"
 import { filterInvoices, getInvoiceStats } from "@/actions/filter-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
+import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
 import {
     Table,
     TableBody,
@@ -23,7 +24,8 @@ import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-prev
 import { WorkOrderPreviewDialog } from "@/components/modules/orders/work-order-preview"
 import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
 import { Pencil } from "lucide-react"
-import { formatCurrency, formatDateTimeDO } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
+import { formatDateTimeDO } from "@/lib/date-utils"
 import Link from "next/link"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +38,7 @@ export default function InvoicesPage() {
     const [quotes, setQuotes] = useState<QuoteType[]>([])
     const [stats, setStats] = useState({ count: 0, total: 0, paid: 0, pending: 0 })
     const [user, setUser] = useState<{ role: string } | null>(null)
+    const [settings, setSettings] = useState<CompanySettings | null>(null)
     const [showPrint, setShowPrint] = useState(false)
     const [loading, setLoading] = useState(true)
     const [currentFilters, setCurrentFilters] = useState<Record<string, string>>({})
@@ -43,14 +46,16 @@ export default function InvoicesPage() {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true)
-            const [invoicesData, quotesData, userData] = await Promise.all([
+            const [invoicesData, quotesData, userData, settingsData] = await Promise.all([
                 getInvoices(),
                 getQuotes(),
-                getCurrentUser()
+                getCurrentUser(),
+                getCompanySettings()
             ])
             setFilteredInvoices(invoicesData)
             setQuotes(quotesData)
             setUser(userData)
+            setSettings(settingsData)
             setLoading(false)
         }
         loadData()
@@ -179,7 +184,7 @@ export default function InvoicesPage() {
                                                         </Link>
                                                     )}
 
-                                                    <InvoicePreviewDialog invoice={invoice} />
+                                                    <InvoicePreviewDialog invoice={invoice} settings={settings || undefined} />
 
                                                     {invoice.workOrder && (
                                                         <WorkOrderPreviewDialog invoice={invoice} />
@@ -189,10 +194,12 @@ export default function InvoicesPage() {
                                                         <CreateWorkOrderDialog invoiceId={invoice.id} />
                                                     )}
 
-                                                    <DeleteInvoiceDialog
-                                                        invoiceId={invoice.id}
-                                                        isProduction={!!invoice.workOrder}
-                                                    />
+                                                    {isAdmin && (
+                                                        <DeleteInvoiceDialog
+                                                            invoiceId={invoice.id}
+                                                            isProduction={!!invoice.workOrder}
+                                                        />
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
