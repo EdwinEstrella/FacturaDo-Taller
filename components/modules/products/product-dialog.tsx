@@ -41,9 +41,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     const [category, setCategory] = useState(product?.category || "ARTICULO")
 
     // Price/Cost/Margin State
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initialCost = (product as any)?.cost ? Number((product as any).cost) : 0
-    const initialPrice = Number(product?.price || 0)
+    const initialCost = product?.cost || 0
+    const initialPrice = product?.price || 0
     const [cost, setCost] = useState(initialCost)
     const [price, setPrice] = useState(initialPrice)
     const [margin, setMargin] = useState(() => {
