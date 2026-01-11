@@ -13,16 +13,42 @@ import {
 import { revalidatePath } from "next/cache"
 import { formatCurrency } from "@/lib/utils"
 
-export default async function PettyCashPage() {
+export default async function PettyCashPage({ searchParams }: { searchParams: { q?: string } }) {
+    const query = searchParams?.q ?? ""
+
     const transactions = await prisma.transaction.findMany({
-        orderBy: { date: 'desc' }
+        where: {
+            type: 'EXPENSE',
+            category: 'PETTY_CASH',
+            ...(query
+                ? {
+                    OR: [
+                        { description: { contains: query, mode: 'insensitive' } },
+                    ],
+                }
+                : {}),
+        },
+        orderBy: { date: 'desc' },
     })
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Caja Chica</h2>
 
-            <div className="flex gap-4 items-end border p-4 rounded-lg bg-gray-50">
+            <div className="flex flex-col gap-4 border p-4 rounded-lg bg-gray-50">
+                <form className="flex gap-4 w-full items-end" action={""}>
+                    <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="search">Buscar</Label>
+                        <Input
+                            id="search"
+                            name="q"
+                            placeholder="Buscar por descripción..."
+                            defaultValue={query}
+                        />
+                    </div>
+                    <Button type="submit" variant="outline">Filtrar</Button>
+                </form>
+
                 <form action={async (formData) => {
                     "use server"
                     const amount = parseFloat(formData.get("amount") as string)

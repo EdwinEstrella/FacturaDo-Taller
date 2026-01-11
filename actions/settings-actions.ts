@@ -10,6 +10,15 @@ export type CompanySettings = {
     companyPhone: string
     companyRnc: string
     companyAddress: string
+    /**
+     * Plantilla de factura preferida para impresión.
+     * "ticket" = 80mm térmica, "a4" = formato carta/A4.
+     */
+    invoiceTemplate?: "ticket" | "a4"
+    /**
+     * Logo de la empresa en formato data URL (base64) o URL pública.
+     */
+    companyLogo?: string
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
@@ -17,7 +26,14 @@ export async function getCompanySettings(): Promise<CompanySettings> {
         const settings = await prisma.setting.findMany({
             where: {
                 key: {
-                    in: ["COMPANY_NAME", "COMPANY_PHONE", "COMPANY_RNC", "COMPANY_ADDRESS"]
+                    in: [
+                        "COMPANY_NAME",
+                        "COMPANY_PHONE",
+                        "COMPANY_RNC",
+                        "COMPANY_ADDRESS",
+                        "INVOICE_TEMPLATE",
+                        "COMPANY_LOGO",
+                    ]
                 }
             }
         })
@@ -27,7 +43,9 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             companyName: "FacturaDO", // Default
             companyPhone: "",
             companyRnc: "",
-            companyAddress: ""
+            companyAddress: "",
+            invoiceTemplate: "ticket",
+            companyLogo: "",
         }
 
         // Map DB results to object
@@ -36,6 +54,8 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             if (current.key === "COMPANY_PHONE") acc.companyPhone = current.value
             if (current.key === "COMPANY_RNC") acc.companyRnc = current.value
             if (current.key === "COMPANY_ADDRESS") acc.companyAddress = current.value
+            if (current.key === "INVOICE_TEMPLATE") acc.invoiceTemplate = (current.value === "a4" ? "a4" : "ticket")
+            if (current.key === "COMPANY_LOGO") acc.companyLogo = current.value
             return acc
         }, defaults)
 
@@ -46,7 +66,9 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             companyName: "FacturaDO",
             companyPhone: "",
             companyRnc: "",
-            companyAddress: ""
+            companyAddress: "",
+            invoiceTemplate: "ticket",
+            companyLogo: "",
         }
     }
 }
@@ -57,6 +79,9 @@ export async function updateCompanySettings(data: CompanySettings) {
         if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
             return { success: false, error: "No tienes permisos para modificar la configuración." }
         }
+
+        const invoiceTemplate = data.invoiceTemplate === "a4" ? "a4" : "ticket"
+        const companyLogo = data.companyLogo ?? ""
 
         // Upsert each setting
         await prisma.$transaction([
@@ -79,7 +104,17 @@ export async function updateCompanySettings(data: CompanySettings) {
                 where: { key: "COMPANY_ADDRESS" },
                 update: { value: data.companyAddress },
                 create: { key: "COMPANY_ADDRESS", value: data.companyAddress }
-            })
+            }),
+            prisma.setting.upsert({
+                where: { key: "INVOICE_TEMPLATE" },
+                update: { value: invoiceTemplate },
+                create: { key: "INVOICE_TEMPLATE", value: invoiceTemplate }
+            }),
+            prisma.setting.upsert({
+                where: { key: "COMPANY_LOGO" },
+                update: { value: companyLogo },
+                create: { key: "COMPANY_LOGO", value: companyLogo }
+            }),
         ])
 
         revalidatePath("/settings/general") // Revalidate the form usage

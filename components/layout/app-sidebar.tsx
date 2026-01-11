@@ -138,7 +138,7 @@ function getSidebarContent(activeSection: string, role: string): SidebarContent 
                 title: "Ventas",
                 items: [
                     { icon: <Receipt size={16} className="text-neutral-900" />, label: "Facturas", href: "/invoices" },
-                    { icon: <DocumentAdd size={16} className="text-neutral-900" />, label: "Cotizaciones", href: "/invoices?type=QUOTE" },
+                    { icon: <DocumentAdd size={16} className="text-neutral-900" />, label: "Cotizaciones", href: "/quotes" },
                     { icon: <Receipt size={16} className="text-neutral-900" />, label: "Notas de Crédito", href: "/credit-notes" },
                     { icon: <Money size={16} className="text-neutral-900" />, label: "Cuentas por Cobrar", href: "/receivables" },
                 ].filter(item => checkRole(role, item.href!))
@@ -191,6 +191,7 @@ function getSidebarContent(activeSection: string, role: string): SidebarContent 
                 items: [
                     { icon: <Money size={16} className="text-neutral-900" />, label: "Caja Chica", href: "/petty-cash" },
                     { icon: <Archive size={16} className="text-neutral-900" />, label: "Cierre Diario", href: "/daily-close" },
+                    { icon: <Archive size={16} className="text-neutral-900" />, label: "Historial de Cierre", href: "/cash-close-history" },
                 ].filter(item => checkRole(role, item.href!))
             }
         ]
@@ -610,11 +611,11 @@ function MenuSection({
 /* ------------------------------- Root Frame ------------------------------ */
 
 function getSectionFromPath(pathname: string) {
-    if (pathname.includes("/invoices") || pathname.includes("/clients") || pathname.includes("/credit-notes") || pathname.includes("/receivables")) {
+    if (pathname.includes("/invoices") || pathname.includes("/clients") || pathname.includes("/credit-notes") || pathname.includes("/receivables") || pathname.includes("/quotes")) {
         return "billing";
     } else if (pathname.includes("/products") || pathname.includes("/warehouse") || pathname.includes("/orders") || pathname.includes("/dispatch") || pathname.includes("/technician")) {
         return "operations";
-    } else if (pathname.includes("/accounting") || pathname.includes("/liquidations") || pathname.includes("/fiscal") || pathname.includes("/petty-cash") || pathname.includes("/daily-close")) {
+    } else if (pathname.includes("/accounting") || pathname.includes("/liquidations") || pathname.includes("/fiscal") || pathname.includes("/petty-cash") || pathname.includes("/daily-close") || pathname.includes("/cash-close-history")) {
         return "finance";
     } else if (pathname.includes("/analytics")) {
         return "dashboard";

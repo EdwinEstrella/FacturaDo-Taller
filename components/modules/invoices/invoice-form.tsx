@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -107,8 +107,30 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
     const [hasNcf, setHasNcf] = useState<boolean>(initialData?.hasNcf || false)
 
+    // Mapa de productos para saber si son servicios / exentos de ITBIS
+    const productMap = useMemo(() => {
+        const map = new Map<string, SerializedProduct | Product>()
+        for (const p of initialProducts as SerializedProduct[]) {
+            // @ts-expect-error - SerializedProduct es compatible con Product en los campos que usamos
+            map.set(p.id as string, p)
+        }
+        return map
+    }, [initialProducts])
+
     const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-    const taxAmount = subtotal * 0.18 // Always 18% ITBIS
+
+    // Solo aplicamos ITBIS a productos que NO son servicios
+    const taxableSubtotal = items.reduce((acc, item) => {
+        const product = productMap.get(item.productId)
+        // Se considera servicio si isService es true o la categoría es "SERVICIO"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const asAny = product as any | undefined
+        const isService = asAny?.isService || asAny?.category === "SERVICIO"
+        if (isService) return acc
+        return acc + (item.price * item.quantity)
+    }, 0)
+
+    const taxAmount = taxableSubtotal * 0.18
     const total = subtotal + taxAmount + shippingCost
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
@@ -137,7 +159,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     paymentMethod,
                     shippingCost,
                     deliveryDate,
-                    notes
+                    notes,
+                    tax: taxAmount,
+                    hasNcf,
                 })
             } else {
                 // Create Mode
@@ -159,7 +183,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         shippingCost,
                         deliveryDate,
                         notes,
-                        amountPaid: paymentMethod === "CASH" ? amountTendered : undefined
+                        amountPaid: paymentMethod === "CASH" ? amountTendered : undefined,
+                        tax: taxAmount,
+                        hasNcf,
                     })
                 }
             }

@@ -9,6 +9,7 @@ interface InvoiceTemplateProps {
         companyRnc: string
         companyPhone: string
         companyAddress: string
+        companyLogo?: string
     }
 }
 
@@ -17,6 +18,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     const companyRnc = settings?.companyRnc || "101-00000-0"
     const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
     const companyPhone = settings?.companyPhone || "809-555-0101"
+    const logoSrc = settings?.companyLogo && settings.companyLogo.length > 0 ? settings.companyLogo : "/logo.png"
 
     // Helper for Santo Domingo timezone date
     const formatDate = (date: Date | string) => {
@@ -49,7 +51,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
             `}</style>
 
             <div className="text-center mb-4">
-                <Image src="/logo.png" alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
+                <Image src={logoSrc} alt="Logo" width={44} height={44} className="h-11 mx-auto mb-2" unoptimized />
                 <h1 className="font-bold text-lg uppercase">{companyName}</h1>
                 <p>RNC: {companyRnc}</p>
                 <p>{companyAddress}</p>
