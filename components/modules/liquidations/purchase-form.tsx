@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -74,6 +74,8 @@ interface PurchaseItem {
     quantity: number
     unitCost: number
     total: number
+    newCost?: number
+    newPrice?: number
 }
 
 interface PurchaseFormProps {
@@ -108,7 +110,52 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     const [unitCost, setUnitCost] = useState(0)
     const [openCombobox, setOpenCombobox] = useState(false)
 
+    // Costing & Pricing State
+    const [margin, setMargin] = useState(30) // Default 30%
+    const [newSellingPrice, setNewSellingPrice] = useState(0)
+    const [avgCost, setAvgCost] = useState(0)
+
     const [isPending, startTransition] = useTransition()
+
+    // Calculations
+    const selectedProduct = products.find(p => p.id === selectedProductId)
+
+    // Effect: Calculate Weighted Average Cost when inputs change
+    // Using a simple effect or just memoized values. Effect is better if we want to allow manual override without fighting calculations.
+    // However, for simplicity in React, let's use an effect that updates ONLY when base inputs change, guarding against loops.
+    // Or just simple function called during render or handler? 
+    // Let's use effects to update "Suggested" values when quantity/cost changes, but allow user override.
+
+    // Better approach: Calculate on changes, but only if user hasn't manually overridden? 
+    // Simplest: Calculate on change of [quantity, unitCost, selectedProductId].
+
+    // Effect for Avg Cost
+    useEffect(() => {
+        if (!selectedProduct) return
+
+        const currentStock = selectedProduct.stock || 0
+        const currentCost = Number(selectedProduct.cost) || 0
+        const newQty = quantity
+        const newUnitCost = unitCost
+
+        // Avoid division by zero
+        const totalQty = currentStock + newQty
+        if (totalQty === 0) {
+            setAvgCost(newUnitCost)
+            return
+        }
+
+        const weightedCost = ((currentStock * currentCost) + (newQty * newUnitCost)) / totalQty
+        setAvgCost(parseFloat(weightedCost.toFixed(2)))
+    }, [quantity, unitCost, selectedProduct])
+
+    // Effect for Selling Price based on Margin + AvgCost
+    useEffect(() => {
+        // Suggested Price = AvgCost * (1 + margin/100)
+        const price = avgCost * (1 + (margin / 100))
+        setNewSellingPrice(parseFloat(price.toFixed(2)))
+    }, [avgCost, margin])
+
 
     // Handlers
 
@@ -158,6 +205,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         if (product) {
             setSelectedProductId(productId)
             setUnitCost(Number(product.cost) || 0) // Default to current cost
+            // Price/Margin will auto-calc via effects
             setOpenCombobox(false)
         }
     }
@@ -170,12 +218,14 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const product = products.find(p => p.id === selectedProductId)
         if (!product) return
 
-        const newItem: PurchaseItem = {
+        const newItem: PurchaseItem & { newCost?: number, newPrice?: number } = {
             productId: selectedProductId,
             productName: product.name,
             quantity,
             unitCost,
-            total: quantity * unitCost
+            total: quantity * unitCost,
+            newCost: avgCost,
+            newPrice: newSellingPrice
         }
 
         setItems([...items, newItem])
@@ -219,7 +269,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     }
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0)
-    const selectedProduct = products.find(p => p.id === selectedProductId)
+    // selectedProduct is already declared above
 
     return (
         <div className="space-y-6">
@@ -414,21 +464,55 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 />
                                 {selectedProduct && (
                                     <p className="text-xs text-muted-foreground">
-                                        Stock actual: {selectedProduct.stock}
+                                        Stock actual: {selectedProduct.stock} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
                                     </p>
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label>Costo Unitario</Label>
+                                <Label>Costo Unitario (Compra)</Label>
                                 <Input
                                     type="number"
                                     min="0"
-                                    step="0.01" // Allow decimals
+                                    step="0.01"
                                     value={unitCost}
                                     onChange={(e) => setUnitCost(Number(e.target.value))}
                                 />
                             </div>
                         </div>
+
+                        {selectedProduct && (
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg border">
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Nuevo Costo Promedio</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={avgCost}
+                                        onChange={(e) => setAvgCost(Number(e.target.value))}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Margen %</Label>
+                                    <Input
+                                        type="number"
+                                        value={margin}
+                                        onChange={(e) => setMargin(Number(e.target.value))}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Precio Venta Sugerido</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={newSellingPrice}
+                                        onChange={(e) => setNewSellingPrice(Number(e.target.value))}
+                                        className="h-8 text-sm font-bold text-green-700"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <Button onClick={handleAddItem} className="w-full">
                             <Plus className="mr-2 h-4 w-4" /> Agregar a la lista
@@ -449,6 +533,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 <TableHead>Producto</TableHead>
                                 <TableHead className="text-right">Cantidad</TableHead>
                                 <TableHead className="text-right">Costo Unit.</TableHead>
+                                <TableHead className="text-right">Nuevo Precio</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
                                 <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
@@ -466,6 +551,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                     <TableCell>{item.productName}</TableCell>
                                     <TableCell className="text-right">{item.quantity}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(item.unitCost)}</TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">{item.newPrice ? formatCurrency(item.newPrice) : '-'}</TableCell>
                                     <TableCell className="text-right font-bold">{formatCurrency(item.total)}</TableCell>
                                     <TableCell>
                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>

@@ -111,7 +111,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const productMap = useMemo(() => {
         const map = new Map<string, SerializedProduct | Product>()
         for (const p of initialProducts as SerializedProduct[]) {
-            // @ts-expect-error - SerializedProduct es compatible con Product en los campos que usamos
+            // SerializedProduct es compatible con Product en los campos que usamos
             map.set(p.id as string, p)
         }
         return map

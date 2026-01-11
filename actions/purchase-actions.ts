@@ -11,6 +11,8 @@ const PurchaseItemSchema = z.object({
     productId: z.string(),
     quantity: z.number().min(1),
     unitCost: z.number().min(0),
+    newCost: z.number().optional(), // New Weighted Average Cost to save
+    newPrice: z.number().optional() // New Selling Price to save
 })
 
 const PurchaseSchema = z.object({
@@ -92,16 +94,30 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
 
             // 2. Update Inventory & Cost for each product
             for (const item of items) {
-                // Determine new cost: simple approach is Last Purchase Price.
-                // Could also do Weighted Average, but LPP is safer/simpler for now unless specified.
-                // "Liquidating merchandise" usually implies setting the new cost basis.
+                // Prepare update data
+                const updateData: any = {
+                    stock: { increment: item.quantity }
+                }
+
+                // If newCost is provided (Calculated Weighted Average), update Base Cost
+                if (item.newCost !== undefined) {
+                    updateData.cost = item.newCost
+                } else {
+                    // Fallback: If no average logic sent, possibly just update to latest? 
+                    // Keeping old behavior strictly requires no change, but we want to update cost.
+                    // If client didn't send newCost, we might default to unitCost (LPP) or leave as is.
+                    // Let's default to updating to unitCost if no specific newCost sent to ensure cost moves.
+                    updateData.cost = item.unitCost
+                }
+
+                // If newPrice is provided, update Selling Price
+                if (item.newPrice !== undefined) {
+                    updateData.price = item.newPrice
+                }
 
                 await tx.product.update({
                     where: { id: item.productId },
-                    data: {
-                        stock: { increment: item.quantity },
-                        cost: item.unitCost // Updating Base Cost
-                    }
+                    data: updateData
                 })
             }
 
