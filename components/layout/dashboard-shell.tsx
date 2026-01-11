@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Sidebar } from "@/components/layout/sidebar"
+import AppSidebar from "@/components/layout/app-sidebar"
 import { Navbar } from "@/components/layout/navbar"
 
 interface UserProps {
@@ -18,30 +18,19 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, user }: DashboardShellProps) {
-    // Start collapsed only on very small screens if we wanted logic there, 
-    // but here we just default to expanded for desktop as requested or standard behavior.
-    // However, user might want to persist this state. For now, local state.
-    const [isCollapsed, setIsCollapsed] = useState(false)
-
     return (
-        <div className="h-full relative">
-            <div className={cn(
-                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-gray-900 transition-all duration-300",
-                isCollapsed ? "md:w-20" : "md:w-72"
-            )}>
-                <Sidebar
-                    user={user}
-                    isCollapsed={isCollapsed}
-                    setIsCollapsed={setIsCollapsed}
-                />
+        <div className="flex h-screen overflow-hidden bg-gray-100">
+            {/* Sidebar is distinct flow, hidden on mobile by default usually, but we keep md:flex logic */}
+            <div className="hidden md:flex flex-shrink-0 bg-white h-screen">
+                <AppSidebar user={user} />
             </div>
-            <main className={cn(
-                "transition-all duration-300",
-                isCollapsed ? "md:pl-20" : "md:pl-72"
-            )}>
+
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                 <Navbar user={user} />
-                {children}
-            </main>
+                <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                    {children}
+                </main>
+            </div>
         </div>
     )
 }

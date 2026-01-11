@@ -1,10 +1,16 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
-import { Sidebar } from "@/components/layout/sidebar"
-import { useState, useEffect } from "react"
+import dynamic from 'next/dynamic'
+
+// Dynamically import AppSidebar (default export)
+const AppSidebar = dynamic(() => import('./app-sidebar'), {
+    ssr: false,
+    loading: () => <div className="w-full h-full bg-white" />
+})
 
 interface UserProps {
     id: string
@@ -36,8 +42,8 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
                     <Menu />
                 </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 bg-gray-900 border-none w-72 text-white">
-                <Sidebar user={user} isMobile={true} />
+            <SheetContent side="left" className="p-0 bg-white border-r w-auto text-black">
+                <AppSidebar user={user} isMobile={true} />
             </SheetContent>
         </Sheet>
     )
