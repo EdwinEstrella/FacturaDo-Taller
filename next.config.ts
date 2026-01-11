@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Optimizaciones de producción
+  // Optimizaciones de producción
   compress: true,
+  output: 'standalone',
 
   // Optimizaciones de imágenes
   images: {

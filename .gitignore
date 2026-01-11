@@ -34,4 +34,13 @@ ts-debug.log*
 next-env.d.ts
 
 # Prisma
-/prisma/sqlite
+
+# Electron
+/dist/
+/release/
+*.exe
+*.dmg
+*.deb
+*.rpm
+*.zip
+
