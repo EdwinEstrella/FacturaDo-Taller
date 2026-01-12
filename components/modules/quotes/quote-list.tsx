@@ -14,9 +14,11 @@ import { formatDateDO } from "@/lib/date-utils"
 // import { format } from "date-fns" // Client side usage
 import { convertQuoteToInvoice } from "@/actions/quote-actions"
 import { ArrowRight, Printer } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function QuoteList({ quotes }: { quotes: any[] }) {
+    const router = useRouter()
     return (
         <div className="rounded-md border">
             <Table>
@@ -42,8 +44,12 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                     <Button size="sm" variant="outline" onClick={async () => {
                                         if (confirm("Confirmar conversion a factura?")) {
                                             const res = await convertQuoteToInvoice(quote.id)
-                                            if (res.success) alert("Convertido a Factura!")
-                                            else alert("Error: " + res.error)
+                                            if (res.success) {
+                                                alert("Convertido a Factura!")
+                                                router.refresh()
+                                            } else {
+                                                alert("Error: " + res.error)
+                                            }
                                         }
                                     }}>
                                         <ArrowRight className="mr-2 h-4 w-4" /> Facturar

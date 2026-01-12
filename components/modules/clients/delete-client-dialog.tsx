@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { deleteClient } from "@/actions/client-actions"
 import { useTransition } from "react"
+import { useRouter } from "next/navigation"
 
 interface DeleteClientDialogProps {
     clientId: string
@@ -23,12 +24,15 @@ interface DeleteClientDialogProps {
 
 export function DeleteClientDialog({ clientId, clientName }: DeleteClientDialogProps) {
     const [isPending, startTransition] = useTransition()
+    const router = useRouter()
 
     const handleDelete = () => {
         startTransition(async () => {
             const res = await deleteClient(clientId)
             if (!res.success) {
                 alert(res.error)
+            } else {
+                router.refresh()
             }
         })
     }

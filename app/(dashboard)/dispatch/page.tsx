@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { markAsDispatched } from "@/actions/invoice-actions"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,6 +43,7 @@ export default function DispatchPage() {
     const [dispatches, setDispatches] = useState<Dispatch[]>([])
     const [showPrint, setShowPrint] = useState(false)
     const [loading, setLoading] = useState(true)
+    const router = useRouter()
 
     useEffect(() => {
         loadData()
@@ -157,7 +159,8 @@ export default function DispatchPage() {
                                                 onClick={async () => {
                                                     if (invoice?.id) {
                                                         await markAsDispatched(invoice.id)
-                                                        window.location.reload()
+                                                        // window.location.reload()
+                                                        router.refresh()
                                                     }
                                                 }}
                                             >

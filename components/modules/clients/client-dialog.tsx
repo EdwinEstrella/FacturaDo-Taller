@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient, updateClient } from "@/actions/client-actions"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 // import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
 import { Pencil, Plus } from "lucide-react"
 import { Client } from "@prisma/client"
@@ -22,6 +23,7 @@ export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)
     const [isPending, setIsPending] = useState(false)
     const [phone, setPhone] = useState(client?.phone || "")
+    const router = useRouter()
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '') // Remove non-digits
@@ -52,6 +54,7 @@ export function ClientDialog({ client }: { client?: Client }) {
         setIsPending(false)
         if (res?.success) {
             setOpen(false)
+            router.refresh()
         } else {
             alert(JSON.stringify(res?.errors || res?.message))
         }
