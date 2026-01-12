@@ -15,6 +15,7 @@ const ProductSchema = z.object({
     // isService: z.boolean().optional(), // Removed from input, derived from category
     variants: z.string().optional(), // JSON string
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
+    unitType: z.enum(["UNIT", "MEASURE"]).default("UNIT"),
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +29,7 @@ export async function createProduct(prevState: any, formData: FormData) {
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        unitType: formData.get("unitType"),
         variants: formData.get("variants"),
     })
 
@@ -38,7 +40,7 @@ export async function createProduct(prevState: any, formData: FormData) {
     }
 
     try {
-        const { category, variants, ...rest } = validatedFields.data
+        const { category, variants, unitType, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
 
@@ -53,6 +55,8 @@ export async function createProduct(prevState: any, formData: FormData) {
                 ...rest,
                 stock: totalStock,
                 category,
+                // @ts-ignore: Prisma type sync delay
+                unitType,
                 isService: category === "SERVICIO", // Auto-set based on category
                 hasVariants,
                 variants: {
@@ -104,6 +108,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        unitType: formData.get("unitType"),
         variants: formData.get("variants"),
     })
 
@@ -112,7 +117,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
     }
 
     try {
-        const { category, variants, ...rest } = validatedFields.data
+        const { category, variants, unitType, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
 
@@ -130,6 +135,8 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                     ...rest,
                     stock: totalStock,
                     category,
+                    // @ts-ignore: Prisma type sync delay
+                    unitType,
                     isService: category === "SERVICIO",
                     hasVariants,
                 },

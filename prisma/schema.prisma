@@ -46,6 +46,7 @@ model Product {
   minStock    Int      @default(0)
   isService   Boolean  @default(false) // Deprecated in favor of category, or kept for compat
   category    String   @default("ARTICULO") // MATERIAL, ARTICULO, SERVICIO
+  unitType    String   @default("UNIT")     // UNIT, MEASURE
   sku         String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

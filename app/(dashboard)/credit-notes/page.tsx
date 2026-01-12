@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateTimeDO } from "@/lib/date-utils"
+import { Printer } from "lucide-react"
 // import { Plus } from "lucide-react"
 
 export default async function CreditNotesPage() {
@@ -54,6 +55,13 @@ export default async function CreditNotesPage() {
                                 <TableCell>{cn.invoice.clientName}</TableCell>
                                 <TableCell>{cn.reason}</TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(Number(cn.total))}</TableCell>
+                                <TableCell className="text-right">
+                                    <Link href={`/credit-notes/${cn.id}/print`} target="_blank">
+                                        <Button variant="ghost" size="icon" title="Imprimir">
+                                            <Printer className="h-4 w-4" />
+                                        </Button>
+                                    </Link>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

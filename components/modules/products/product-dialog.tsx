@@ -165,6 +165,21 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         </div>
 
                         <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="unitType" className="text-right">Unidad de Medida</Label>
+                            <div className="col-span-3">
+                                <Select name="unitType" defaultValue={(product as any)?.unitType || "UNIT"}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="UNIT">Por Unidad (u)</SelectItem>
+                                        <SelectItem value="MEASURE">Por Medida (m/ft)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="name" className="text-right">Nombre</Label>
                             <Input id="name" name="name" defaultValue={product?.name} className="col-span-3" required />
                         </div>

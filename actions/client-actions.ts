@@ -8,6 +8,7 @@ import { addClientHistoryEntry } from "./client-history-actions"
 const ClientSchema = z.object({
     name: z.string().min(1, "Name is required"),
     rnc: z.string().optional(),
+    cedula: z.string().optional(), // Added cedula field
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
@@ -18,6 +19,7 @@ export async function createClient(prevState: any, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
+        cedula: formData.get("cedula"), // Extract cedula
         address: formData.get("address"),
         phone: formData.get("phone"),
         email: formData.get("email"),
@@ -54,6 +56,7 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
+        cedula: formData.get("cedula"), // Extract cedula
         address: formData.get("address"),
         phone: formData.get("phone"),
         email: formData.get("email"),

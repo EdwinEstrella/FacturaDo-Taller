@@ -75,3 +75,22 @@ export async function createCreditNote(data: CreditNoteFormData) {
         return { success: false, error: "Error al crear Nota de Crédito" }
     }
 }
+
+export async function getCreditNoteById(id: string) {
+    try {
+        const creditNote = await prisma.creditNote.findUnique({
+            where: { id },
+            include: {
+                invoice: {
+                    include: {
+                        client: true,
+                    }
+                }
+            }
+        })
+        return creditNote
+    } catch (error) {
+        console.error("Error fetching credit note:", error)
+        return null
+    }
+}

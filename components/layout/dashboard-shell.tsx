@@ -24,9 +24,9 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                 <AppSidebar user={user} />
             </div>
 
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden overflow-x-hidden">
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                 <Navbar user={user} />
-                <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
+                <main className="flex-1 overflow-y-auto p-4 md:p-6">
                     {children}
                 </main>
             </div>

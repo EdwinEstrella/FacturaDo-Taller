@@ -80,7 +80,8 @@ export default function ClientsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Nombre</TableHead>
-                                <TableHead>RNC/Cédula</TableHead>
+                                <TableHead>RNC</TableHead>
+                                <TableHead>Cédula</TableHead>
                                 <TableHead>Teléfono</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Dirección</TableHead>
@@ -90,7 +91,7 @@ export default function ClientsPage() {
                         <TableBody>
                             {filteredClients.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center">
+                                    <TableCell colSpan={7} className="text-center">
                                         No hay clientes registrados.
                                     </TableCell>
                                 </TableRow>
@@ -98,7 +99,8 @@ export default function ClientsPage() {
                             {filteredClients.map((client) => (
                                 <TableRow key={client.id}>
                                     <TableCell className="font-medium">{client.name}</TableCell>
-                                    <TableCell>{client.rnc}</TableCell>
+                                    <TableCell>{client.rnc || "-"}</TableCell>
+                                    <TableCell>{client.cedula || "-"}</TableCell>
                                     <TableCell>{client.phone}</TableCell>
                                     <TableCell>{client.email}</TableCell>
                                     <TableCell>{client.address}</TableCell>
