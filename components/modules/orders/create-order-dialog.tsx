@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -16,8 +18,10 @@ import { createWorkOrder } from "@/actions/order-actions"
 import { useState } from "react"
 import { Hammer } from "lucide-react"
 
+
 export function CreateWorkOrderDialog({ invoiceId }: { invoiceId: string }) {
     const [open, setOpen] = useState(false)
+    const router = useRouter()
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -38,6 +42,7 @@ export function CreateWorkOrderDialog({ invoiceId }: { invoiceId: string }) {
                     await createWorkOrder(invoiceId, notes)
                     setOpen(false)
                     alert("Orden de trabajo creada!")
+                    router.refresh()
                 }}>
                     <div className="grid gap-4 py-4">
                         <div className="grid w-full gap-1.5">

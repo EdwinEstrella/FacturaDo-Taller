@@ -41,6 +41,7 @@ import { CalendarIcon, Loader2, Plus, Trash2, Check, ChevronsUpDown } from "luci
 
 import { cn, formatCurrency } from "@/lib/utils"
 import { createPurchase, createSupplier } from "@/actions/purchase-actions"
+import { useRouter } from "next/navigation"
 import { quickCreateProduct } from "@/actions/product-actions"
 import { toast } from "sonner"
 import {
@@ -89,6 +90,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     const [supplierId, setSupplierId] = useState<string>("")
     const [items, setItems] = useState<PurchaseItem[]>([])
     const [notes, setNotes] = useState("")
+    const router = useRouter()
 
     // Supplier Creation State
     const [suppliers, setSuppliers] = useState(initialSuppliers)
@@ -265,6 +267,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                 setNotes("")
                 setSupplierId("")
                 setDate(new Date())
+                router.refresh()
             } else {
                 toast.error(res.error || "Error al registrar compra")
             }

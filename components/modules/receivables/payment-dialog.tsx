@@ -25,6 +25,7 @@ import { formatCurrency } from "@/lib/utils"
 import { registerPayment } from "@/actions/receivables-actions"
 import { toast } from "sonner"
 import { DollarSign } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface SerializedInvoice {
     id: string
@@ -43,6 +44,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const [reference, setReference] = useState("")
     const [notes, setNotes] = useState("")
     const [date, setDate] = useState<Date | undefined>(new Date())
+    const router = useRouter()
 
     const handleConfirm = () => {
         if (!amount || amount <= 0) return toast.error("Monto inválido")
@@ -61,6 +63,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
             if (res.success) {
                 toast.success("Pago registrado correctamente")
                 setOpen(false)
+                router.refresh()
             } else {
                 toast.error("Error: " + res.error)
             }

@@ -14,8 +14,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { deleteProduct } from "@/actions/product-actions"
+import { useRouter } from "next/navigation"
 
 export function DeleteProductButton({ id, name }: { id: string, name: string }) {
+    const router = useRouter()
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -39,6 +41,8 @@ export function DeleteProductButton({ id, name }: { id: string, name: string }) 
                             const res = await deleteProduct(id)
                             if (!res.success) {
                                 alert(res.error)
+                            } else {
+                                router.refresh()
                             }
                         }}
                     >
