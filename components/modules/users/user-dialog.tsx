@@ -18,6 +18,21 @@ export function UserDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [role, setRole] = useState("SELLER")
+    const [phone, setPhone] = useState("")
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '') // Remove non-digits
+        if (val.length > 10) val = val.slice(0, 10) // Max 10 digits
+
+        // Format: XXX-XXX-XXXX
+        let formatted = val
+        if (val.length > 6) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3, 6)}-${val.slice(6)}`
+        } else if (val.length > 3) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3)}`
+        }
+        setPhone(formatted)
+    }
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
@@ -28,6 +43,7 @@ export function UserDialog({ open, onOpenChange }: { open: boolean, onOpenChange
             name: formData.get("name") as string,
             username: formData.get("username") as string,
             password: formData.get("password") as string,
+            phone: phone, // Pass formatted phone
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             role: role as any
         }
@@ -61,6 +77,16 @@ export function UserDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                     <div className="grid gap-2">
                         <Label htmlFor="password">Contraseña</Label>
                         <Input id="password" name="password" required />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="phone">Teléfono</Label>
+                        <Input
+                            id="phone"
+                            name="phone"
+                            value={phone}
+                            onChange={handlePhoneChange}
+                            placeholder="809-555-0101"
+                        />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="role">Rol</Label>

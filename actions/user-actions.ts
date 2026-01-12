@@ -26,6 +26,7 @@ export async function getUsers() {
 interface UserInput {
     name: string | null;
     username: string;
+    phone?: string | null;
     password?: string;
     role: "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM";
     customPermissions?: Record<string, boolean> | null;
@@ -51,6 +52,7 @@ export async function createUser(data: UserInput) {
             data: {
                 name: data.name || "",
                 username: data.username,
+                phone: data.phone || null,
                 password: data.password || "123456", // Fallback or strict
                 role: data.role,
                 ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })
@@ -91,6 +93,7 @@ export async function updateUser(id: string, data: UserInput) {
             data: {
                 name: data.name || undefined,
                 username: data.username,
+                phone: data.phone,
                 role: data.role,
                 ...(data.password ? { password: data.password } : {}), // Only update password if provided
                 ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })

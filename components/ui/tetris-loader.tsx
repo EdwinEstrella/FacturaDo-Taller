@@ -40,7 +40,7 @@ export interface TetrisLoadingProps {
   loadingText?: string
 }
 
-export function TetrisLoading({
+export default function TetrisLoading({
   size = 'md',
   speed = 'normal',
   showLoadingText = true,
@@ -70,8 +70,8 @@ export function TetrisLoading({
   )
   const [fallingPiece, setFallingPiece] = useState<FallingPiece | null>(null)
   const [isClearing, setIsClearing] = useState(false)
-  const frameRef = useRef<number | undefined>(undefined)
-  const lastUpdateRef = useRef(0)
+  const frameRef = useRef<number | null>(null)
+  const lastUpdateRef = useRef<number>(0)
 
   // Rotate a shape 90 degrees clockwise
   const rotateShape = useCallback((shape: number[][]): number[][] => {
@@ -280,11 +280,10 @@ export function TetrisLoading({
         {row.map((cell, colIndex) => (
           <div
             key={`${rowIndex}-${colIndex}`}
-            className={`${config.cellSize} border border-gray-300 dark:border-gray-600 transition-all duration-100 ${
-              cell.filled
-                ? `${cell.color} scale-100`
-                : 'bg-white dark:bg-black scale-95'
-            } ${isClearing && rowIndex < 4 ? 'animate-pulse' : ''}`}
+            className={`${config.cellSize} border border-gray-300 dark:border-gray-600 transition-all duration-100 ${cell.filled
+              ? `${cell.color} scale-100`
+              : 'bg-white dark:bg-black scale-95'
+              } ${isClearing && rowIndex < 4 ? 'animate-pulse' : ''}`}
           />
         ))}
       </div>

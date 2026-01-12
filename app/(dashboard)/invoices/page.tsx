@@ -24,6 +24,7 @@ import { Pencil } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateTimeDO } from "@/lib/date-utils"
 import Link from "next/link"
+import TetrisLoading from "@/components/ui/tetris-loader"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type InvoiceType = any
@@ -88,8 +89,16 @@ export default function InvoicesPage() {
         }, 100)
     }
 
+
+
+    // ... existing imports
+
     if (loading) {
-        return <div className="p-8">Cargando...</div>
+        return (
+            <div className="flex h-full w-full items-center justify-center min-h-[50vh]">
+                <TetrisLoading size="md" speed="normal" loadingText="Cargando facturas..." />
+            </div>
+        )
     }
 
     const isAdmin = user?.role === 'ADMIN'

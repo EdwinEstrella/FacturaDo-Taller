@@ -13,6 +13,7 @@ model Client {
   id        String         @id @default(cuid())
   name      String
   rnc       String?        // RNC or Cedula
+  cedula    String?
   address   String?
   phone     String?
   email     String?
@@ -124,6 +125,7 @@ model User {
   id        String        @id @default(cuid())
   name      String
   username  String        @unique
+  phone     String?
   password  String        // In a real app, hash this. For now, storing as is or simple hash.
   role      Role          @default(SELLER)
   customPermissions Json?  // Permisos personalizados: { canDeleteInvoices: true, canEditProducts: false, ... }

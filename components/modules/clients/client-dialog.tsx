@@ -21,6 +21,21 @@ import { Client } from "@prisma/client"
 export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)
     const [isPending, setIsPending] = useState(false)
+    const [phone, setPhone] = useState(client?.phone || "")
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '') // Remove non-digits
+        if (val.length > 10) val = val.slice(0, 10) // Max 10 digits
+
+        // Format: XXX-XXX-XXXX
+        let formatted = val
+        if (val.length > 6) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3, 6)}-${val.slice(6)}`
+        } else if (val.length > 3) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3)}`
+        }
+        setPhone(formatted)
+    }
 
     // Form Action wrapper
     async function handleSubmit(formData: FormData) {
@@ -72,15 +87,28 @@ export function ClientDialog({ client }: { client?: Client }) {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="rnc" className="text-right">
-                                RNC/Cedula
+                                RNC
                             </Label>
-                            <Input id="rnc" name="rnc" defaultValue={client?.rnc || ""} className="col-span-3" />
+                            <Input id="rnc" name="rnc" defaultValue={client?.rnc || ""} className="col-span-3" placeholder="RNC de la empresa (si aplica)" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="cedula" className="text-right">
+                                Cédula
+                            </Label>
+                            <Input id="cedula" name="cedula" defaultValue={client?.cedula || ""} className="col-span-3" placeholder="Cédula de identidad (si aplica)" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="phone" className="text-right">
                                 Teléfono
                             </Label>
-                            <Input id="phone" name="phone" defaultValue={client?.phone || ""} className="col-span-3" />
+                            <Input
+                                id="phone"
+                                name="phone"
+                                value={phone}
+                                onChange={handlePhoneChange}
+                                className="col-span-3"
+                                placeholder="809-555-0101"
+                            />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="email" className="text-right">
