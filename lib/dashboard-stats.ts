@@ -69,27 +69,25 @@ export async function getRevenueComparison(): Promise<ComparisonResult & { text:
     const { currentStart, previousStart, previousEnd } = getDateRanges()
 
     const [currentMonth, previousMonth] = await Promise.all([
-        prisma.invoice.aggregate({
+        prisma.payment.aggregate({
             where: {
-                status: 'PAID',
-                createdAt: { gte: currentStart },
+                date: { gte: currentStart },
             },
-            _sum: { total: true },
+            _sum: { amount: true },
         }),
-        prisma.invoice.aggregate({
+        prisma.payment.aggregate({
             where: {
-                status: 'PAID',
-                createdAt: {
+                date: {
                     gte: previousStart,
                     lte: previousEnd,
                 },
             },
-            _sum: { total: true },
+            _sum: { amount: true },
         }),
     ])
 
-    const current = Number(currentMonth._sum.total || 0)
-    const previous = Number(previousMonth._sum.total || 0)
+    const current = Number(currentMonth._sum.amount || 0)
+    const previous = Number(previousMonth._sum.amount || 0)
     const result = calculatePercentageChange(current, previous)
     const text = getComparisonText(result)
 
@@ -185,28 +183,26 @@ export async function getFinancialHistory() {
 
     const startPeriod = months[0].date
 
-    // Agrupar facturas por mes
-    // Use aggregation to sum totals per month
-    const paidInvoices = await prisma.invoice.findMany({
+    // Agrupar PAGOS por mes
+    const payments = await prisma.payment.findMany({
         where: {
-            status: 'PAID',
-            createdAt: { gte: startPeriod }
+            date: { gte: startPeriod }
         },
         select: {
-            total: true,
-            createdAt: true
+            amount: true,
+            date: true
         }
     })
 
     // Sum by month
-    paidInvoices.forEach(inv => {
+    payments.forEach(p => {
         // Find matching month
         const monthIndex = months.findIndex(m =>
-            inv.createdAt.getFullYear() === m.date.getFullYear() &&
-            inv.createdAt.getMonth() === m.date.getMonth()
+            p.date.getFullYear() === m.date.getFullYear() &&
+            p.date.getMonth() === m.date.getMonth()
         )
         if (monthIndex !== -1) {
-            months[monthIndex].total += Number(inv.total)
+            months[monthIndex].total += Number(p.amount)
         }
     })
 
