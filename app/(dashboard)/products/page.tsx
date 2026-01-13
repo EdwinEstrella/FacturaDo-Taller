@@ -7,6 +7,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { getProducts } from "@/actions/product-actions"
+import { getCurrentUser } from "@/actions/auth-actions"
 import { formatCurrency } from "@/lib/utils"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
@@ -19,7 +20,10 @@ interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
 }
 
 export default async function ProductsPage() {
+    const user = await getCurrentUser()
     const products = await getProducts()
+
+    const canManageProducts = user?.role === "ADMIN" || user?.role === "MANAGER"
 
     // Serialize Decimal to number for client components
     const serializedProducts: SerializedProduct[] = products.map(product => ({
@@ -31,10 +35,11 @@ export default async function ProductsPage() {
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Productos e Inventario</h2>
-                <div className="flex items-center space-x-2">
-                    {/* <Button>Descargar Reporte</Button> */}
-                    <ProductDialog />
-                </div>
+                {canManageProducts && (
+                    <div className="flex items-center space-x-2">
+                        <ProductDialog />
+                    </div>
+                )}
             </div>
             <div className="rounded-md border">
                 <Table>
@@ -67,11 +72,12 @@ export default async function ProductsPage() {
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right flex justify-end gap-2">
-                                    <ProductDialog product={product} />
-                                    {/* Only show delete if NOT seller */}
-                                    {/* Since this is a server component, we can check role easily */}
-                                    {/* Actually, I need to pass user role to this component or fetch it */}
-                                    <DeleteProductWrapper productId={product.id} productName={product.name} />
+                                    {canManageProducts && (
+                                        <>
+                                            <ProductDialog product={product} />
+                                            <DeleteProductWrapper productId={product.id} productName={product.name} />
+                                        </>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}

@@ -20,6 +20,11 @@ const ProductSchema = z.object({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createProduct(prevState: any, formData: FormData) {
+    const user = await getCurrentUser()
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+        return { error: "No tienes permisos para crear productos" }
+    }
+
     const validatedFields = ProductSchema.safeParse({
         name: formData.get("name"),
         description: formData.get("description"),
@@ -99,6 +104,11 @@ export async function getProducts() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function updateProduct(id: string, prevState: any, formData: FormData) {
+    const user = await getCurrentUser()
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+        return { error: "No tienes permisos para editar productos" }
+    }
+
     const validatedFields = ProductSchema.safeParse({
         name: formData.get("name"),
         description: formData.get("description"),
@@ -202,6 +212,11 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
 }
 
 export async function deleteProduct(id: string) {
+    const user = await getCurrentUser()
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+        return { success: false, error: "No tienes permisos para eliminar productos" }
+    }
+
     // Check for usage in Invoices or Quotes
     const usageCount = await prisma.invoiceItem.count({ where: { productId: id } })
     const quoteCount = await prisma.quoteItem.count({ where: { productId: id } })
@@ -221,6 +236,11 @@ export async function deleteProduct(id: string) {
 
 // Quick create for purchase form (JSON based)
 export async function quickCreateProduct(data: { name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
+    const user = await getCurrentUser()
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "ACCOUNTANT")) {
+        return { success: false, error: "No tienes permisos para crear productos" }
+    }
+
     try {
         const product = await prisma.product.create({
             data: {
