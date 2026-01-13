@@ -73,6 +73,7 @@ interface PurchaseItem {
     productId: string
     productName: string
     quantity: number
+    quantityType: "UNIT" | "BOX" | "MEASURE"
     unitCost: number
     total: number
     newCost?: number
@@ -109,11 +110,14 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     // Item Addition State
     const [selectedProductId, setSelectedProductId] = useState("")
     const [quantity, setQuantity] = useState(1)
+    const [quantityType, setQuantityType] = useState<"UNIT" | "BOX" | "MEASURE">("UNIT")
     const [unitCost, setUnitCost] = useState(0)
     const [openCombobox, setOpenCombobox] = useState(false)
 
     // Costing & Pricing State
+    const [pricingMode, setPricingMode] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE")
     const [margin, setMargin] = useState(30) // Default 30%
+    const [fixedPrice, setFixedPrice] = useState(0)
     const [newSellingPrice, setNewSellingPrice] = useState(0)
     const [avgCost, setAvgCost] = useState(0)
 
@@ -140,7 +144,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const newQty = quantity
         const newUnitCost = unitCost
 
-        // 1. Calculate Avg Cost
+        // 1. Calculate Avg Cost (weighted average)
         let currentAvgCost = 0
         const totalQty = currentStock + newQty
 
@@ -154,12 +158,17 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setAvgCost(finalAvgCost)
 
-        // 2. Calculate Selling Price based on this NEW Avg Cost (not proper state which might be stale)
-        const price = finalAvgCost * (1 + (margin / 100))
-        setNewSellingPrice(parseFloat(price.toFixed(2)))
+        // 2. Calculate Selling Price based on pricing mode
+        if (pricingMode === "PERCENTAGE") {
+            // Calculate using margin percentage
+            const price = finalAvgCost * (1 + (margin / 100))
+            setNewSellingPrice(parseFloat(price.toFixed(2)))
+        } else {
+            // Use fixed price directly
+            setNewSellingPrice(parseFloat(fixedPrice.toFixed(2)))
+        }
 
-
-    }, [quantity, unitCost, selectedProduct, margin])
+    }, [quantity, unitCost, selectedProduct, margin, pricingMode, fixedPrice])
 
 
     // Handlers
@@ -227,6 +236,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
             productId: selectedProductId,
             productName: product.name,
             quantity,
+            quantityType,
             unitCost,
             total: quantity * unitCost,
             newCost: avgCost,
@@ -237,7 +247,11 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         // Reset item inputs
         setSelectedProductId("")
         setQuantity(1)
+        setQuantityType("UNIT")
         setUnitCost(0)
+        setPricingMode("PERCENTAGE")
+        setMargin(30)
+        setFixedPrice(0)
     }
 
     const handleRemoveItem = (index: number) => {
@@ -395,7 +409,9 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                     <div className="space-y-2">
                                         <Label>Categoría</Label>
                                         <Select value={newProductCategory} onValueChange={(v: "ARTICULO" | "MATERIAL" | "SERVICIO") => setNewProductCategory(v)}>
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Seleccione categoría" />
+                                            </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="ARTICULO">Artículo</SelectItem>
                                                 <SelectItem value="MATERIAL">Material</SelectItem>
@@ -462,12 +478,25 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Cantidad</Label>
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    value={quantity}
-                                    onChange={(e) => setQuantity(Number(e.target.value))}
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={quantity}
+                                        onChange={(e) => setQuantity(Number(e.target.value))}
+                                        className="flex-1"
+                                    />
+                                    <Select value={quantityType} onValueChange={(v: "UNIT" | "BOX" | "MEASURE") => setQuantityType(v)}>
+                                        <SelectTrigger className="w-[120px]">
+                                            <SelectValue placeholder="Tipo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="UNIT">Unidad</SelectItem>
+                                            <SelectItem value="BOX">Caja</SelectItem>
+                                            <SelectItem value="MEASURE">Medida</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 {selectedProduct && (
                                     <p className="text-xs text-muted-foreground">
                                         Stock actual: {selectedProduct.stock} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
@@ -487,35 +516,91 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                         </div>
 
                         {selectedProduct && (
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg border">
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Nuevo Costo Promedio</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={avgCost}
-                                        onChange={(e) => setAvgCost(Number(e.target.value))}
-                                        className="h-8 text-sm"
-                                    />
+                            <div className="space-y-4">
+                                {/* Pricing Mode Selector */}
+                                <div className="flex items-center gap-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                                    <Label className="text-sm font-medium">Modo de Precio:</Label>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            variant={pricingMode === "PERCENTAGE" ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => setPricingMode("PERCENTAGE")}
+                                        >
+                                            Por Porcentaje %
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={pricingMode === "FIXED" ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => setPricingMode("FIXED")}
+                                        >
+                                            Precio Fijo
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Margen %</Label>
-                                    <Input
-                                        type="number"
-                                        value={margin}
-                                        onChange={(e) => setMargin(Number(e.target.value))}
-                                        className="h-8 text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Precio Venta Sugerido</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={newSellingPrice}
-                                        onChange={(e) => setNewSellingPrice(Number(e.target.value))}
-                                        className="h-8 text-sm font-bold text-green-700"
-                                    />
+
+                                {/* Calculation Fields */}
+                                <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg border">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Nuevo Costo Promedio</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={avgCost}
+                                            onChange={(e) => setAvgCost(Number(e.target.value))}
+                                            className="h-8 text-sm"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground">
+                                            (Stock actual × Costo actual + Nueva cantidad × Nuevo costo) ÷ Total
+                                        </p>
+                                    </div>
+
+                                    {pricingMode === "PERCENTAGE" ? (
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-blue-600">% Ganancia</Label>
+                                            <Input
+                                                type="number"
+                                                value={margin}
+                                                onChange={(e) => setMargin(Number(e.target.value))}
+                                                className="h-8 text-sm"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Precio = Costo promedio × (1 + {margin}%)
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-purple-600">Precio Fijo</Label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={fixedPrice}
+                                                onChange={(e) => setFixedPrice(Number(e.target.value))}
+                                                className="h-8 text-sm"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Precio manual sin cálculo
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-green-700">Precio Venta Sugerido</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={newSellingPrice}
+                                            onChange={(e) => setNewSellingPrice(Number(e.target.value))}
+                                            className="h-8 text-sm font-bold text-green-700"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {pricingMode === "PERCENTAGE"
+                                                ? `Margen: ${((newSellingPrice - avgCost) / avgCost * 100).toFixed(1)}%`
+                                                : `Margen: ${avgCost > 0 ? ((newSellingPrice - avgCost) / avgCost * 100).toFixed(1) : 0}%`
+                                            }
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -538,6 +623,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                             <TableRow>
                                 <TableHead>Producto</TableHead>
                                 <TableHead className="text-right">Cantidad</TableHead>
+                                <TableHead className="text-right">Tipo</TableHead>
                                 <TableHead className="text-right">Costo Unit.</TableHead>
                                 <TableHead className="text-right">Nuevo Precio</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
@@ -547,7 +633,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                         <TableBody>
                             {items.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                                         No hay productos agregados
                                     </TableCell>
                                 </TableRow>
@@ -556,6 +642,11 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 <TableRow key={index}>
                                     <TableCell>{item.productName}</TableCell>
                                     <TableCell className="text-right">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">
+                                        {item.quantityType === "UNIT" && "Unidad"}
+                                        {item.quantityType === "BOX" && "Caja"}
+                                        {item.quantityType === "MEASURE" && "Medida"}
+                                    </TableCell>
                                     <TableCell className="text-right">{formatCurrency(item.unitCost)}</TableCell>
                                     <TableCell className="text-right text-xs text-muted-foreground">{item.newPrice ? formatCurrency(item.newPrice) : '-'}</TableCell>
                                     <TableCell className="text-right font-bold">{formatCurrency(item.total)}</TableCell>

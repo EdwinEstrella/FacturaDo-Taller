@@ -98,7 +98,7 @@ interface SidebarContent {
 const checkRole = (role: string, href: string) => {
     if (role === 'ADMIN') return true
     if (role === 'SELLER' || role === 'CUSTOM') {
-        const blocked = ['/analytics', '/accounting', '/fiscal', '/settings/users', '/technician']
+        const blocked = ['/analytics', '/accounting', '/liquidations', '/fiscal', '/settings/users', '/technician']
         return !blocked.includes(href)
     }
     if (role === 'ACCOUNTANT') {
@@ -109,7 +109,7 @@ const checkRole = (role: string, href: string) => {
         return ['/technician'].includes(href)
     }
     if (role === 'MANAGER') {
-        const blocked = ['/settings/users']
+        const blocked = ['/liquidations', '/settings/users']
         return !blocked.includes(href)
     }
     return false

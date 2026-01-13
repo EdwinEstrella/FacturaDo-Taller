@@ -10,6 +10,7 @@ import { getCurrentUser } from "./auth-actions"
 const PurchaseItemSchema = z.object({
     productId: z.string(),
     quantity: z.number().min(1),
+    quantityType: z.enum(["UNIT", "BOX", "MEASURE"]).default("UNIT"),
     unitCost: z.number().min(0),
     newCost: z.number().optional(), // New Weighted Average Cost to save
     newPrice: z.number().optional() // New Selling Price to save
@@ -85,6 +86,7 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
                         create: items.map(item => ({
                             productId: item.productId,
                             quantity: item.quantity,
+                            quantityType: item.quantityType,
                             unitCost: item.unitCost,
                             total: item.quantity * item.unitCost
                         }))

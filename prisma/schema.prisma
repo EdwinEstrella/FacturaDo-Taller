@@ -295,12 +295,13 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id         String   @id @default(cuid())
-  purchaseId String
-  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id])
-  quantity   Int
-  unitCost   Decimal
-  total      Decimal
+  id           String   @id @default(cuid())
+  purchaseId   String
+  purchase     Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  quantity     Int
+  quantityType String   @default("UNIT") // UNIT, BOX, MEASURE
+  unitCost     Decimal
+  total        Decimal
 }

@@ -1,8 +1,17 @@
 import { getSuppliers } from "@/actions/purchase-actions"
 import { getProducts } from "@/actions/product-actions"
+import { getCurrentUser } from "@/actions/auth-actions"
+import { redirect } from "next/navigation"
 import PurchaseForm from "@/components/modules/liquidations/purchase-form"
 
 export default async function LiquidationsPage() {
+    const user = await getCurrentUser()
+
+    // Solo ADMIN y ACCOUNTANT pueden acceder a liquidaciones
+    if (!user || (user.role !== "ADMIN" && user.role !== "ACCOUNTANT")) {
+        redirect("/")
+    }
+
     const suppliers = await getSuppliers()
     const products = await getProducts()
 
