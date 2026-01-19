@@ -10,6 +10,8 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { AnalyticsFilters } from "@/components/modules/analytics/analytics-filters"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 export const dynamic = 'force-dynamic'
 
@@ -145,7 +147,7 @@ export default async function AnalyticsPage({
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Analíticas Avanzadas</h2>
                     <div className="text-sm text-muted-foreground mt-1">
-                        Reporte del <span className="font-medium text-foreground">{startDate.toLocaleDateString()}</span> al <span className="font-medium text-foreground">{endDate.toLocaleDateString()}</span>
+                        Reporte del <span className="font-medium text-foreground">{format(startDate, "dd/MM/yyyy", { locale: es })}</span> al <span className="font-medium text-foreground">{format(endDate, "dd/MM/yyyy", { locale: es })}</span>
                     </div>
                 </div>
                 <AnalyticsFilters />

@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Save, CheckCircle2, AlertCircle } from "lucide-react"
 import { saveDailyClose } from "@/actions/daily-close-actions"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import "./daily-close-print.css"
 
 interface Invoice {
@@ -73,7 +75,7 @@ export function DailyCloseContent({
     const [isSaving, setIsSaving] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
     const [saveError, setSaveError] = useState("")
-    const currentTime = new Date().toLocaleTimeString()
+    const currentTime = format(new Date(), "HH:mm", { locale: es })
 
     const calculateTotal = (counts: Record<number, number>, denoms: number[]) => {
         return denoms.reduce((acc, denom) => acc + (denom * (counts[denom] || 0)), 0)
@@ -157,13 +159,13 @@ export function DailyCloseContent({
         <div className="flex-1 space-y-4 p-8 pt-6">
             {/* Header - No imprimir en pantalla */}
             <div className="no-print">
-                <h2 className="text-3xl font-bold tracking-tight">Cierre de Día ({today.toLocaleDateString()})</h2>
+                <h2 className="text-3xl font-bold tracking-tight">Cierre de Día ({format(today, "dd/MM/yyyy", { locale: es })})</h2>
             </div>
 
             {/* Print Header - Solo visible al imprimir */}
             <div className="print-only-header">
                 <h1>REPORTE DE CIERRE DIARIO</h1>
-                <p>Fecha: {today.toLocaleDateString()} - Hora: {currentTime}</p>
+                <p>Fecha: {format(today, "dd/MM/yyyy", { locale: es })} - Hora: {currentTime}</p>
             </div>
 
             {/* Cuadros de resumen estilo Caja Chica - Solo imprimir */}
@@ -401,7 +403,7 @@ export function DailyCloseContent({
                                     {invoices.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay ventas hoy</TableCell></TableRow>}
                                     {invoices.map((inv) => (
                                         <TableRow key={inv.id}>
-                                            <TableCell>{new Date(inv.createdAt).toLocaleTimeString()}</TableCell>
+                                            <TableCell>{format(new Date(inv.createdAt), "HH:mm", { locale: es })}</TableCell>
                                             <TableCell className="font-mono">{String(inv.sequenceNumber).padStart(6, '0')}</TableCell>
                                             <TableCell>{inv.paymentMethod || 'CASH'}</TableCell>
                                             <TableCell className="text-right">{formatCurrency(Number(inv.total))}</TableCell>
@@ -428,7 +430,7 @@ export function DailyCloseContent({
                                     {transactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay gastos hoy</TableCell></TableRow>}
                                     {transactions.map((t) => (
                                         <TableRow key={t.id}>
-                                            <TableCell>{new Date(t.date).toLocaleTimeString()}</TableCell>
+                                            <TableCell>{format(new Date(t.date), "HH:mm", { locale: es })}</TableCell>
                                             <TableCell>{t.description}</TableCell>
                                             <TableCell className="text-right text-red-600">-{formatCurrency(Number(t.amount))}</TableCell>
                                         </TableRow>

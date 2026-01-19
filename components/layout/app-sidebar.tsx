@@ -264,7 +264,7 @@ function IconNavigation({
     const role = user?.role || "SELLER";
 
     const navItems = [
-        { id: "dashboard", icon: <Dashboard size={20} />, label: "Dashboard" },
+        { id: "dashboard", icon: <Dashboard size={20} />, label: "Panel Principal" },
         { id: "billing", icon: <Receipt size={20} />, label: "Facturación" },
         { id: "operations", icon: <Box size={20} />, label: "Operaciones" },
         { id: "finance", icon: <Money size={20} />, label: "Finanzas" },

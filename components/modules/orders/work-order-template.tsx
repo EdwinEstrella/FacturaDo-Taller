@@ -1,5 +1,7 @@
 import Image from "next/image"
 import type { Invoice, InvoiceItem } from "@/types"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface WorkOrder {
     id: string
@@ -41,7 +43,7 @@ export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
                     </div>
                     <div className="text-right">
                         <p className="font-bold">Factura Ref: #{invoice.sequenceNumber}</p>
-                        <p>Fecha: {new Date(invoice.workOrder.createdAt).toLocaleDateString()}</p>
+                        <p>Fecha: {format(new Date(invoice.workOrder.createdAt), "dd/MM/yyyy", { locale: es })}</p>
                     </div>
                 </div>
             </div>

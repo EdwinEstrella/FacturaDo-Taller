@@ -23,6 +23,8 @@ import { getPettyCashSummary, closePettyCash, addPettyCashIncome, addPettyCashEx
 import { formatCurrency } from "@/lib/utils"
 import { Plus, Minus, FileText } from "lucide-react"
 import { PrintButton } from "./print-button"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import "./petty-cash.css"
 
 export default async function PettyCashPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -193,7 +195,7 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                                 {summary.closings.map((c) => (
                                     <TableRow key={c.id}>
                                         <TableCell>
-                                            {new Date(c.closedAt).toLocaleDateString('es-DO')}
+                                            {format(new Date(c.closedAt), "dd/MM/yyyy", { locale: es })}
                                         </TableCell>
                                         <TableCell>{c.closedByName}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(Number(c.openingBalance))}</TableCell>
@@ -240,8 +242,8 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                     {/* Encabezado de impresión */}
                     <div className="print-header">
                         <h1>Reporte de Caja Chica</h1>
-                        <p>Fecha: {new Date().toLocaleDateString("es-DO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
-                        <p>Hora: {new Date().toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}</p>
+                        <p>Fecha: {format(new Date(), "dd/MM/yyyy", { locale: es })}</p>
+                        <p>Hora: {format(new Date(), "HH:mm", { locale: es })}</p>
                     </div>
 
                     {/* Resumen en estilo de impresión */}
@@ -287,7 +289,7 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                                     filteredTransactions.map((t) => (
                                         <TableRow key={t.id}>
                                             <TableCell>
-                                                {new Date(t.date).toLocaleDateString('es-DO')}
+                                                {format(new Date(t.date), "dd/MM/yyyy", { locale: es })}
                                             </TableCell>
                                             <TableCell>{t.description}</TableCell>
                                             <TableCell className="text-right">

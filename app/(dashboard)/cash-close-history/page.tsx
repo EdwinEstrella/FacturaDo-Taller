@@ -10,6 +10,8 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { HistoryFilters } from "@/components/modules/cash-close/history-filters"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 // Define Props for SearchParams
 interface Props {
@@ -117,7 +119,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
             <div className="flex flex-col space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Historial de Cierre</h2>
                 <p className="text-muted-foreground">
-                    Resumen de operaciones del día {selectedDate.toLocaleDateString()}.
+                    Resumen de operaciones del día {format(selectedDate, "dd/MM/yyyy", { locale: es })}.
                 </p>
             </div>
 
@@ -180,7 +182,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                                 {payments.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay cobros registrados</TableCell></TableRow>}
                                 {payments.map((p) => (
                                     <TableRow key={p.id}>
-                                        <TableCell>{p.date.toLocaleTimeString()}</TableCell>
+                                        <TableCell>{format(p.date, "HH:mm", { locale: es })}</TableCell>
                                         <TableCell className="font-mono">{String(p.invoice.sequenceNumber).padStart(6, '0')}</TableCell>
                                         <TableCell className="text-xs font-semibold">{p.method || 'CASH'}</TableCell>
                                         <TableCell className="text-right text-green-700 font-medium">+{formatCurrency(Number(p.amount))}</TableCell>
@@ -207,7 +209,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                                 {transactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay gastos registrados</TableCell></TableRow>}
                                 {transactions.map((t) => (
                                     <TableRow key={t.id}>
-                                        <TableCell>{t.date.toLocaleTimeString()}</TableCell>
+                                        <TableCell>{format(t.date, "HH:mm", { locale: es })}</TableCell>
                                         <TableCell>{t.description}</TableCell>
                                         <TableCell className="text-right text-red-600">-{formatCurrency(Number(t.amount))}</TableCell>
                                     </TableRow>
@@ -236,7 +238,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                             {invoices.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se generaron facturas hoy</TableCell></TableRow>}
                             {invoices.map((inv) => (
                                 <TableRow key={inv.id}>
-                                    <TableCell>{inv.createdAt.toLocaleTimeString()}</TableCell>
+                                    <TableCell>{format(inv.createdAt, "HH:mm", { locale: es })}</TableCell>
                                     <TableCell>{inv.sequenceNumber}</TableCell>
                                     <TableCell>{inv.clientName || 'Cliente Desc.'}</TableCell>
                                     <TableCell>{inv.status}</TableCell>

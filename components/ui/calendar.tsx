@@ -11,9 +11,28 @@ import {
   getDefaultClassNames,
   type DayButton,
 } from "react-day-picker"
+import { es } from "date-fns/locale"
+import { format } from "date-fns"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+
+// Nombres de meses en español
+const MONTHS_ES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+]
+
+// Nombres cortos de meses en español
+const MONTHS_SHORT_ES = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+]
+
+// Nombres de días de la semana en español (corto)
+const WEEKDAYS_ES = [
+  "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"
+]
 
 function Calendar({
   className,
@@ -38,10 +57,18 @@ function Calendar({
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
       )}
+      locale={es}
       captionLayout={captionLayout}
+      labels={{
+        labelMonthDropdown: () => "Seleccionar mes",
+        labelYearDropdown: () => "Seleccionar año",
+        labelNext: () => "Siguiente mes",
+        labelPrevious: () => "Mes anterior",
+      }}
       formatters={{
-        formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+        formatMonthDropdown: (date) => MONTHS_SHORT_ES[date.getMonth()],
+        formatMonthCaption: (date) => `${MONTHS_ES[date.getMonth()]} ${date.getFullYear()}`,
+        formatWeekdayName: (date) => WEEKDAYS_ES[date.getDay()],
         ...formatters,
       }}
       classNames={{
@@ -197,7 +224,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={format(day.date, "yyyy-MM-dd")}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

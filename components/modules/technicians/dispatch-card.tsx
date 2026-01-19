@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { MapPin, Package, Camera, CheckCircle, Clock, Truck } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import Image from "next/image"
 
 interface DispatchCardProps {
@@ -335,7 +337,7 @@ export function DispatchCard({ dispatch, onUpdateStatus }: DispatchCardProps) {
 
                     {(dispatch.status === 'DELIVERED' || dispatch.status === 'INSTALLED') && (
                         <div className="w-full text-center text-sm text-green-600 font-medium">
-                            ✓ Completado el {new Date(dispatch.deliveredAt || dispatch.installedAt || '').toLocaleDateString()}
+                            ✓ Completado el {format(new Date(dispatch.deliveredAt || dispatch.installedAt || ''), "dd/MM/yyyy", { locale: es })}
                         </div>
                     )}
                 </div>
