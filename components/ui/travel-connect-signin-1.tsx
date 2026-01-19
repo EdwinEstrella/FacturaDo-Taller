@@ -321,7 +321,7 @@ const SignInCard = () => {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="Usuario (ej. admin)"
+                                    placeholder="Usuario"
                                     required
                                     className="bg-gray-50 border-gray-200 placeholder:text-gray-400 text-gray-800 w-full focus:border-blue-500 focus:ring-blue-500"
                                 />

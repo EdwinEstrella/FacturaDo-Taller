@@ -91,41 +91,61 @@ export function DailyCloseContent({
                 <p>Fecha: {today.toLocaleDateString()} - Hora: {currentTime}</p>
             </div>
 
+            {/* Cuadros de resumen estilo Caja Chica - Solo imprimir */}
+            <div className="print-summary-cards grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
+                <div>
+                    <p>Facturación</p>
+                    <p>{formatCurrency(totalBilled)}</p>
+                </div>
+                <div>
+                    <p>Ingresos</p>
+                    <p>{formatCurrency(totalCollected)}</p>
+                </div>
+                <div>
+                    <p>Gastos</p>
+                    <p>-{formatCurrency(totalExpenses)}</p>
+                </div>
+                <div>
+                    <p>Efectivo en Caja</p>
+                    <p>{formatCurrency(netCashInDrawer)}</p>
+                </div>
+            </div>
+
             {/* Stats Cards - No imprimir */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 no-print">
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
                         <CardTitle className="text-sm font-medium">Facturación (Día)</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(totalBilled)}</div>
-                        <p className="text-xs text-muted-foreground">Volumen de facturas creadas</p>
+                    <CardContent className="pt-0 pb-3">
+                        <div className="text-2xl font-bold leading-none">{formatCurrency(totalBilled)}</div>
+                        <p className="text-xs text-muted-foreground leading-none mt-0">Volumen de facturas creadas</p>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
                         <CardTitle className="text-sm font-medium text-green-700">Ingresos (Cobrado)</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-700">{formatCurrency(totalCollected)}</div>
-                        <p className="text-xs text-muted-foreground">Total dinero recibido hoy</p>
+                    <CardContent className="pt-0 pb-3">
+                        <div className="text-2xl font-bold text-green-700 leading-none">{formatCurrency(totalCollected)}</div>
+                        <p className="text-xs text-muted-foreground leading-none mt-0">Total dinero recibido hoy</p>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
                         <CardTitle className="text-sm font-medium text-red-600">Gastos (Caja)</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">-{formatCurrency(totalExpenses)}</div>
+                    <CardContent className="pt-0 pb-3">
+                        <div className="text-2xl font-bold text-red-600 leading-none">-{formatCurrency(totalExpenses)}</div>
                     </CardContent>
                 </Card>
                 <Card className="bg-blue-50 border-blue-200">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
                         <CardTitle className="text-sm font-medium">Efectivo en Caja (Neto)</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-700">{formatCurrency(netCashInDrawer)}</div>
-                        <div className="text-xs text-blue-600 pt-1">
+                    <CardContent className="pt-0 pb-3">
+                        <div className="text-2xl font-bold text-blue-700 leading-none">{formatCurrency(netCashInDrawer)}</div>
+                        <div className="text-xs text-blue-600 leading-none mt-0">
                             Efec: {formatCurrency(cashCollected)} / Banco: {formatCurrency(otherCollected)}
                         </div>
                     </CardContent>
@@ -139,7 +159,7 @@ export function DailyCloseContent({
                     <h3 className="text-lg font-bold mb-2">Desglose de Billetes RD$</h3>
                     <div className="border rounded-md p-4 bg-white">
                         {BILLS_RD.map(denom => (
-                            <div key={denom} className="print-bill-row flex items-center gap-2 mb-1">
+                            <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1 ${!countsRD[denom] ? 'hide-zero' : ''}`}>
                                 <span className="w-12 text-right font-mono">{denom}</span>
                                 <span>x</span>
                                 <Input
@@ -173,7 +193,7 @@ export function DailyCloseContent({
                     {hasUSD && (
                         <div className="border rounded-md p-4 bg-white">
                             {BILLS_USD.map(denom => (
-                                <div key={denom} className="print-bill-row flex items-center gap-2 mb-1">
+                                <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1 ${!countsUSD[denom] ? 'hide-zero' : ''}`}>
                                     <span className="w-12 text-right font-mono">{denom}</span>
                                     <span>x</span>
                                     <Input
@@ -210,7 +230,7 @@ export function DailyCloseContent({
                     {hasEUR && (
                         <div className="border rounded-md p-4 bg-white">
                             {BILLS_EUR.map(denom => (
-                                <div key={denom} className="print-bill-row flex items-center gap-2 mb-1">
+                                <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1 ${!countsEUR[denom] ? 'hide-zero' : ''}`}>
                                     <span className="w-12 text-right font-mono">{denom}</span>
                                     <span>x</span>
                                     <Input
@@ -240,26 +260,26 @@ export function DailyCloseContent({
             <div className="mt-8">
                 {/* Resumen de Cuadre */}
                 <div className="border rounded-lg p-4 bg-white mb-8 max-w-md print-summary">
-                    <h3 className="text-lg font-bold mb-4 border-b pb-2">Resumen de Cuadre</h3>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                    <h3 className="text-lg font-bold mb-2 border-b pb-2 leading-tight">Resumen de Cuadre</h3>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm leading-snug">
 
                         {/* System Calculated */}
-                        <div className="col-span-2 font-semibold text-gray-500 mb-2 border-b">Sistema</div>
+                        <div className="col-span-2 font-semibold text-gray-500 mb-1 border-b leading-tight">Sistema</div>
 
-                        <div className="flex justify-between">
+                        <div className="flex justify-between leading-tight">
                             <span>(+) Efec. Sist:</span>
                             <span className="font-mono">{formatCurrency(netCashInDrawer)}</span>
                         </div>
                         {/* Physical Count */}
-                        <div className="col-span-2 font-semibold text-gray-500 mb-2 border-b mt-2">Físico</div>
-                        <div className="flex justify-between">
+                        <div className="col-span-2 font-semibold text-gray-500 mb-1 border-b mt-1 leading-tight">Físico</div>
+                        <div className="flex justify-between leading-tight">
                             <span>(+) Conte Billetes RD:</span>
                             <span className="font-mono">{formatCurrency(totalRD)}</span>
                         </div>
 
-                        <div className="col-span-2 border-t pt-2 mt-2"></div>
+                        <div className="col-span-2 border-t pt-1 mt-1"></div>
 
-                        <div className="flex justify-between font-bold text-lg">
+                        <div className="flex justify-between font-bold text-lg leading-tight">
                             <span>{totalRD - netCashInDrawer >= 0 ? "Sobrando" : "Faltando"}:</span>
                             <span className={`font-mono ${totalRD - netCashInDrawer < 0 ? 'text-red-500' : 'text-green-500'}`}>
                                 {formatCurrency(totalRD - netCashInDrawer)}
@@ -269,7 +289,7 @@ export function DailyCloseContent({
                         {/* Totals for Foreign if any */}
                         {(hasUSD || hasEUR) && (
                             <>
-                                <div className="col-span-2 border-t pt-2 mt-2 font-semibold text-gray-500">Divisas</div>
+                                <div className="col-span-2 border-t pt-1 mt-1 font-semibold text-gray-500 leading-tight">Divisas</div>
                                 {hasUSD && (
                                     <div className="flex justify-between">
                                         <span>Total USD:</span>

@@ -36,22 +36,55 @@
     .print-only-header {
         display: block !important;
         text-align: center;
-        margin-bottom: 5px !important;
-        padding-bottom: 3px !important;
-        border-bottom: 1px solid #000 !important;
+        margin-bottom: 2px !important;
+        padding-bottom: 2px !important;
+        border-bottom: 2px solid #000 !important;
     }
 
     .print-only-header h1 {
-        font-size: 10pt !important;
+        font-size: 16pt !important;
         font-weight: bold !important;
-        margin: 0 !important;
+        margin: 0 0 5px 0 !important;
         color: #000 !important;
         text-transform: uppercase;
+        letter-spacing: 1px;
     }
 
     .print-only-header p {
+        font-size: 9pt !important;
+        margin: 2px 0 !important;
+        color: #000 !important;
+    }
+
+    /* Cuadros de resumen estilo Caja Chica */
+    .print-summary-cards {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 10px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .print-summary-cards > div {
+        flex: 1 !important;
+        background: white !important;
+        border: 1px solid #000 !important;
+        padding: 8px !important;
+        text-align: center;
+        border-radius: 0 !important;
+    }
+
+    .print-summary-cards p:first-child {
         font-size: 7pt !important;
-        margin: 1px 0 0 0 !important;
+        text-transform: uppercase;
+        color: #555 !important;
+        margin-bottom: 3px !important;
+        font-weight: 600;
+    }
+
+    .print-summary-cards p:last-child {
+        font-size: 12pt !important;
+        font-weight: bold;
+        margin: 0 !important;
         color: #000 !important;
     }
 
@@ -67,15 +100,21 @@
     }
 
     .print-breakdown-section h3 {
-        font-size: 8pt !important;
+        font-size: 10pt !important;
         font-weight: bold !important;
         margin-bottom: 2px !important;
+        margin-top: 1px !important;
         color: #000 !important;
+    }
+
+    /* Ocultar filas con conteo en cero */
+    .hide-zero {
+        display: none !important;
     }
 
     /* Filas de billetes compactas */
     .print-bill-row {
-        font-size: 7pt !important;
+        font-size: 10pt !important;
         margin-bottom: 0 !important;
     }
 
@@ -86,7 +125,7 @@
         text-align: right !important;
         padding: 0 !important;
         font-family: monospace !important;
-        font-size: 7pt !important;
+        font-size: 10pt !important;
         color: #000 !important;
     }
 
@@ -94,19 +133,20 @@
     .print-summary {
         page-break-inside: avoid;
         border: 1px solid #000 !important;
-        padding: 2px !important;
+        padding: 3px !important;
         margin-bottom: 4px !important;
     }
 
     .print-summary h3 {
-        font-size: 7pt !important;
+        font-size: 10pt !important;
         margin: 0 0 2px 0 !important;
         padding-bottom: 1px !important;
+        line-height: 1.1 !important;
     }
 
     .print-summary .grid {
         gap: 0 !important;
-        row-gap: 0 !important;
+        row-gap: 2px !important;
     }
 
     .print-summary .col-span-2 {
@@ -136,20 +176,26 @@
     }
 
     .print-summary .text-sm {
-        font-size: 6pt !important;
+        font-size: 9pt !important;
     }
 
     .print-summary .font-bold,
     .print-summary .font-semibold {
-        font-size: 7pt !important;
+        font-size: 10pt !important;
+    }
+
+    .print-summary .flex,
+    .print-summary span,
+    .print-summary div[class*="col-span"],
+    .print-summary > .grid > div {
+        line-height: 1.1 !important;
     }
 
     /* Tablas - COMPACTAS */
     table {
         width: 100% !important;
         border-collapse: collapse !important;
-        font-size: 7pt !important;
-        page-break-inside: avoid;
+        font-size: 9pt !important;
     }
 
     th {
@@ -159,19 +205,19 @@
         text-align: left !important;
         font-weight: bold !important;
         color: #000 !important;
-        font-size: 7pt !important;
+        font-size: 9pt !important;
     }
 
     td {
         border: 1px solid #ccc !important;
         padding: 2px 4px !important;
         color: #000 !important;
-        font-size: 7pt !important;
+        font-size: 9pt !important;
     }
 
     /* Títulos de secciones compactos */
     h3.text-lg {
-        font-size: 9pt !important;
+        font-size: 10pt !important;
         margin-bottom: 4px !important;
     }
 
@@ -225,9 +271,56 @@
         grid-template-columns: repeat(4, 1fr) !important;
     }
 
-    /* Evitar cortes */
-    table, tr, td, th, .print-breakdown-section, .print-summary, .print-footer {
+    /* Permitir paginación natural - solo evitar cortes en elementos críticos pequeños */
+    .print-breakdown-section,
+    .print-summary,
+    .print-footer {
         page-break-inside: avoid !important;
+    }
+
+    /* Permitir que tablas largas se dividan en páginas */
+    table,
+    tbody,
+    tr {
+        page-break-inside: auto !important;
+    }
+
+    /* Mantener encabezados de tabla con su fila siguiente */
+    thead {
+        page-break-after: auto !important;
+        display: table-header-group !important;
+    }
+
+    /* Mantener pie de tabla al final */
+    tfoot {
+        display: table-footer-group !important;
+    }
+
+    /* Permitir saltos de página entre secciones */
+    .print-breakdown > div,
+    .grid > div,
+    .mt-8 > div {
+        page-break-after: auto !important;
+        page-break-before: auto !important;
+    }
+
+    /* Evitar que un encabezado quede solo al final de página */
+    h3, .print-breakdown-section h3, .print-summary h3 {
+        page-break-after: avoid !important;
+    }
+
+    /* Evitar huérfanos y viudas */
+    p, span, div, .print-bill-row {
+        orphans: 3 !important;
+        widows: 3 !important;
+    }
+
+    /* Asegurar altura automática para permitir flujo */
+    html, body, .flex-1 {
+        height: auto !important;
+        min-height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
     }
 }
 
