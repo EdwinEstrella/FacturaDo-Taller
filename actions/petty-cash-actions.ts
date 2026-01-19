@@ -23,7 +23,7 @@ export async function getPettyCashSummary() {
         orderBy: { date: "desc" }
     })
 
-    // Calcular totales
+    // Calcular totales de transacciones de caja chica
     const totalIncome = pendingTransactions
         .filter(t => t.type === "INCOME")
         .reduce((sum, t) => sum + Number(t.amount), 0)
@@ -32,13 +32,56 @@ export async function getPettyCashSummary() {
         .filter(t => t.type === "EXPENSE")
         .reduce((sum, t) => sum + Number(t.amount), 0)
 
-    const currentBalance = openingBalance + totalIncome - totalExpense
+    // Obtener facturas de hoy pagadas en efectivo (para verificar cuadre)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    const cashInvoicesToday = await prisma.invoice.findMany({
+        where: {
+            createdAt: {
+                gte: today,
+                lt: tomorrow
+            },
+            paymentMethod: "CASH",
+            status: "PAID"
+        },
+        select: {
+            id: true,
+            total: true,
+            createdAt: true,
+            sequenceNumber: true
+        }
+    })
+
+    // Total de ventas en efectivo de hoy
+    const totalCashSalesToday = cashInvoicesToday.reduce((sum, inv) => sum + Number(inv.total), 0)
+
+    // Saldo actual según transacciones de caja chica (apertura + reposiciones - gastos)
+    const currentBalance = Number(openingBalance) + totalIncome - totalExpense
+
+    // Saldo ESPERADO según facturación del día (apertura + ventas_cash - gastos_caja)
+    // NOTA: Esto es lo que DEBERÍA haber en caja según las ventas del día
+    const expectedBalance = Number(openingBalance) + totalCashSalesToday - totalExpense
+
+    // Discrepancia (positivo = sobrante, negativo = faltante)
+    // Si discrepancy > 0: Hay más dinero de lo esperado (sobrante)
+    // Si discrepancy < 0: Falta dinero según facturación (faltante)
+    const discrepancy = currentBalance - expectedBalance
+
+    // Explicación:
+    // - Si no hay reposiciones (totalIncome = 0), currentBalance = expectedBalance (sin discrepancia)
+    // - Si hay reposiciones, el sistema detecta que el dinero en caja no coincide con las ventas
 
     // Obtener historial de cierres
     const closings = await prisma.pettyCashClosing.findMany({
         orderBy: { closedAt: "desc" },
         take: 10
     })
+
+    // Solo admin y contador pueden ver discrepancias (para evitar que ventas sepa si hay faltante)
+    const canViewDiscrepancy = user?.role === "ADMIN" || user?.role === "ACCOUNTANT"
 
     return {
         openingBalance,
@@ -47,7 +90,13 @@ export async function getPettyCashSummary() {
         currentBalance,
         pendingTransactions,
         closings,
-        isAdmin: user?.role === "ADMIN"
+        isAdmin: user?.role === "ADMIN",
+        isAccountant: user?.role === "ACCOUNTANT",
+        // Nuevos campos para verificación (solo para admin y contador)
+        totalCashSalesToday: canViewDiscrepancy ? totalCashSalesToday : 0,
+        expectedBalance: canViewDiscrepancy ? expectedBalance : currentBalance,
+        discrepancy: canViewDiscrepancy ? discrepancy : 0,
+        canViewDiscrepancy
     }
 }
 
@@ -84,7 +133,7 @@ export async function closePettyCash(formData: FormData) {
         .filter(t => t.type === "EXPENSE")
         .reduce((sum, t) => sum + Number(t.amount), 0)
 
-    const closingBalance = openingBalance + totalIncome - totalExpense
+    const closingBalance = Number(openingBalance) + totalIncome - totalExpense
 
     // Crear el cierre
     const closing = await prisma.pettyCashClosing.create({

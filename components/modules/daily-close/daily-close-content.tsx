@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PrintButton } from "./print-button"
 import {
@@ -17,11 +17,25 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import "./daily-close-print.css"
 
+interface Invoice {
+    id: string
+    createdAt: Date | string
+    sequenceNumber: number
+    total: number | string
+    paymentMethod?: string | null
+}
+
+interface Transaction {
+    id: string
+    date: Date | string
+    description: string | null
+    amount: number | string
+}
+
 interface DailyCloseContentProps {
     today: Date
-    invoices: any[]
-    transactions: any[]
-    payments: any[]
+    invoices: Invoice[]
+    transactions: Transaction[]
     totalBilled: number
     totalCollected: number
     cashCollected: number
@@ -38,7 +52,6 @@ export function DailyCloseContent({
     today,
     invoices,
     transactions,
-    payments,
     totalBilled,
     totalCollected,
     cashCollected,
@@ -52,11 +65,7 @@ export function DailyCloseContent({
 
     const [hasUSD, setHasUSD] = useState(false)
     const [hasEUR, setHasEUR] = useState(false)
-    const [currentTime, setCurrentTime] = useState("")
-
-    useEffect(() => {
-        setCurrentTime(new Date().toLocaleTimeString())
-    }, [])
+    const currentTime = new Date().toLocaleTimeString()
 
     const calculateTotal = (counts: Record<number, number>, denoms: number[]) => {
         return denoms.reduce((acc, denom) => acc + (denom * (counts[denom] || 0)), 0)

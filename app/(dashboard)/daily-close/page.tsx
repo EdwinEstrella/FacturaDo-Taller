@@ -75,12 +75,22 @@ export default async function DailyClosePage() {
     const totalExpenses = transactions.reduce((acc, t) => acc + Number(t.amount), 0)
     const netCashInDrawer = cashCollected - totalExpenses
 
+    // Convert Decimals to numbers for the component
+    const formattedInvoices = invoices.map(inv => ({
+        ...inv,
+        total: Number(inv.total)
+    }))
+
+    const formattedTransactions = transactions.map(t => ({
+        ...t,
+        amount: Number(t.amount)
+    }))
+
     return (
         <DailyCloseContent
             today={today}
-            invoices={invoices}
-            transactions={transactions}
-            payments={payments}
+            invoices={formattedInvoices}
+            transactions={formattedTransactions}
             totalBilled={totalBilled}
             totalCollected={totalCollected}
             cashCollected={cashCollected}

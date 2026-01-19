@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { getCurrentUser } from "@/actions/auth-actions"
 
 const ProductSchema = z.object({
     name: z.string().min(1),
@@ -60,7 +61,6 @@ export async function createProduct(prevState: any, formData: FormData) {
                 ...rest,
                 stock: totalStock,
                 category,
-                // @ts-ignore: Prisma type sync delay
                 unitType,
                 isService: category === "SERVICIO", // Auto-set based on category
                 hasVariants,
@@ -145,7 +145,6 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                     ...rest,
                     stock: totalStock,
                     category,
-                    // @ts-ignore: Prisma type sync delay
                     unitType,
                     isService: category === "SERVICIO",
                     hasVariants,

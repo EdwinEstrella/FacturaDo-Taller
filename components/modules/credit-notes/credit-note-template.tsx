@@ -42,7 +42,6 @@ export function CreditNoteTemplate({ creditNote, settings }: CreditNoteTemplateP
     }
 
     // Items are stored as JSON in creditNote.items
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items = Array.isArray(creditNote.items) ? creditNote.items : JSON.parse(creditNote.items as string || "[]")
 
     return (

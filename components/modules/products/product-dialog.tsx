@@ -35,7 +35,7 @@ function SubmitButton({ isEdit }: { isEdit: boolean }) {
     )
 }
 
-export function ProductDialog({ product }: { product?: Omit<Product, 'price' | 'cost'> & { price: number, cost: number } }) {
+export function ProductDialog({ product }: { product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string } }) {
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
@@ -167,7 +167,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="unitType" className="text-right">Unidad de Medida</Label>
                             <div className="col-span-3">
-                                <Select name="unitType" defaultValue={(product as any)?.unitType || "UNIT"}>
+                                <Select name="unitType" defaultValue={product?.unitType || "UNIT"}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>

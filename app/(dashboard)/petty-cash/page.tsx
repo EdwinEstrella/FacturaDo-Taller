@@ -107,22 +107,45 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                            <p className="text-gray-500">Saldo Anterior:</p>
-                                            <p className="font-semibold">{formatCurrency(summary.openingBalance)}</p>
+                                    {/* Verificación con facturación */}
+                                    <div className={`p-3 rounded-lg border ${summary.discrepancy !== undefined && summary.discrepancy !== 0 ? (summary.discrepancy < 0 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200') : 'bg-green-50 border-green-200'}`}>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div>
+                                                <p className="font-semibold">Ventas efectivo hoy:</p>
+                                                <p className="text-lg font-bold">{formatCurrency(summary.totalCashSalesToday)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold">Saldo esperado:</p>
+                                                <p className="text-lg font-bold">{formatCurrency(summary.expectedBalance)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold">Discrepancia:</p>
+                                                <p className={`text-lg font-bold ${summary.discrepancy < 0 ? 'text-red-600' : summary.discrepancy > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                                    {summary.discrepancy < 0 ? '-' : ''}{formatCurrency(Math.abs(summary.discrepancy || 0))}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-gray-500">Ingresos:</p>
-                                            <p className="font-semibold text-green-600">{formatCurrency(summary.totalIncome)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-500">Gastos:</p>
-                                            <p className="font-semibold text-red-600">{formatCurrency(summary.totalExpense)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-500">Saldo Final:</p>
-                                            <p className="font-semibold text-xl">{formatCurrency(summary.currentBalance)}</p>
+                                    </div>
+
+                                    <div className="border-t pt-3">
+                                        <p className="text-xs text-gray-500 mb-2">Resumen de transacciones de caja:</p>
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <p className="text-gray-500">Saldo Anterior:</p>
+                                                <p className="font-semibold">{formatCurrency(Number(summary.openingBalance))}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Ingresos:</p>
+                                                <p className="font-semibold text-green-600">{formatCurrency(summary.totalIncome)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Gastos:</p>
+                                                <p className="font-semibold text-red-600">{formatCurrency(summary.totalExpense)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Saldo Final:</p>
+                                                <p className="font-semibold text-xl">{formatCurrency(summary.currentBalance)}</p>
+                                            </div>
                                         </div>
                                     </div>
                                     <form id="close-form" action={closePettyCash}>
@@ -167,7 +190,7 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {summary.closings.map((c: any) => (
+                                {summary.closings.map((c) => (
                                     <TableRow key={c.id}>
                                         <TableCell>
                                             {new Date(c.closedAt).toLocaleDateString('es-DO')}
@@ -182,6 +205,31 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                                 ))}
                             </TableBody>
                         </Table>
+                    </div>
+                )}
+
+                {/* VERIFICACIÓN DE CUADRE - Alerta de discrepancia - SOLO ADMIN Y CONTADOR */}
+                {summary.canViewDiscrepancy && (summary.discrepancy !== undefined && summary.discrepancy !== 0) && (
+                    <div className={`rounded-lg border p-4 no-print ${summary.discrepancy < 0 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className={`font-bold text-lg ${summary.discrepancy < 0 ? 'text-red-700' : 'text-yellow-700'}`}>
+                                    ⚠️ Discrepancia Detectada
+                                </h3>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    {summary.discrepancy < 0
+                                        ? `Faltan ${formatCurrency(Math.abs(summary.discrepancy))} en caja según facturación del día`
+                                        : `Sobran ${formatCurrency(summary.discrepancy)} en caja según facturación del día`
+                                    }
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-gray-500">Ventas efectivo hoy:</p>
+                                <p className="font-semibold">{formatCurrency(summary.totalCashSalesToday)}</p>
+                                <p className="text-sm text-gray-500 mt-2">Saldo esperado:</p>
+                                <p className="font-semibold">{formatCurrency(summary.expectedBalance)}</p>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -200,7 +248,7 @@ export default async function PettyCashPage({ searchParams }: { searchParams: Pr
                     <div className="print-summary-cards grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <p>Saldo Anterior</p>
-                            <p>{formatCurrency(summary.openingBalance)}</p>
+                            <p>{formatCurrency(Number(summary.openingBalance))}</p>
                         </div>
                         <div>
                             <p>Reposiciones del Periodo</p>
