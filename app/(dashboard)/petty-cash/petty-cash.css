@@ -1,0 +1,216 @@
+/* Estilos de impresión para Caja Chica */
+@media print {
+    @page {
+        size: letter;
+        margin: 10mm;
+    }
+
+    /* Ocultar absolutamente TODO excepto el área de impresión */
+    body > *:not(#printable-area-wrapper) {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: white !important;
+    }
+
+    /* Mostrar solo el área de impresión */
+    #printable-area-wrapper {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        z-index: 999999 !important;
+    }
+
+    #printable-area {
+        visibility: visible !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        padding: 10mm !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Ocultar sidebar y navegación */
+    aside,
+    nav,
+    .sidebar,
+    .navigation,
+    [role="navigation"],
+    .menu,
+    .hamburger,
+    .mobile-menu {
+        display: none !important;
+    }
+
+    /* Encabezado de impresión */
+    .print-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #000;
+    }
+
+    .print-header h1 {
+        font-size: 16pt !important;
+        font-weight: bold;
+        margin: 0 0 8px 0 !important;
+        color: #000 !important;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+
+    .print-header p {
+        font-size: 9pt !important;
+        margin: 2px 0 !important;
+        color: #000 !important;
+    }
+
+    /* Tarjetas de resumen - grid horizontal */
+    .print-summary-cards {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 10px !important;
+        margin-bottom: 15px !important;
+    }
+
+    .print-summary-cards > div {
+        flex: 1 !important;
+        background: white !important;
+        border: 1px solid #000 !important;
+        padding: 10px !important;
+        text-align: center;
+        border-radius: 0 !important;
+    }
+
+    .print-summary-cards p:first-child {
+        font-size: 7pt !important;
+        text-transform: uppercase;
+        color: #555 !important;
+        margin-bottom: 5px !important;
+        font-weight: 600;
+    }
+
+    .print-summary-cards p:last-child {
+        font-size: 13pt !important;
+        font-weight: bold;
+        margin: 0 !important;
+        color: #000 !important;
+    }
+
+    /* Sección de movimientos */
+    .print-section {
+        margin: 15px 0 !important;
+    }
+
+    .print-section-header {
+        font-size: 11pt;
+        font-weight: bold;
+        margin-bottom: 8px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #000;
+        text-transform: uppercase;
+    }
+
+    /* Tablas - compactas y profesionales */
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 8pt !important;
+        margin: 0 !important;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    th {
+        background: #e0e0e0 !important;
+        border: 1px solid #000 !important;
+        padding: 4px 6px !important;
+        text-align: left !important;
+        font-weight: bold;
+        color: #000 !important;
+    }
+
+    th.text-right {
+        text-align: right !important;
+    }
+
+    td {
+        border: 1px solid #ccc !important;
+        padding: 3px 6px !important;
+        color: #000 !important;
+    }
+
+    /* Fila de totales */
+    tr.bg-gray-50 {
+        background: #e8e8e8 !important;
+        font-weight: bold;
+    }
+
+    /* Colores neutros para montos */
+    .text-green-600,
+    .text-red-600 {
+        color: #000 !important;
+    }
+
+    /* Pie de página con firmas */
+    .print-footer {
+        display: flex !important;
+        justify-content: space-between;
+        margin-top: 30px;
+        padding-top: 10px;
+        border-top: 1px solid #000;
+    }
+
+    .print-signature {
+        text-align: center;
+        width: 45%;
+    }
+
+    .print-signature-line {
+        border-top: 1px solid #000;
+        margin-top: 40px;
+        padding-top: 5px;
+        font-size: 8pt;
+    }
+
+    /* Evitar cortes */
+    table, tr, td, th, .print-section {
+        page-break-inside: avoid !important;
+    }
+
+    /* Forzar que los quebrantos de línea sean visibles */
+    br {
+        display: block !important;
+    }
+}
+
+/* Ocultar elementos de impresión en pantalla */
+.print-header,
+.print-footer,
+.print-signature,
+.print-signature-line,
+.print-section-header {
+    display: none;
+}
+
+/* Ocultar área de impresión en pantalla */
+#printable-area-wrapper {
+    display: none;
+}

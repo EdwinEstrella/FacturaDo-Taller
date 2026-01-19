@@ -13,32 +13,20 @@ import { HistoryFilters } from "@/components/modules/cash-close/history-filters"
 
 // Define Props for SearchParams
 interface Props {
-    searchParams: {
+    searchParams: Promise<{
         date?: string
         userId?: string
-    }
+    }>
 }
 
 export default async function CashCloseHistoryPage({ searchParams }: Props) {
-    // 0. Parse Params
-    // Use the `await` keyword for accessing `searchParams`, assuming Next.js 15+ behavior where params are promises, 
-    // or standard async component behavior if earlier version but robust.
-    // However, in Next 14/15 server components, searchParams is an object.
-    // If we get an error about awaiting it, we can remove it. But let's assume standard object access first.
-    // Wait, in latest Next.js canary it might be a promise. The safe way:
-    // const params = await searchParams (if it were a promise), but normally its just passed as prop. 
-    // Let's treat it as resolved object as per standard stable Next.js 14.
+    // 0. Parse Params - Next.js 15: searchParams is a Promise
+    const { date: dateParam, userId: userIdParam } = await searchParams
 
-    // SAFETY CHECK: in some recent versions props are promises.
-    // Let's treat it as synchronous first as used in most stable apps.
+    const selectedDate = dateParam ? new Date(dateParam) : new Date()
+    selectedDate.setHours(0, 0, 0, 0)
 
-    const dateParam = searchParams?.date
-    const userIdParam = searchParams?.userId
-
-    const date = dateParam ? new Date(dateParam) : new Date()
-    date.setHours(0, 0, 0, 0)
-
-    const start = new Date(date)
+    const start = new Date(selectedDate)
     const end = new Date(start)
     end.setDate(end.getDate() + 1)
 
@@ -129,7 +117,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
             <div className="flex flex-col space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Historial de Cierre</h2>
                 <p className="text-muted-foreground">
-                    Resumen de operaciones del día {date.toLocaleDateString()}.
+                    Resumen de operaciones del día {selectedDate.toLocaleDateString()}.
                 </p>
             </div>
 

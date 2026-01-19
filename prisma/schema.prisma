@@ -251,6 +251,21 @@ model Transaction {
   description String?
   date        DateTime @default(now())
   referenceId String?  // Linked Invoice ID, etc
+  closingId   String?  // Si es null, no está cerrado. Si tiene valor, pertenece a este cierre
+  closing     PettyCashClosing? @relation(fields: [closingId], references: [id])
+}
+
+model PettyCashClosing {
+  id              String   @id @default(cuid())
+  openingBalance  Decimal  // Saldo inicial (del cierre anterior o 0)
+  totalIncome     Decimal  // Total de ingresos (reposiciones)
+  totalExpense    Decimal  // Total de gastos
+  closingBalance  Decimal  // Saldo final
+  notes           String?  // Notas del cierre
+  closedAt        DateTime @default(now())
+  closedBy        String   // ID del usuario que hizo el cierre
+  closedByName    String   // Nombre del usuario que hizo el cierre (snapshot)
+  transactions    Transaction[] // Transacciones incluidas en este cierre
 }
 
 model WorkOrder {

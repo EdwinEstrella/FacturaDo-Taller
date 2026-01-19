@@ -1,0 +1,240 @@
+/* Estilos de impresión para Cierre Diario */
+@media print {
+    @page {
+        size: letter;
+        margin: 8mm;
+    }
+
+    /* Reset */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background: white !important;
+    }
+
+    /* Ocultar elementos que no se imprimen */
+    .no-print {
+        display: none !important;
+    }
+
+    /* Ocultar secciones USD/EUR si no están marcadas */
+    .no-print-usd,
+    .no-print-eur {
+        display: none !important;
+    }
+
+    /* Ocultar botones y checkboxes */
+    button,
+    input[type="checkbox"],
+    label[for="usd"],
+    label[for="eur"] {
+        display: none !important;
+    }
+
+    /* Encabezado - Solo visible al imprimir - COMPACTO */
+    .print-only-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 5px !important;
+        padding-bottom: 3px !important;
+        border-bottom: 1px solid #000 !important;
+    }
+
+    .print-only-header h1 {
+        font-size: 10pt !important;
+        font-weight: bold !important;
+        margin: 0 !important;
+        color: #000 !important;
+        text-transform: uppercase;
+    }
+
+    .print-only-header p {
+        font-size: 7pt !important;
+        margin: 1px 0 0 0 !important;
+        color: #000 !important;
+    }
+
+    /* Desglose de billetes - COMPACTO */
+    .print-breakdown {
+        display: block !important;
+        margin-bottom: 5px !important;
+    }
+
+    .print-breakdown-section {
+        page-break-inside: avoid;
+        margin-bottom: 3px !important;
+    }
+
+    .print-breakdown-section h3 {
+        font-size: 8pt !important;
+        font-weight: bold !important;
+        margin-bottom: 2px !important;
+        color: #000 !important;
+    }
+
+    /* Filas de billetes compactas */
+    .print-bill-row {
+        font-size: 7pt !important;
+        margin-bottom: 0 !important;
+    }
+
+    /* Inputs como texto plano - COMPACTO */
+    input[type="number"] {
+        border: none !important;
+        background: transparent !important;
+        text-align: right !important;
+        padding: 0 !important;
+        font-family: monospace !important;
+        font-size: 7pt !important;
+        color: #000 !important;
+    }
+
+    /* Resumen de cuadre - ULTRA COMPACTO */
+    .print-summary {
+        page-break-inside: avoid;
+        border: 1px solid #000 !important;
+        padding: 2px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .print-summary h3 {
+        font-size: 7pt !important;
+        margin: 0 0 2px 0 !important;
+        padding-bottom: 1px !important;
+    }
+
+    .print-summary .grid {
+        gap: 0 !important;
+        row-gap: 0 !important;
+    }
+
+    .print-summary .col-span-2 {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .print-summary .border-b {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .print-summary .border-t {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+
+    .print-summary .mb-2,
+    .print-summary .mb-4,
+    .print-summary .mt-2,
+    .print-summary .mt-8 {
+        margin: 0 !important;
+    }
+
+    .print-summary .flex {
+        padding: 0 !important;
+    }
+
+    .print-summary .text-sm {
+        font-size: 6pt !important;
+    }
+
+    .print-summary .font-bold,
+    .print-summary .font-semibold {
+        font-size: 7pt !important;
+    }
+
+    /* Tablas - COMPACTAS */
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 7pt !important;
+        page-break-inside: avoid;
+    }
+
+    th {
+        background: #e0e0e0 !important;
+        border: 1px solid #000 !important;
+        padding: 2px 4px !important;
+        text-align: left !important;
+        font-weight: bold !important;
+        color: #000 !important;
+        font-size: 7pt !important;
+    }
+
+    td {
+        border: 1px solid #ccc !important;
+        padding: 2px 4px !important;
+        color: #000 !important;
+        font-size: 7pt !important;
+    }
+
+    /* Títulos de secciones compactos */
+    h3.text-lg {
+        font-size: 9pt !important;
+        margin-bottom: 4px !important;
+    }
+
+    /* Colores neutros */
+    .text-green-600,
+    .text-red-600,
+    .text-blue-700 {
+        color: #000 !important;
+    }
+
+    /* Footer con firmas - COMPACTO */
+    .print-footer {
+        display: flex !important;
+        justify-content: space-between !important;
+        margin-top: 15px !important;
+        padding-top: 5px !important;
+        border-top: 1px solid #000 !important;
+        page-break-inside: avoid;
+    }
+
+    .print-signature {
+        text-align: center !important;
+        width: 45% !important;
+    }
+
+    .print-signature-line {
+        border-top: 1px solid #000 !important;
+        margin-top: 25px !important;
+        padding-top: 3px !important;
+        font-size: 7pt !important;
+    }
+
+    /* Ajustes de layout */
+    .grid {
+        display: grid !important;
+    }
+
+    .flex {
+        display: flex !important;
+    }
+
+    .md\:grid-cols-2 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .md\:grid-cols-3 {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    .md\:grid-cols-4 {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+
+    /* Evitar cortes */
+    table, tr, td, th, .print-breakdown-section, .print-summary, .print-footer {
+        page-break-inside: avoid !important;
+    }
+}
+
+/* Ocultar elementos de impresión en pantalla */
+.print-only-header,
+.print-footer,
+.print-signature,
+.print-signature-line {
+    display: none;
+}

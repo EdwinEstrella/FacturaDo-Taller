@@ -1,17 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { formatCurrency } from "@/lib/utils"
-// import { getCurrentUser } from "@/actions/auth-actions"
-// import { redirect } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PrintButton } from "@/components/modules/daily-close/print-button"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+import { DailyCloseContent } from "@/components/modules/daily-close/daily-close-content"
 
 export const dynamic = 'force-dynamic'
 
@@ -88,155 +76,17 @@ export default async function DailyClosePage() {
     const netCashInDrawer = cashCollected - totalExpenses
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <div className="flex items-center justify-between no-print">
-                <h2 className="text-3xl font-bold tracking-tight">Cierre de Día ({today.toLocaleDateString()})</h2>
-                <PrintButton />
-            </div>
-
-            {/* Print Header (Visible only on print) */}
-            <div className="hidden print-block mb-8 text-center">
-                <h1 className="text-2xl font-bold">REPORTE DE CIERRE DIARIO</h1>
-                <p>Fecha: {today.toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 no-print-grid">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Facturación (Día)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(totalBilled)}</div>
-                        <p className="text-xs text-muted-foreground">Volumen de facturas creadas</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-green-700">Ingresos (Cobrado)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-700">{formatCurrency(totalCollected)}</div>
-                        <p className="text-xs text-muted-foreground">Total dinero recibido hoy</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-red-600">Gastos (Caja)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">-{formatCurrency(totalExpenses)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-blue-50 border-blue-200">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Efectivo en Caja (Neto)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-700">{formatCurrency(netCashInDrawer)}</div>
-                        <div className="text-xs text-blue-600 pt-1">
-                            Efec: {formatCurrency(cashCollected)} / Banco: {formatCurrency(otherCollected)}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Print Friendly Summary Table */}
-            <div className="mt-8 border rounded-lg p-4 bg-white">
-                <h3 className="text-lg font-bold mb-4 border-b pb-2">Resumen de Cuadre</h3>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm max-w-md">
-                    <div className="flex justify-between">
-                        <span>(+) Ingresos Efectivo:</span>
-                        <span className="font-mono">{formatCurrency(cashCollected)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-500">
-                        <span>(+) Ingresos Tarjeta/Otros:</span>
-                        <span className="font-mono">{formatCurrency(otherCollected)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold border-t pt-1">
-                        <span>(=) Total Recibido:</span>
-                        <span className="font-mono">{formatCurrency(totalCollected)}</span>
-                    </div>
-                    <div className="flex justify-between text-red-600 mt-2">
-                        <span>(-) Gastos Caja Chica:</span>
-                        <span className="font-mono">-{formatCurrency(totalExpenses)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg border-t border-black pt-2 mt-2">
-                        <span>(=) EFECTIVO NETO:</span>
-                        <span className="font-mono">{formatCurrency(netCashInDrawer)}</span>
-                    </div>
-
-                    <div className="mt-4 pt-2 border-t text-xs text-gray-500">
-                        <span>Nota: Facturación del día: {formatCurrency(totalBilled)}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-8 mt-8">
-                {/* Invoices List */}
-                <div>
-                    <h3 className="text-lg font-bold mb-4">Detalle de Ventas</h3>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Hora</TableHead>
-                                    <TableHead>Factura #</TableHead>
-                                    <TableHead>Metodo</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {invoices.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay ventas hoy</TableCell></TableRow>}
-                                {invoices.map((inv) => (
-                                    <TableRow key={inv.id}>
-                                        <TableCell>{inv.createdAt.toLocaleTimeString()}</TableCell>
-                                        <TableCell className="font-mono">{String(inv.sequenceNumber).padStart(6, '0')}</TableCell>
-                                        <TableCell>{inv.paymentMethod || 'CASH'}</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(Number(inv.total))}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-
-                {/* Expenses List */}
-                <div>
-                    <h3 className="text-lg font-bold mb-4">Detalle de Gastos</h3>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Hora</TableHead>
-                                    <TableHead>Descripción</TableHead>
-                                    <TableHead className="text-right">Monto</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay gastos hoy</TableCell></TableRow>}
-                                {transactions.map((t) => (
-                                    <TableRow key={t.id}>
-                                        <TableCell>{t.date.toLocaleTimeString()}</TableCell>
-                                        <TableCell>{t.description}</TableCell>
-                                        <TableCell className="text-right text-red-600">-{formatCurrency(Number(t.amount))}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-            </div>
-
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @media print {
-                    .no-print { display: none !important; }
-                    .print-block { display: block !important; }
-                    body { background: white; }
-                    .border { border: 1px solid #ddd; }
-                }
-                .print-block { display: none; }
-            `}} />
-        </div>
+        <DailyCloseContent
+            today={today}
+            invoices={invoices}
+            transactions={transactions}
+            payments={payments}
+            totalBilled={totalBilled}
+            totalCollected={totalCollected}
+            cashCollected={cashCollected}
+            otherCollected={otherCollected}
+            totalExpenses={totalExpenses}
+            netCashInDrawer={netCashInDrawer}
+        />
     )
 }
