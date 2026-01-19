@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PrintButton } from "./print-button"
 import {
     Table,
     TableBody,
@@ -15,6 +14,10 @@ import { formatCurrency } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Save, CheckCircle2, AlertCircle } from "lucide-react"
+import { saveDailyClose } from "@/actions/daily-close-actions"
 import "./daily-close-print.css"
 
 interface Invoice {
@@ -23,6 +26,7 @@ interface Invoice {
     sequenceNumber: number
     total: number | string
     paymentMethod?: string | null
+    clientName?: string | null
 }
 
 interface Transaction {
@@ -65,6 +69,10 @@ export function DailyCloseContent({
 
     const [hasUSD, setHasUSD] = useState(false)
     const [hasEUR, setHasEUR] = useState(false)
+    const [notes, setNotes] = useState("")
+    const [isSaving, setIsSaving] = useState(false)
+    const [saveSuccess, setSaveSuccess] = useState(false)
+    const [saveError, setSaveError] = useState("")
     const currentTime = new Date().toLocaleTimeString()
 
     const calculateTotal = (counts: Record<number, number>, denoms: number[]) => {
@@ -86,12 +94,70 @@ export function DailyCloseContent({
         if (currency === 'EUR') setCountsEUR(prev => ({ ...prev, [denom]: count }))
     }
 
+    const handleSaveAndPrint = async () => {
+        setIsSaving(true)
+        setSaveSuccess(false)
+        setSaveError("")
+
+        // Calcular discrepancia
+        const discrepancy = totalRD - netCashInDrawer
+
+        // Preparar datos de facturas (solo los necesarios para historial)
+        const invoicesData = invoices.map(inv => ({
+            id: inv.id,
+            sequenceNumber: inv.sequenceNumber,
+            total: Number(inv.total),
+            paymentMethod: inv.paymentMethod || 'CASH',
+            createdAt: inv.createdAt,
+            clientName: inv.clientName || null
+        }))
+
+        // Preparar datos de gastos
+        const expensesData = transactions.map(t => ({
+            id: t.id,
+            description: t.description,
+            amount: Number(t.amount),
+            date: t.date
+        }))
+
+        const result = await saveDailyClose({
+            closeDate: today.toISOString(),
+            totalBilled,
+            totalCollected,
+            cashCollected,
+            otherCollected,
+            totalExpenses,
+            netCashInDrawer,
+            billBreakdownRD: countsRD,
+            billBreakdownUSD: hasUSD ? countsUSD : undefined,
+            billBreakdownEUR: hasEUR ? countsEUR : undefined,
+            totalRD,
+            totalUSD: hasUSD ? totalUSD : 0,
+            totalEUR: hasEUR ? totalEUR : 0,
+            discrepancy,
+            invoicesData,
+            expensesData,
+            notes
+        })
+
+        setIsSaving(false)
+
+        if (result.success) {
+            setSaveSuccess(true)
+            // Abrir diálogo de impresión después de guardar
+            setTimeout(() => {
+                window.print()
+            }, 500)
+        } else {
+            setSaveError(result.error || "Error al guardar el cierre")
+        }
+    }
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
-            {/* Header - No imprimir en pantalla, pero sí en impresión */}
-            <div className="flex items-center justify-between no-print">
-                <h2 className="text-3xl font-bold tracking-tight no-print">Cierre de Día ({today.toLocaleDateString()})</h2>
-                <PrintButton />
+            {/* Header - No imprimir en pantalla */}
+            <div className="no-print">
+                <h2 className="text-3xl font-bold tracking-tight">Cierre de Día ({today.toLocaleDateString()})</h2>
             </div>
 
             {/* Print Header - Solo visible al imprimir */}
@@ -101,7 +167,7 @@ export function DailyCloseContent({
             </div>
 
             {/* Cuadros de resumen estilo Caja Chica - Solo imprimir */}
-            <div className="print-summary-cards grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
+            <div className="print-summary-cards grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <p>Facturación</p>
                     <p>{formatCurrency(totalBilled)}</p>
@@ -195,7 +261,7 @@ export function DailyCloseContent({
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-lg font-bold">Desglose US$</h3>
                         <div className="flex items-center space-x-2 no-print">
-                            <Checkbox id="usd" checked={hasUSD} onCheckedChange={(c) => setHasUSD(!!c)} />
+                            <Checkbox id="usd" checked={hasUSD} onCheckedChange={(c: boolean) => setHasUSD(c)} />
                             <Label htmlFor="usd">Incluir</Label>
                         </div>
                     </div>
@@ -232,7 +298,7 @@ export function DailyCloseContent({
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-lg font-bold">Desglose €</h3>
                         <div className="flex items-center space-x-2 no-print">
-                            <Checkbox id="eur" checked={hasEUR} onCheckedChange={(c) => setHasEUR(!!c)} />
+                            <Checkbox id="eur" checked={hasEUR} onCheckedChange={(c: boolean) => setHasEUR(c)} />
                             <Label htmlFor="eur">Incluir</Label>
                         </div>
                     </div>
@@ -372,6 +438,57 @@ export function DailyCloseContent({
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Sección de Guardar - No imprimir */}
+            <div className="border rounded-lg p-4 bg-gray-50 no-print">
+                <h3 className="text-lg font-bold mb-4">Guardar Cierre</h3>
+
+                {/* Mensajes de estado */}
+                {saveSuccess && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span>Cierre guardado correctamente. Abriendo impresión...</span>
+                    </div>
+                )}
+                {saveError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-700">
+                        <AlertCircle className="h-5 w-5" />
+                        <span>{saveError}</span>
+                    </div>
+                )}
+
+                {/* Campo de notas */}
+                <div className="mb-4">
+                    <Label htmlFor="notes">Notas del cierre (opcional)</Label>
+                    <Textarea
+                        id="notes"
+                        placeholder="Observaciones del cierre..."
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        rows={2}
+                        className="mt-1"
+                    />
+                </div>
+
+                {/* Botón de acción */}
+                <Button
+                    onClick={handleSaveAndPrint}
+                    disabled={isSaving}
+                    className="bg-blue-600 hover:bg-blue-700"
+                >
+                    {isSaving ? (
+                        <>
+                            <Save className="mr-2 h-4 w-4 animate-spin" />
+                            Guardando...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Guardar e Imprimir
+                        </>
+                    )}
+                </Button>
             </div>
 
             {/* Footer with signatures - Solo imprimir */}

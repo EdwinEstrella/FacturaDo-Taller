@@ -320,3 +320,50 @@ model PurchaseItem {
   unitCost     Decimal
   total        Decimal
 }
+
+// Cierre Diario - Guarda el snapshot completo del cierre de caja diario
+model DailyClose {
+  id              String   @id @default(cuid())
+
+  // Fecha del día que se está cerrando
+  closeDate       DateTime @db.Date
+
+  // Totales financieros del día
+  totalBilled     Decimal  // Facturación total
+  totalCollected  Decimal  // Total cobrado
+  cashCollected   Decimal  // Cobrado en efectivo
+  otherCollected  Decimal  // Cobrado en banco/otros
+  totalExpenses   Decimal  // Gastos del día
+  netCashInDrawer Decimal  // Efectivo neto según sistema
+
+  // Desglose de billetes contado físicamente (JSON)
+  billBreakdownRD  Json?    // { "1": 5, "5": 2, "10": 10, "25": 0, ... }
+  billBreakdownUSD Json?    // { "1": 0, "5": 2, "10": 1, "100": 0 }
+  billBreakdownEUR Json?    // { "1": 0, "5": 0, "10": 1, "20": 0, ... }
+
+  // Totales contados por divisa
+  totalRD         Decimal  @default(0)
+  totalUSD        Decimal  @default(0)
+  totalEUR        Decimal  @default(0)
+
+  // Discrepancia (conteo físico - sistema)
+  discrepancy     Decimal  @default(0)
+
+  // Lista de facturas del día (JSON - snapshot)
+  invoicesData    Json?    // [{ id, sequenceNumber, total, paymentMethod, createdAt, clientName }]
+
+  // Lista de gastos del día (JSON - snapshot)
+  expensesData    Json?    // [{ id, description, amount, date }]
+
+  // Usuario que realizó el cierre
+  closedBy        String   // ID del usuario
+  closedByName    String   // Nombre del usuario (snapshot)
+
+  // Notas adicionales
+  notes           String?
+
+  // Timestamp
+  createdAt       DateTime @default(now())
+
+  @@index([closeDate])
+}

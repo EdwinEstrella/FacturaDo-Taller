@@ -14,7 +14,10 @@
     }
 
     /* Ocultar elementos que no se imprimen */
-    .no-print {
+    .no-print,
+    .no-print *,
+    .grid.no-print > div,
+    .grid.no-pay-print > div > * {
         display: none !important;
     }
 
@@ -326,6 +329,7 @@
 
 /* Ocultar elementos de impresión en pantalla */
 .print-only-header,
+.print-summary-cards,
 .print-footer,
 .print-signature,
 .print-signature-line {
