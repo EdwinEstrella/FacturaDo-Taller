@@ -5,7 +5,7 @@
   "description": "FacturaDo Desktop Application",
   "author": "FacturaDo",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.11.0"
   },
   "scripts": {
     "dev": "next dev",
