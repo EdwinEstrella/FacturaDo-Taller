@@ -7,6 +7,13 @@
   "engines": {
     "node": ">=22.11.0"
   },
+  "overrides": {
+    "inflight": "^1.0.6",
+    "rimraf": "^5.0.0",
+    "glob": "^10.0.0",
+    "boolean": "^3.2.1",
+    "node-domexception": "^2.0.1"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
