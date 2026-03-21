@@ -177,7 +177,13 @@ export async function getInvoiceById(id: string) {
         where: { id },
         include: {
             client: true,
-            items: true
+            items: true,
+            createdBy: true,
+            dispatchInfo: {
+                include: {
+                    technician: true
+                }
+            }
         }
     })
 

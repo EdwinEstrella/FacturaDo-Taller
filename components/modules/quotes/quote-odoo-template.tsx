@@ -3,16 +3,42 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency } from "@/lib/utils"
 
-interface QuoteOdooTemplateProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  quote: any
-  settings?: {
+interface QuoteItem {
+    id: string
+    productName: string
+    price: number
+    quantity: number
+}
+
+interface Quote {
+    id: string
+    createdAt: Date | string
+    status: string
+    total: number
+    client?: {
+        name?: string
+        rnc?: string
+        address?: string
+        phone?: string
+        email?: string
+    }
+    createdBy?: {
+        name: string
+    }
+    items: QuoteItem[]
+}
+
+interface CompanySettings {
     companyName: string
     companyRnc: string
     companyPhone: string
     companyAddress: string
     companyLogo?: string
-  }
+}
+
+interface QuoteOdooTemplateProps {
+  quote: Quote
+  settings?: CompanySettings
 }
 
 export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
@@ -132,7 +158,7 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
             </tr>
           </thead>
           <tbody>
-            {quote.items.map((item: any) => (
+            {quote.items.map((item: QuoteItem) => (
               <tr key={item.id}>
                 <td className="border px-2 py-1 align-top">
                   <div className="font-medium">{item.productName}</div>

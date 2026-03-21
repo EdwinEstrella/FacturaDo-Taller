@@ -20,9 +20,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import type { CompanySettings } from "@/actions/settings-actions"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function QuotePreviewDialog({ quote, settings }: { quote: any, settings?: any }) {
+export function QuotePreviewDialog({ quote, settings }: { quote: any, settings?: CompanySettings }) {
     const contentRef = useRef<HTMLDivElement>(null)
     const reactToPrintFn = useReactToPrint({ contentRef })
 

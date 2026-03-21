@@ -1,16 +1,39 @@
 import Image from "next/image"
 import { formatCurrency } from "@/lib/utils"
 
-interface QuoteTemplateProps {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    quote: any
-    settings?: {
-        companyName: string
-        companyRnc: string
-        companyPhone: string
-        companyAddress: string
-        companyLogo?: string
+interface QuoteItem {
+    id: string
+    productName: string
+    price: number
+    quantity: number
+}
+
+interface Quote {
+    id: string
+    createdAt: Date | string
+    status: string
+    total: number
+    client?: {
+        name?: string
+        rnc?: string
     }
+    createdBy?: {
+        name: string
+    }
+    items: QuoteItem[]
+}
+
+interface CompanySettings {
+    companyName: string
+    companyRnc: string
+    companyPhone: string
+    companyAddress: string
+    companyLogo?: string
+}
+
+interface QuoteTemplateProps {
+    quote: Quote
+    settings?: CompanySettings
 }
 
 export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
@@ -80,7 +103,7 @@ export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {quote.items.map((item: any) => (
+                    {quote.items.map((item: QuoteItem) => (
                         <tr key={item.id}>
                             <td colSpan={3} className="pt-1">
                                 {item.productName}

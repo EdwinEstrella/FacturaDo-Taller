@@ -94,6 +94,11 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
               Atendido por: <span className="font-medium">{invoice.createdBy.name}</span>
             </p>
           )}
+          {invoice.dispatchInfo?.technician && (
+            <p className="italic">
+              Despachado por: <span className="font-medium">{invoice.dispatchInfo.technician.name}</span>
+            </p>
+          )}
         </div>
       </header>
 

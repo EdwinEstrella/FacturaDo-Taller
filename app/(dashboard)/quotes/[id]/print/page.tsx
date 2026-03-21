@@ -19,10 +19,9 @@ export default async function PrintQuotePage({
                 {/* Header */}
                 <div className="text-center mb-6">
                     <h1 className="text-2xl font-bold">{settings.companyName || "Mi Empresa"}</h1>
-                    {settings.address && <p className="text-sm text-gray-600">{settings.address}</p>}
-                    {settings.phone && <p className="text-sm text-gray-600">Tel: {settings.phone}</p>}
-                    {settings.email && <p className="text-sm text-gray-600">{settings.email}</p>}
-                    {settings.rnc && <p className="text-sm text-gray-600">RNC: {settings.rnc}</p>}
+                    {settings.companyAddress && <p className="text-sm text-gray-600">{settings.companyAddress}</p>}
+                    {settings.companyPhone && <p className="text-sm text-gray-600">Tel: {settings.companyPhone}</p>}
+                    {settings.companyRnc && <p className="text-sm text-gray-600">RNC: {settings.companyRnc}</p>}
                 </div>
 
                 <hr className="my-4" />

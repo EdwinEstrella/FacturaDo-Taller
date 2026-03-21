@@ -68,6 +68,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                 <p><strong>Tipo:</strong> {invoice.ncfType || "Consumo"}</p>
                 {invoice.ncf && <p><strong>NCF:</strong> {invoice.ncf}</p>}
                 {invoice.createdBy && <p className="text-[10px] mt-1 italic">Atendido por: {invoice.createdBy.name}</p>}
+                {invoice.dispatchInfo?.technician && <p className="text-[10px] italic">Despachado por: {invoice.dispatchInfo.technician.name}</p>}
             </div>
 
             <div className="border-b border-dashed border-black mb-2"></div>
