@@ -54,10 +54,26 @@ export async function createQuote(data: QuoteFormData) {
                         price: item.price
                     }))
                 }
+            },
+            include: {
+                client: true,
+                items: true,
+                createdBy: true
             }
         })
         revalidatePath('/invoices')
-        return { success: true, quote }
+
+        // Serialize Decimal to number
+        const serializedQuote = {
+            ...quote,
+            total: Number(quote.total),
+            items: quote.items.map(item => ({
+                ...item,
+                price: Number(item.price)
+            }))
+        }
+
+        return { success: true, quote: serializedQuote }
     } catch (error) {
         console.error("Error creating quote:", error)
         return { success: false, error: "Failed to create quote" }
@@ -82,6 +98,28 @@ export async function getQuotes() {
             price: Number(item.price)
         }))
     }))
+}
+
+export async function getQuoteById(id: string) {
+    const quote = await prisma.quote.findUnique({
+        where: { id },
+        include: {
+            client: true,
+            items: true,
+            createdBy: true
+        }
+    })
+
+    if (!quote) return null
+
+    return {
+        ...quote,
+        total: Number(quote.total),
+        items: quote.items.map(item => ({
+            ...item,
+            price: Number(item.price)
+        }))
+    }
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
