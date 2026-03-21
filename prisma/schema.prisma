@@ -166,11 +166,12 @@ model Quote {
   clientId  String?
   client    Client?     @relation(fields: [clientId], references: [id])
   total     Decimal
-  status    String      @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  status    String      @default("PENDING") // PENDING, ACCEPTED, REJECTED, EXPIRED
   items     QuoteItem[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-  
+  validUntil DateTime?  // Fecha de vencimiento (15 días por defecto)
+
   createdById String?
   createdBy   User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
 }

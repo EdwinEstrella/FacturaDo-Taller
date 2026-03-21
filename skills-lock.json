@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "supabase-nextjs": {
+      "source": "alinaqi/claude-bootstrap",
+      "sourceType": "github",
+      "computedHash": "132b9891d0c2be2ae5799ce50d80570075e268a832998900f5b96f9603518b41"
+    }
+  }
+}

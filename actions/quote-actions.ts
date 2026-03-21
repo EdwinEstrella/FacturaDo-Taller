@@ -38,6 +38,10 @@ export async function createQuote(data: QuoteFormData) {
 
     const total = data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
+    // Calcular fecha de vencimiento (15 días desde hoy)
+    const validUntil = new Date()
+    validUntil.setDate(validUntil.getDate() + 15)
+
     try {
         const quote = await prisma.quote.create({
             data: {
@@ -46,6 +50,7 @@ export async function createQuote(data: QuoteFormData) {
                 total: total,
                 createdById: user.id,
                 status: "PENDING", // Re-added status as it was in the original schema
+                validUntil: validUntil,
                 items: {
                     create: data.items.map(item => ({
                         productId: item.productId,
@@ -81,6 +86,20 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 export async function getQuotes() {
+    // Primero verificar y marcar cotizaciones vencidas
+    const now = new Date()
+    await prisma.quote.updateMany({
+        where: {
+            status: "PENDING",
+            validUntil: {
+                lte: now
+            }
+        },
+        data: {
+            status: "EXPIRED"
+        }
+    })
+
     const quotes = await prisma.quote.findMany({
         include: {
             client: true,
@@ -182,5 +201,88 @@ export async function convertQuoteToInvoice(quoteId: string) {
     } catch (e) {
         console.error(e)
         return { success: false, error: "Error al convertir" }
+    }
+}
+
+export async function deleteQuote(quoteId: string) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    try {
+        await prisma.quote.delete({
+            where: { id: quoteId }
+        })
+
+        revalidatePath("/quotes")
+        return { success: true }
+    } catch (error) {
+        console.error("Error deleting quote:", error)
+        return { success: false, error: "Error al eliminar cotización" }
+    }
+}
+
+export async function markExpiredQuotes() {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    try {
+        const now = new Date()
+
+        // Encontrar cotizaciones vencidas que aún están PENDING
+        const expiredQuotes = await prisma.quote.findMany({
+            where: {
+                status: "PENDING",
+                validUntil: {
+                    lte: now
+                }
+            }
+        })
+
+        // Marcarlas como EXPIRED
+        for (const quote of expiredQuotes) {
+            await prisma.quote.update({
+                where: { id: quote.id },
+                data: { status: "EXPIRED" }
+            })
+        }
+
+        revalidatePath("/quotes")
+        return { success: true, count: expiredQuotes.length }
+    } catch (error) {
+        console.error("Error marking expired quotes:", error)
+        return { success: false, error: "Error al marcar cotizaciones vencidas" }
+    }
+}
+
+export async function cleanupExpiredQuotes() {
+    const user = await getCurrentUser()
+    if (!user) {
+        return { success: false, error: "Unauthorized" }
+    }
+
+    // Solo admin o manager pueden limpiar cotizaciones
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+        return { success: false, error: "No tienes permisos para eliminar cotizaciones" }
+    }
+
+    try {
+        // Eliminar cotizaciones EXPIRED con más de 30 días de antigüedad
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+        const result = await prisma.quote.deleteMany({
+            where: {
+                status: "EXPIRED",
+                validUntil: {
+                    lte: thirtyDaysAgo
+                }
+            }
+        })
+
+        revalidatePath("/quotes")
+        return { success: true, count: result.count }
+    } catch (error) {
+        console.error("Error cleaning up expired quotes:", error)
+        return { success: false, error: "Error al limpiar cotizaciones vencidas" }
     }
 }

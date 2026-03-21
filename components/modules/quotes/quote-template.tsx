@@ -13,6 +13,7 @@ interface Quote {
     createdAt: Date | string
     status: string
     total: number
+    validUntil?: Date | string | null
     client?: {
         name?: string
         rnc?: string | null
@@ -90,9 +91,10 @@ export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
             <div className="mb-2">
                 <p><strong>COTIZACIÓN</strong></p>
                 <p><strong>Fecha:</strong> {formatDate(quote.createdAt)} {formatTime(quote.createdAt)}</p>
+                {quote.validUntil && <p><strong>Vence:</strong> {formatDate(quote.validUntil)}</p>}
                 <p><strong>Cliente:</strong> {quote.client?.name || "Cliente"}</p>
                 {quote.client?.rnc && <p><strong>RNC/Ced:</strong> {quote.client.rnc}</p>}
-                <p><strong>Estado:</strong> {quote.status === "PENDING" ? "Pendiente" : quote.status}</p>
+                <p><strong>Estado:</strong> {quote.status === "PENDING" ? "Pendiente" : quote.status === "EXPIRED" ? "Vencida" : quote.status}</p>
                 {quote.createdBy && <p className="text-[10px] mt-1 italic">Atendido por: {quote.createdBy.name}</p>}
             </div>
 

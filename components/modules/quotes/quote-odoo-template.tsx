@@ -15,6 +15,7 @@ interface Quote {
     createdAt: Date | string
     status: string
     total: number
+    validUntil?: Date | string | null
     client?: {
         name?: string
         rnc?: string | null
@@ -96,10 +97,12 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
             <span className="font-semibold">Fecha:</span>{" "}
             {format(issueDate, "dd/MM/yyyy HH:mm", { locale: es })}
           </p>
-          <p>
-            <span className="font-semibold">Válido hasta:</span>{" "}
-            {format(new Date(issueDate.getTime() + 15 * 24 * 60 * 60 * 1000), "dd/MM/yyyy", { locale: es })}
-          </p>
+          {quote.validUntil && (
+            <p>
+              <span className="font-semibold">Válido hasta:</span>{" "}
+              {format(new Date(quote.validUntil), "dd/MM/yyyy", { locale: es })}
+            </p>
+          )}
           <p>
             <span className="font-semibold">Estado:</span>{" "}
             {quote.status === "PENDING" ? "Pendiente" : quote.status}
