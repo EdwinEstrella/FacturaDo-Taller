@@ -15,11 +15,15 @@ interface Quote {
     total: number
     client?: {
         name?: string
-        rnc?: string
-    }
+        rnc?: string | null
+        cedula?: string | null
+        address?: string | null
+        phone?: string | null
+        email?: string | null
+    } | null
     createdBy?: {
         name: string
-    }
+    } | null
     items: QuoteItem[]
 }
 

@@ -1,89 +1,46 @@
 import { getQuoteById } from "@/actions/quote-actions"
 import { getCompanySettings } from "@/actions/settings-actions"
 import { notFound } from "next/navigation"
+import { QuoteTemplate } from "@/components/modules/quotes/quote-template"
+import { QuoteOdooTemplate } from "@/components/modules/quotes/quote-odoo-template"
+import { PrintActions } from "@/components/modules/quotes/print-actions"
 
 export default async function PrintQuotePage({
     params,
+    searchParams,
 }: {
     params: Promise<{ id: string }>
+    searchParams: Promise<{ template?: string }>
 }) {
     const { id } = await params
+    const { template } = await searchParams
+
     const quote = await getQuoteById(id)
     const settings = await getCompanySettings()
 
     if (!quote) return notFound()
 
+    const templateId = template === "a4" ? "a4" : "ticket"
+
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center print:bg-white print:items-start print:justify-start p-8">
-            <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-2xl print:shadow-none print:rounded-none print:p-0">
-                {/* Header */}
-                <div className="text-center mb-6">
-                    <h1 className="text-2xl font-bold">{settings.companyName || "Mi Empresa"}</h1>
-                    {settings.companyAddress && <p className="text-sm text-gray-600">{settings.companyAddress}</p>}
-                    {settings.companyPhone && <p className="text-sm text-gray-600">Tel: {settings.companyPhone}</p>}
-                    {settings.companyRnc && <p className="text-sm text-gray-600">RNC: {settings.companyRnc}</p>}
-                </div>
+        <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center print:bg-white print:items-start print:justify-start p-4 md:p-8">
+            <style>{`
+                @media print {
+                    .no-print { display: none !important; }
+                }
+            `}</style>
 
-                <hr className="my-4" />
+            {/* Botones de navegación - solo se muestran en pantalla */}
+            <PrintActions quoteId={id} currentTemplate={templateId} />
 
-                {/* Quote Info */}
-                <div className="flex justify-between mb-6">
-                    <div>
-                        <h2 className="text-xl font-bold">Cotización</h2>
-                        <p className="text-sm text-gray-600">Fecha: {new Date(quote.createdAt).toLocaleDateString('es-DO')}</p>
-                        <p className="text-sm text-gray-600">Estado: {quote.status === "PENDING" ? "Pendiente" : quote.status}</p>
-                    </div>
-                </div>
-
-                {/* Client Info */}
-                <div className="mb-6">
-                    <h3 className="font-bold mb-2">Cliente:</h3>
-                    <p className="text-sm">{quote.client?.name || "Cliente"}</p>
-                    {quote.client?.rnc && <p className="text-sm text-gray-600">RNC/Cédula: {quote.client.rnc}</p>}
-                    {quote.client?.address && <p className="text-sm text-gray-600">Dirección: {quote.client.address}</p>}
-                    {quote.client?.phone && <p className="text-sm text-gray-600">Teléfono: {quote.client.phone}</p>}
-                </div>
-
-                {/* Items Table */}
-                <table className="w-full mb-6">
-                    <thead>
-                        <tr className="border-b-2 border-gray-300">
-                            <th className="text-left py-2">Descripción</th>
-                            <th className="text-center py-2">Cant.</th>
-                            <th className="text-right py-2">Precio</th>
-                            <th className="text-right py-2">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {quote.items.map((item, index) => (
-                            <tr key={index} className="border-b border-gray-200">
-                                <td className="py-2">{item.productName}</td>
-                                <td className="text-center py-2">{item.quantity}</td>
-                                <td className="text-right py-2">RD${item.price.toFixed(2)}</td>
-                                <td className="text-right py-2">RD${(item.quantity * item.price).toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-
-                {/* Total */}
-                <div className="flex justify-end">
-                    <div className="text-right">
-                        <p className="text-xl font-bold">Total: RD${quote.total.toFixed(2)}</p>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-8 pt-4 border-t text-center text-sm text-gray-600">
-                    <p>Esta cotización es válida por 15 días</p>
-                    <p>Gracias por su preferencia</p>
-                </div>
-
-                {quote.createdBy && (
-                    <p className="text-sm text-gray-600 mt-4">Atendido por: {quote.createdBy.name}</p>
+            {/* Contenido de la cotización */}
+            <div className="print:w-full print:m-0">
+                {templateId === "ticket" ? (
+                    <QuoteTemplate quote={quote} settings={settings} />
+                ) : (
+                    <QuoteOdooTemplate quote={quote} settings={settings} />
                 )}
             </div>
-            <script dangerouslySetInnerHTML={{ __html: 'window.print();' }} />
         </div>
     )
 }

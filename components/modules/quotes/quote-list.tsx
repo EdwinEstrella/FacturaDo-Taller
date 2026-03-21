@@ -13,20 +13,12 @@ import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
 // import { format } from "date-fns" // Client side usage
 import { convertQuoteToInvoice } from "@/actions/quote-actions"
-import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Printer } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { QuotePreviewDialog } from "./quote-preview"
-import { useEffect, useState } from "react"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function QuoteList({ quotes }: { quotes: any[] }) {
     const router = useRouter()
-    const [settings, setSettings] = useState<CompanySettings | null>(null)
-
-    useEffect(() => {
-        getCompanySettings().then(setSettings)
-    }, [])
 
     return (
         <div className="rounded-md border">
@@ -64,7 +56,9 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                         <ArrowRight className="mr-2 h-4 w-4" /> Facturar
                                     </Button>
                                 )}
-                                {settings && <QuotePreviewDialog quote={quote} settings={settings} />}
+                                <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/print`)}>
+                                    <Printer className="h-4 w-4" />
+                                </Button>
                             </TableCell>
                         </TableRow>
                     ))}
