@@ -1,9 +1,10 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/db"
+import { dailyCloses } from "@/db/schema"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { Prisma } from "@prisma/client"
+import { eq, desc, and, gte, lt } from "drizzle-orm"
 
 interface InvoiceData {
     id: string
@@ -52,62 +53,52 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
         // Convertir closeDate a Date (solo fecha, sin hora)
         const closeDate = new Date(data.closeDate)
         closeDate.setHours(0, 0, 0, 0)
+        const nextDay = new Date(closeDate)
+        nextDay.setDate(nextDay.getDate() + 1)
 
         // Verificar si ya existe un cierre para este día y este usuario
-        const existing = await prisma.dailyClose.findFirst({
-            where: {
-                closeDate,
-                closedBy: user.id
-            }
-        })
+        const [existing] = await db.select()
+            .from(dailyCloses)
+            .where(
+                and(
+                    gte(dailyCloses.closeDate, closeDate),
+                    lt(dailyCloses.closeDate, nextDay),
+                    eq(dailyCloses.closedBy, user.id)
+                )
+            )
+            .limit(1)
+
+        const closeData = {
+            closeDate,
+            totalBilled: data.totalBilled.toString(),
+            totalCollected: data.totalCollected.toString(),
+            cashCollected: data.cashCollected.toString(),
+            otherCollected: data.otherCollected.toString(),
+            totalExpenses: data.totalExpenses.toString(),
+            netCashInDrawer: data.netCashInDrawer.toString(),
+            billBreakdownRD: data.billBreakdownRD || {},
+            billBreakdownUSD: data.billBreakdownUSD || {},
+            billBreakdownEUR: data.billBreakdownEUR || {},
+            totalRD: data.totalRD.toString(),
+            totalUSD: data.totalUSD.toString(),
+            totalEUR: data.totalEUR.toString(),
+            discrepancy: data.discrepancy.toString(),
+            invoicesData: data.invoicesData,
+            expensesData: data.expensesData,
+            notes: data.notes || null,
+        }
 
         if (existing) {
             // Actualizar el cierre existente
-            await prisma.dailyClose.update({
-                where: { id: existing.id },
-                data: {
-                    totalBilled: data.totalBilled,
-                    totalCollected: data.totalCollected,
-                    cashCollected: data.cashCollected,
-                    otherCollected: data.otherCollected,
-                    totalExpenses: data.totalExpenses,
-                    netCashInDrawer: data.netCashInDrawer,
-                    billBreakdownRD: data.billBreakdownRD || {},
-                    billBreakdownUSD: data.billBreakdownUSD || {},
-                    billBreakdownEUR: data.billBreakdownEUR || {},
-                    totalRD: data.totalRD,
-                    totalUSD: data.totalUSD,
-                    totalEUR: data.totalEUR,
-                    discrepancy: data.discrepancy,
-                    invoicesData: data.invoicesData as unknown as Prisma.InputJsonObject,
-                    expensesData: data.expensesData as unknown as Prisma.InputJsonObject,
-                    notes: data.notes || null
-                }
-            })
+            await db.update(dailyCloses)
+                .set(closeData)
+                .where(eq(dailyCloses.id, existing.id))
         } else {
             // Crear nuevo cierre
-            await prisma.dailyClose.create({
-                data: {
-                    closeDate,
-                    totalBilled: data.totalBilled,
-                    totalCollected: data.totalCollected,
-                    cashCollected: data.cashCollected,
-                    otherCollected: data.otherCollected,
-                    totalExpenses: data.totalExpenses,
-                    netCashInDrawer: data.netCashInDrawer,
-                    billBreakdownRD: data.billBreakdownRD || {},
-                    billBreakdownUSD: data.billBreakdownUSD || {},
-                    billBreakdownEUR: data.billBreakdownEUR || {},
-                    totalRD: data.totalRD,
-                    totalUSD: data.totalUSD,
-                    totalEUR: data.totalEUR,
-                    discrepancy: data.discrepancy,
-                    invoicesData: data.invoicesData as unknown as Prisma.InputJsonObject,
-                    expensesData: data.expensesData as unknown as Prisma.InputJsonObject,
-                    closedBy: user.id,
-                    closedByName: user.name,
-                    notes: data.notes || null
-                }
+            await db.insert(dailyCloses).values({
+                ...closeData,
+                closedBy: user.id,
+                closedByName: user.name,
             })
         }
 
@@ -129,10 +120,10 @@ export async function getDailyCloseHistory() {
     }
 
     try {
-        const history = await prisma.dailyClose.findMany({
-            orderBy: { closeDate: "desc" },
-            take: 50
-        })
+        const history = await db.select()
+            .from(dailyCloses)
+            .orderBy(desc(dailyCloses.closeDate))
+            .limit(50)
 
         return { success: true, history }
     } catch (error) {
@@ -149,9 +140,10 @@ export async function getDailyCloseById(id: string) {
     }
 
     try {
-        const dailyClose = await prisma.dailyClose.findUnique({
-            where: { id }
-        })
+        const [dailyClose] = await db.select()
+            .from(dailyCloses)
+            .where(eq(dailyCloses.id, id))
+            .limit(1)
 
         if (!dailyClose) {
             return { success: false, error: "Cierre no encontrado" }

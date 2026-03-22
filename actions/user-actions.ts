@@ -1,8 +1,10 @@
 'use server'
 
 import { db } from "@/lib/db"
+import { users } from "@/db/schema"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
+import { eq, desc, ne, and } from "drizzle-orm"
 
 // Get all users (Admin only)
 export async function getUsers() {
@@ -12,12 +14,8 @@ export async function getUsers() {
     }
 
     try {
-        const users = await db.user.findMany({
-            orderBy: {
-                createdAt: 'desc'
-            }
-        })
-        return { success: true, data: users }
+        const usersList = await db.select().from(users).orderBy(desc(users.createdAt))
+        return { success: true, data: usersList }
     } catch {
         return { success: false, error: "Error fetching users" }
     }
@@ -40,23 +38,19 @@ export async function createUser(data: UserInput) {
     }
 
     try {
-        const existingUser = await db.user.findUnique({
-            where: { username: data.username }
-        })
+        const [existingUser] = await db.select().from(users).where(eq(users.username, data.username)).limit(1)
 
         if (existingUser) {
             return { success: false, error: "El nombre de usuario ya existe" }
         }
 
-        await db.user.create({
-            data: {
-                name: data.name || "",
-                username: data.username,
-                phone: data.phone || null,
-                password: data.password || "123456", // Fallback or strict
-                role: data.role,
-                ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })
-            }
+        await db.insert(users).values({
+            name: data.name || "",
+            username: data.username,
+            phone: data.phone || null,
+            password: data.password || "123456",
+            role: data.role,
+            ...(data.customPermissions && { customPermissions: data.customPermissions })
         })
 
         revalidatePath("/settings/users")
@@ -77,28 +71,28 @@ export async function updateUser(id: string, data: UserInput) {
     try {
         // If updating username, check for uniqueness
         if (data.username) {
-            const existingUser = await db.user.findFirst({
-                where: {
-                    username: data.username,
-                    NOT: { id }
-                }
-            })
+            const [existingUser] = await db.select().from(users).where(
+                and(
+                    eq(users.username, data.username),
+                    ne(users.id, id)
+                )
+            ).limit(1)
+
             if (existingUser) {
                 return { success: false, error: "El nombre de usuario ya existe" }
             }
         }
 
-        await db.user.update({
-            where: { id },
-            data: {
+        await db.update(users)
+            .set({
                 name: data.name || undefined,
                 username: data.username,
                 phone: data.phone,
                 role: data.role,
-                ...(data.password ? { password: data.password } : {}), // Only update password if provided
-                ...(data.customPermissions && { customPermissions: data.customPermissions as Record<string, boolean> })
-            }
-        })
+                ...(data.password ? { password: data.password } : {}),
+                ...(data.customPermissions && { customPermissions: data.customPermissions })
+            })
+            .where(eq(users.id, id))
 
         revalidatePath("/settings/users")
         return { success: true }
@@ -120,9 +114,7 @@ export async function deleteUser(id: string) {
             return { success: false, error: "No puedes eliminar tu propio usuario" }
         }
 
-        await db.user.delete({
-            where: { id }
-        })
+        await db.delete(users).where(eq(users.id, id))
 
         revalidatePath("/settings/users")
         return { success: true }

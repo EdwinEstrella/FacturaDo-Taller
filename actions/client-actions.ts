@@ -1,14 +1,16 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/db"
+import { clients, invoices, quotes } from "@/db/schema"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { addClientHistoryEntry } from "./client-history-actions"
+import { eq, desc } from "drizzle-orm"
 
 const ClientSchema = z.object({
     name: z.string().min(1, "Name is required"),
     rnc: z.string().optional(),
-    cedula: z.string().optional(), // Added cedula field
+    cedula: z.string().optional(),
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
@@ -19,7 +21,7 @@ export async function createClient(prevState: any, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
-        cedula: formData.get("cedula"), // Extract cedula
+        cedula: formData.get("cedula"),
         address: formData.get("address"),
         phone: formData.get("phone"),
         email: formData.get("email"),
@@ -32,9 +34,7 @@ export async function createClient(prevState: any, formData: FormData) {
     }
 
     try {
-        const client = await prisma.client.create({
-            data: validatedFields.data,
-        })
+        const [client] = await db.insert(clients).values(validatedFields.data).returning()
 
         // Agregar al historial
         await addClientHistoryEntry(
@@ -56,7 +56,7 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
-        cedula: formData.get("cedula"), // Extract cedula
+        cedula: formData.get("cedula"),
         address: formData.get("address"),
         phone: formData.get("phone"),
         email: formData.get("email"),
@@ -69,10 +69,10 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
     }
 
     try {
-        const client = await prisma.client.update({
-            where: { id },
-            data: validatedFields.data,
-        })
+        const [client] = await db.update(clients)
+            .set(validatedFields.data)
+            .where(eq(clients.id, id))
+            .returning()
 
         // Agregar al historial
         await addClientHistoryEntry(
@@ -91,21 +91,22 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
 
 export async function deleteClient(id: string) {
     try {
-        const client = await prisma.client.findUnique({
-            where: { id },
-            include: { invoices: { select: { id: true } }, quotes: { select: { id: true } } }
-        })
+        const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1)
 
         if (!client) return { success: false, error: "Cliente no encontrado" }
 
-        if (client.invoices.length > 0 || client.quotes.length > 0) {
+        // Check for related invoices
+        const [invoiceCount] = await db.select({ count: invoices.id }).from(invoices).where(eq(invoices.clientId, id))
+        const [quoteCount] = await db.select({ count: quotes.id }).from(quotes).where(eq(quotes.clientId, id))
+
+        if (invoiceCount || quoteCount) {
             return {
                 success: false,
-                error: `No se puede eliminar. El cliente tiene ${client.invoices.length} facturas y ${client.quotes.length} cotizaciones asociadas.`
+                error: `No se puede eliminar. El cliente tiene registros asociados.`
             }
         }
 
-        await prisma.client.delete({ where: { id } })
+        await db.delete(clients).where(eq(clients.id, id))
         revalidatePath("/clients")
         return { success: true }
     } catch (error) {
@@ -115,7 +116,5 @@ export async function deleteClient(id: string) {
 }
 
 export async function getClients() {
-    return await prisma.client.findMany({
-        orderBy: { createdAt: 'desc' }
-    })
+    return await db.select().from(clients).orderBy(desc(clients.createdAt))
 }

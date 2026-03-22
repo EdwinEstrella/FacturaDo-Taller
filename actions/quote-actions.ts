@@ -1,29 +1,13 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/db"
+import { quotes, quoteItems, clients, users, invoices, invoiceItems, products } from "@/db/schema"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { z } from "zod"
+import { eq, lte, desc, and } from "drizzle-orm"
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _QuoteItemSchema = z.object({
-    productId: z.string(),
-    productName: z.string(), // Snapshot name
-    quantity: z.number().min(1),
-    price: z.number().min(0),
-})
-
-/* const QuoteSchema = z.object({
-    clientId: z.string(),
-    items: z.array(QuoteItemSchema).min(1),
-    total: z.number().min(0),
-    // Add validity period etc. if needed
-}) */
-
-// Define QuoteFormData type based on the new createQuote function's data structure
 type QuoteFormData = {
     clientId: string;
-    // clientName: string; // Removed as it's not in schema
     items: Array<{
         productId: string;
         productName: string;
@@ -43,42 +27,31 @@ export async function createQuote(data: QuoteFormData) {
     validUntil.setDate(validUntil.getDate() + 15)
 
     try {
-        const quote = await prisma.quote.create({
-            data: {
-                clientId: data.clientId,
-                // clientName: data.clientName, // Removed
-                total: total,
-                createdById: user.id,
-                status: "PENDING", // Re-added status as it was in the original schema
-                validUntil: validUntil,
-                items: {
-                    create: data.items.map(item => ({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity,
-                        price: item.price
-                    }))
-                }
-            },
-            include: {
-                client: true,
-                items: true,
-                createdBy: true
-            }
-        })
-        revalidatePath('/invoices')
+        const [quote] = await db.insert(quotes).values({
+            clientId: data.clientId,
+            total: total.toString(),
+            createdById: user.id,
+            status: "PENDING",
+            validUntil: validUntil,
+        }).returning()
 
-        // Serialize Decimal to number
-        const serializedQuote = {
-            ...quote,
-            total: Number(quote.total),
-            items: quote.items.map(item => ({
-                ...item,
-                price: Number(item.price)
-            }))
+        // Insert items
+        for (const item of data.items) {
+            await db.insert(quoteItems).values({
+                quoteId: quote.id,
+                productId: item.productId,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price.toString(),
+            })
         }
 
-        return { success: true, quote: serializedQuote }
+        // Get full quote with relations
+        const fullQuote = await getQuoteById(quote.id)
+
+        revalidatePath('/invoices')
+
+        return { success: true, quote: fullQuote }
     } catch (error) {
         console.error("Error creating quote:", error)
         return { success: false, error: "Failed to create quote" }
@@ -88,53 +61,52 @@ export async function createQuote(data: QuoteFormData) {
 export async function getQuotes() {
     // Primero verificar y marcar cotizaciones vencidas
     const now = new Date()
-    await prisma.quote.updateMany({
-        where: {
-            status: "PENDING",
-            validUntil: {
-                lte: now
+    await db.update(quotes)
+        .set({ status: "EXPIRED" })
+        .where(and(
+            eq(quotes.status, "PENDING"),
+            lte(quotes.validUntil, now)
+        ))
+
+    // Get all quotes with client and items
+    const allQuotes = await db.select().from(quotes).orderBy(desc(quotes.createdAt))
+
+    // Manually fetch relations for each quote
+    const quotesWithRelations = await Promise.all(
+        allQuotes.map(async (quote) => {
+            const [client] = await db.select().from(clients).where(eq(clients.id, quote.clientId!)).limit(1)
+            const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quote.id))
+
+            return {
+                ...quote,
+                total: Number(quote.total),
+                client,
+                items: items.map(item => ({
+                    ...item,
+                    price: Number(item.price)
+                }))
             }
-        },
-        data: {
-            status: "EXPIRED"
-        }
-    })
+        })
+    )
 
-    const quotes = await prisma.quote.findMany({
-        include: {
-            client: true,
-            items: true
-        },
-        orderBy: { createdAt: 'desc' }
-    })
-
-    // Serialize Decimal to number for client components
-    return quotes.map(quote => ({
-        ...quote,
-        total: Number(quote.total),
-        items: quote.items.map(item => ({
-            ...item,
-            price: Number(item.price)
-        }))
-    }))
+    return quotesWithRelations
 }
 
 export async function getQuoteById(id: string) {
-    const quote = await prisma.quote.findUnique({
-        where: { id },
-        include: {
-            client: true,
-            items: true,
-            createdBy: true
-        }
-    })
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, id)).limit(1)
 
     if (!quote) return null
+
+    const [client] = await db.select().from(clients).where(eq(clients.id, quote.clientId!)).limit(1)
+    const [createdBy] = quote.createdById ? await db.select().from(users).where(eq(users.id, quote.createdById)).limit(1) : [null]
+    const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quote.id))
 
     return {
         ...quote,
         total: Number(quote.total),
-        items: quote.items.map(item => ({
+        client,
+        createdBy,
+        items: items.map(item => ({
             ...item,
             price: Number(item.price)
         }))
@@ -142,58 +114,47 @@ export async function getQuoteById(id: string) {
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
-    // Logic to convert:
-    // 1. Get Quote
-    // 2. Create Invoice with same items
-    // 3. Mark Quote as ACCEPTED?
-
-    const quote = await prisma.quote.findUnique({
-        where: { id: quoteId },
-        include: { items: true }
-    })
+    const quote = await getQuoteById(quoteId)
 
     if (!quote) return { success: false, error: "Cotización no encontrada" }
 
-    // Reuse logic or call createInvoice? 
-    // Better to duplicate logic lightly or extract generic creator.
-    // For simplicity, direct creation:
-
     try {
-        const invoice = await prisma.invoice.create({
-            data: {
-                clientId: quote.clientId,
-                clientName: "Desde Cotización", // Lookup client name if needed, or update schema to store it on Quote too
-                total: quote.total,
-                status: "PAID",
-                paymentMethod: "CASH",
-                items: {
-                    create: quote.items.map(item => ({
-                        productId: item.productId,
-                        productName: "Item Cotizado", // Ideally fetch real name or store it in QuoteItem
-                        quantity: item.quantity,
-                        price: item.price
-                    }))
-                }
-            }
-        })
+        const [invoice] = await db.insert(invoices).values({
+            clientId: quote.clientId,
+            clientName: quote.client?.name || "Desde Cotización",
+            total: quote.total.toString(),
+            status: "PAID",
+            paymentMethod: "CASH",
+            createdById: quote.createdById,
+            creatorName: quote.createdBy?.name,
+        }).returning()
 
-        // Deduct stock (simplified logic from invoice-actions)
+        // Insert invoice items
+        for (const item of quote.items) {
+            await db.insert(invoiceItems).values({
+                invoiceId: invoice.id,
+                productId: item.productId,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price.toString(),
+            })
+        }
+
+        // Deduct stock
         for (const item of quote.items) {
             if (item.productId) {
-                const product = await prisma.product.findUnique({ where: { id: item.productId } })
-                if (product && !product.isService) {
-                    await prisma.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { decrement: item.quantity } }
-                    })
+                const [product] = await db.select().from(products).where(eq(products.id, item.productId)).limit(1)
+                if (product && product.category !== "SERVICIO") {
+                    await db.update(products)
+                        .set({ stock: Math.max(0, product.stock - item.quantity) })
+                        .where(eq(products.id, item.productId))
                 }
             }
         }
 
-        await prisma.quote.update({
-            where: { id: quoteId },
-            data: { status: "ACCEPTED" }
-        })
+        await db.update(quotes)
+            .set({ status: "ACCEPTED" })
+            .where(eq(quotes.id, quoteId))
 
         revalidatePath("/invoices")
         return { success: true, invoiceId: invoice.id }
@@ -209,9 +170,7 @@ export async function deleteQuote(quoteId: string) {
     if (!user) throw new Error("Unauthorized")
 
     try {
-        await prisma.quote.delete({
-            where: { id: quoteId }
-        })
+        await db.delete(quotes).where(eq(quotes.id, quoteId))
 
         revalidatePath("/quotes")
         return { success: true }
@@ -228,22 +187,17 @@ export async function markExpiredQuotes() {
     try {
         const now = new Date()
 
-        // Encontrar cotizaciones vencidas que aún están PENDING
-        const expiredQuotes = await prisma.quote.findMany({
-            where: {
-                status: "PENDING",
-                validUntil: {
-                    lte: now
-                }
-            }
-        })
+        const expiredQuotes = await db.select().from(quotes).where(
+            and(
+                eq(quotes.status, "PENDING"),
+                lte(quotes.validUntil, now)
+            )
+        )
 
-        // Marcarlas como EXPIRED
         for (const quote of expiredQuotes) {
-            await prisma.quote.update({
-                where: { id: quote.id },
-                data: { status: "EXPIRED" }
-            })
+            await db.update(quotes)
+                .set({ status: "EXPIRED" })
+                .where(eq(quotes.id, quote.id))
         }
 
         revalidatePath("/quotes")
@@ -260,27 +214,29 @@ export async function cleanupExpiredQuotes() {
         return { success: false, error: "Unauthorized" }
     }
 
-    // Solo admin o manager pueden limpiar cotizaciones
     if (user.role !== "ADMIN" && user.role !== "MANAGER") {
         return { success: false, error: "No tienes permisos para eliminar cotizaciones" }
     }
 
     try {
-        // Eliminar cotizaciones EXPIRED con más de 30 días de antigüedad
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-        const result = await prisma.quote.deleteMany({
-            where: {
-                status: "EXPIRED",
-                validUntil: {
-                    lte: thirtyDaysAgo
-                }
-            }
-        })
+        const expiredQuotes = await db.select().from(quotes).where(
+            and(
+                eq(quotes.status, "EXPIRED"),
+                lte(quotes.validUntil, thirtyDaysAgo)
+            )
+        )
+
+        let count = 0
+        for (const quote of expiredQuotes) {
+            await db.delete(quotes).where(eq(quotes.id, quote.id))
+            count++
+        }
 
         revalidatePath("/quotes")
-        return { success: true, count: result.count }
+        return { success: true, count }
     } catch (error) {
         console.error("Error cleaning up expired quotes:", error)
         return { success: false, error: "Error al limpiar cotizaciones vencidas" }

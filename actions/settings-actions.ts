@@ -1,8 +1,10 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/db"
+import { settings } from "@/db/schema"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
+import { eq } from "drizzle-orm"
 
 // Define types for settings
 export type CompanySettings = {
@@ -23,20 +25,12 @@ export type CompanySettings = {
 
 export async function getCompanySettings(): Promise<CompanySettings> {
     try {
-        const settings = await prisma.setting.findMany({
-            where: {
-                key: {
-                    in: [
-                        "COMPANY_NAME",
-                        "COMPANY_PHONE",
-                        "COMPANY_RNC",
-                        "COMPANY_ADDRESS",
-                        "INVOICE_TEMPLATE",
-                        "COMPANY_LOGO",
-                    ]
-                }
-            }
-        })
+        // Get all settings and filter in code (simpler than using inArray)
+        const allSettings = await db.select().from(settings)
+
+        const settingsData = allSettings.filter(s =>
+            ["COMPANY_NAME", "COMPANY_PHONE", "COMPANY_RNC", "COMPANY_ADDRESS", "INVOICE_TEMPLATE", "COMPANY_LOGO"].includes(s.key)
+        )
 
         // Default values
         const defaults: CompanySettings = {
@@ -49,7 +43,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
         }
 
         // Map DB results to object
-        const result = settings.reduce((acc, current) => {
+        const result = settingsData.reduce((acc, current) => {
             if (current.key === "COMPANY_NAME") acc.companyName = current.value
             if (current.key === "COMPANY_PHONE") acc.companyPhone = current.value
             if (current.key === "COMPANY_RNC") acc.companyRnc = current.value
@@ -83,39 +77,24 @@ export async function updateCompanySettings(data: CompanySettings) {
         const invoiceTemplate = data.invoiceTemplate === "a4" ? "a4" : "ticket"
         const companyLogo = data.companyLogo ?? ""
 
-        // Upsert each setting
-        await prisma.$transaction([
-            prisma.setting.upsert({
-                where: { key: "COMPANY_NAME" },
-                update: { value: data.companyName },
-                create: { key: "COMPANY_NAME", value: data.companyName }
-            }),
-            prisma.setting.upsert({
-                where: { key: "COMPANY_PHONE" },
-                update: { value: data.companyPhone },
-                create: { key: "COMPANY_PHONE", value: data.companyPhone }
-            }),
-            prisma.setting.upsert({
-                where: { key: "COMPANY_RNC" },
-                update: { value: data.companyRnc },
-                create: { key: "COMPANY_RNC", value: data.companyRnc }
-            }),
-            prisma.setting.upsert({
-                where: { key: "COMPANY_ADDRESS" },
-                update: { value: data.companyAddress },
-                create: { key: "COMPANY_ADDRESS", value: data.companyAddress }
-            }),
-            prisma.setting.upsert({
-                where: { key: "INVOICE_TEMPLATE" },
-                update: { value: invoiceTemplate },
-                create: { key: "INVOICE_TEMPLATE", value: invoiceTemplate }
-            }),
-            prisma.setting.upsert({
-                where: { key: "COMPANY_LOGO" },
-                update: { value: companyLogo },
-                create: { key: "COMPANY_LOGO", value: companyLogo }
-            }),
-        ])
+        // Helper function to upsert a setting
+        const upsertSetting = async (key: string, value: string) => {
+            const existing = await db.select().from(settings).where(eq(settings.key, key)).limit(1)
+
+            if (existing.length > 0) {
+                await db.update(settings).set({ value }).where(eq(settings.key, key))
+            } else {
+                await db.insert(settings).values({ key, value })
+            }
+        }
+
+        // Upsert each setting (in a transaction-like manner)
+        await upsertSetting("COMPANY_NAME", data.companyName)
+        await upsertSetting("COMPANY_PHONE", data.companyPhone)
+        await upsertSetting("COMPANY_RNC", data.companyRnc)
+        await upsertSetting("COMPANY_ADDRESS", data.companyAddress)
+        await upsertSetting("INVOICE_TEMPLATE", invoiceTemplate)
+        await upsertSetting("COMPANY_LOGO", companyLogo)
 
         revalidatePath("/settings/general") // Revalidate the form usage
         revalidatePath("/invoices") // Revalidate invoice creation pages that might use this

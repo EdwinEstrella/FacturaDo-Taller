@@ -1,22 +1,17 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { users } from "@/db/schema"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { eq } from "drizzle-orm"
 
 const SESSION_COOKIE_NAME = "facturado_session_id"
 
 export async function login(username: string, password: string) {
     console.log("LOGIN START: ", username)
     try {
-        console.log("DB keys:", Object.keys(db))
-        // Safe access check
-        const userModel = db.user
-        console.log("DB User Model Type:", typeof userModel)
-
-        const user = await db.user.findUnique({
-            where: { username }
-        })
+        const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1)
 
         if (!user) {
             return { success: false, error: "Usuario no encontrado" }
@@ -54,10 +49,13 @@ export async function getCurrentUser() {
     if (!userId) return null
 
     try {
-        const user = await db.user.findUnique({
-            where: { id: userId },
-            select: { id: true, name: true, username: true, role: true }
-        })
+        const [user] = await db.select({
+            id: users.id,
+            name: users.name,
+            username: users.username,
+            role: users.role
+        }).from(users).where(eq(users.id, userId)).limit(1)
+
         return user
     } catch {
         return null

@@ -1,6 +1,8 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/db"
+import { clientHistory, invoices } from "@/db/schema"
+import { eq, desc, sql, and } from "drizzle-orm"
 
 export interface ClientHistoryEntry {
     id: string
@@ -20,13 +22,11 @@ export async function addClientHistoryEntry(
     metadata?: Record<string, unknown>
 ) {
     try {
-        await prisma.clientHistory.create({
-            data: {
-                clientId,
-                action,
-                description,
-                metadata: metadata ? JSON.stringify(metadata) : null,
-            },
+        await db.insert(clientHistory).values({
+            clientId,
+            action,
+            description,
+            metadata: metadata ? JSON.stringify(metadata) : null,
         })
         return { success: true }
     } catch (error) {
@@ -44,11 +44,11 @@ export async function getClientHistory(clientId: string): Promise<{
     error?: string
 }> {
     try {
-        const history = await prisma.clientHistory.findMany({
-            where: { clientId },
-            orderBy: { createdAt: "desc" },
-            take: 100, // Últimas 100 acciones
-        })
+        const history = await db.select()
+            .from(clientHistory)
+            .where(eq(clientHistory.clientId, clientId))
+            .orderBy(desc(clientHistory.createdAt))
+            .limit(100)
 
         return {
             success: true,
@@ -70,23 +70,37 @@ export async function getClientHistory(clientId: string): Promise<{
  */
 export async function getClientStats(clientId: string) {
     try {
-        const [invoiceCount, totalSpent, lastActivity] = await Promise.all([
-            prisma.invoice.count({ where: { clientId } }),
-            prisma.invoice.aggregate({
-                where: { clientId, status: "PAID" },
-                _sum: { total: true },
-            }),
-            prisma.clientHistory.findFirst({
-                where: { clientId },
-                orderBy: { createdAt: "desc" },
-            }),
-        ])
+        // Get invoice count
+        const invoiceCountResult = await db.select({ count: sql<number>`count(*)::int` })
+            .from(invoices)
+            .where(eq(invoices.clientId, clientId))
+
+        const invoiceCount = invoiceCountResult[0]?.count || 0
+
+        // Get total spent
+        const totalSpentResult = await db.select({
+            total: sql<number>`coalesce(sum(cast(${invoices.total} as numeric)), 0)`
+        })
+            .from(invoices)
+            .where(and(
+                eq(invoices.clientId, clientId),
+                eq(invoices.status, "PAID")
+            ))
+
+        const totalSpent = Number(totalSpentResult[0]?.total || 0)
+
+        // Get last activity
+        const [lastActivity] = await db.select()
+            .from(clientHistory)
+            .where(eq(clientHistory.clientId, clientId))
+            .orderBy(desc(clientHistory.createdAt))
+            .limit(1)
 
         return {
             success: true,
             data: {
                 invoiceCount,
-                totalSpent: Number(totalSpent._sum.total || 0),
+                totalSpent,
                 lastActivityDate: lastActivity?.createdAt,
             },
         }
