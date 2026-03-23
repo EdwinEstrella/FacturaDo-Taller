@@ -1,17 +1,29 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { Database } from "@/lib/supabase/database.types"
+
+type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
 
 export async function createWorkOrder(invoiceId: string, notes: string) {
+    const supabase = await createClient()
+
     try {
-        const order = await prisma.workOrder.create({
-            data: {
+        const { data: order, error } = await supabase
+            .from('WorkOrder')
+            .insert({
                 invoiceId,
                 notes,
                 status: "PRODUCTION"
-            }
-        })
+            })
+            .select()
+            .single()
+
+        if (error || !order) {
+            throw error
+        }
+
         revalidatePath("/orders")
         revalidatePath("/invoices")
         return { success: true, orderId: order.id }
@@ -22,35 +34,52 @@ export async function createWorkOrder(invoiceId: string, notes: string) {
 }
 
 export async function updateWorkOrderStatus(id: number, status: string) {
+    const supabase = await createClient()
+
     try {
-        await prisma.workOrder.update({
-            where: { id },
-            data: { status }
-        })
+        const { error } = await supabase
+            .from('WorkOrder')
+            .update({ status })
+            .eq('id', id)
+
+        if (error) {
+            throw error
+        }
+
         revalidatePath("/orders")
         return { success: true }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al actualizar estado" }
     }
 }
 
 export async function getWorkOrders() {
-    const workOrders = await prisma.workOrder.findMany({
-        include: {
-            invoice: {
-                include: { items: true, client: true }
-            }
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    const supabase = await createClient()
 
-    // Serialize Decimal to number for client components
-    return workOrders.map(order => ({
+    const { data: workOrders, error } = await supabase
+        .from('WorkOrder')
+        .select(`
+            *,
+            invoice:Invoice(
+                *,
+                items:InvoiceItem(*),
+                client:Client(*)
+            )
+        `)
+        .order('createdAt', { ascending: false })
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return (workOrders || []).map(order => ({
         ...order,
         invoice: order.invoice ? {
             ...order.invoice,
             total: Number(order.invoice.total),
-            items: order.invoice.items.map(item => ({
+            items: (order.invoice.items || []).map((item: InvoiceItem) => ({
                 ...item,
                 price: Number(item.price)
             }))

@@ -243,9 +243,16 @@ const SignInCard = () => {
         setError(null);
 
         try {
-            // Import dynamic to avoid build issues if mixed component
-            const { login } = await import("@/actions/auth-actions");
-            const result = await login(username, password);
+            // Llamar al API route
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const result = await response.json();
 
             if (result.success) {
                 router.push('/');

@@ -1,10 +1,9 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
-// import { redirect } from "next/navigation"
 
 const PaymentSchema = z.object({
     invoiceId: z.string(),
@@ -25,53 +24,53 @@ export async function registerPayment(data: PaymentFormData) {
     if (!validated.success) return { success: false, error: validated.error.message }
 
     const { invoiceId, amount, method, reference, notes, date } = validated.data
+    const supabase = await createClient()
 
     try {
-        const result = await prisma.$transaction(async (tx) => {
-            const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } })
-            if (!invoice) throw new Error("Factura no encontrada")
+        // Get invoice
+        const { data: invoice } = await supabase
+            .from('Invoice')
+            .select('*')
+            .eq('id', invoiceId)
+            .single()
 
-            // Wait, balance is Decimal in schema? I need to verify. 
-            // Step 697 said Added shippingCost (Decimal).
-            // Usually monetary fields are Decimal.
-            // But prisma types return Decimal object or number depending on config.
-            // Safe to assume Decimal.
+        if (!invoice) {
+            throw new Error("Factura no encontrada")
+        }
 
-            const currentBalance = Number(invoice.balance)
-            const newBalance = currentBalance - amount
+        const currentBalance = Number(invoice.balance)
+        const newBalance = currentBalance - amount
 
-            if (newBalance < -0.01) { // Floating point tolerance
-                throw new Error("El monto excede el balance pendiente")
-            }
+        if (newBalance < -0.01) {
+            throw new Error("El monto excede el balance pendiente")
+        }
 
-            // Create Payment
-            await tx.payment.create({
-                data: {
-                    invoiceId,
-                    amount,
-                    method,
-                    reference,
-                    notes,
-                    date: date || new Date(),
-                    // createdById: user.id // If schema supports it
-                }
+        // Create Payment
+        await supabase
+            .from('Payment')
+            .insert({
+                invoiceId,
+                amount,
+                method,
+                reference,
+                notes,
+                date: (date || new Date()).toISOString(),
             })
 
-            // Update Invoice
-            const updatedInvoice = await tx.invoice.update({
-                where: { id: invoiceId },
-                data: {
-                    balance: newBalance,
-                    status: newBalance <= 0.01 ? "PAID" : "PENDING"
-                }
+        // Update Invoice
+        const { data: updatedInvoice } = await supabase
+            .from('Invoice')
+            .update({
+                balance: newBalance,
+                status: newBalance <= 0.01 ? "PAID" : "PENDING"
             })
-
-            return updatedInvoice
-        })
+            .eq('id', invoiceId)
+            .select()
+            .single()
 
         revalidatePath("/receivables")
         revalidatePath("/invoices")
-        return { success: true, invoice: result }
+        return { success: true, invoice: updatedInvoice }
 
     } catch (error) {
         console.error("Payment error:", error)

@@ -27,7 +27,10 @@ import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
-import type { Client, Product } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
+type Product = Database['public']['Tables']['Product']['Row']
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DatePicker } from "@/components/ui/date-picker"

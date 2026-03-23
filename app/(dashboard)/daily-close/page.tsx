@@ -1,11 +1,10 @@
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { DailyCloseContent } from "@/components/modules/daily-close/daily-close-content"
 
 export const dynamic = 'force-dynamic'
 
 export default async function DailyClosePage() {
-    // Permission check inside layout or here. Sidebar hides it, but safe to add check if needed.
-    // For now, assuming middleware/layout handles basic auth.
+    const supabase = await createClient()
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -13,57 +12,37 @@ export default async function DailyClosePage() {
     tomorrow.setDate(tomorrow.getDate() + 1)
 
     // 1. Fetch Invoices for Today
-    const invoices = await prisma.invoice.findMany({
-        where: {
-            createdAt: {
-                gte: today,
-                lt: tomorrow
-            },
-            status: 'PAID' // Only count paid/completed sales
-        },
-        select: {
-            id: true,
-            total: true,
-            paymentMethod: true,
-            sequenceNumber: true,
-            clientName: true,
-            createdAt: true
-        }
-    })
+    const { data: invoices } = await supabase
+        .from('Invoice')
+        .select('*')
+        .gte('createdAt', today.toISOString())
+        .lt('createdAt', tomorrow.toISOString())
+        .eq('status', 'PAID')
 
     // 2. Fetch Transactions (Expenses) for Today
-    const transactions = await prisma.transaction.findMany({
-        where: {
-            date: {
-                gte: today,
-                lt: tomorrow
-            },
-            type: 'EXPENSE'
-        }
-    })
+    const { data: transactions } = await supabase
+        .from('Transaction')
+        .select('*')
+        .gte('date', today.toISOString())
+        .lt('date', tomorrow.toISOString())
+        .eq('type', 'EXPENSE')
 
     // 3. Fetch Payments (Actual Cash Flow)
-    const payments = await prisma.payment.findMany({
-        where: {
-            date: {
-                gte: today,
-                lt: tomorrow
-            }
-        },
-        include: {
-            invoice: { select: { sequenceNumber: true } }
-        }
-    })
+    const { data: payments } = await supabase
+        .from('Payment')
+        .select('*, invoice:Invoice(sequenceNumber)')
+        .gte('date', today.toISOString())
+        .lt('date', tomorrow.toISOString())
 
     // 4. Calculate Totals
 
     // A. Billed (Facturado - Volume generated today)
-    const totalBilled = invoices.reduce((acc, inv) => acc + Number(inv.total), 0)
+    const totalBilled = (invoices || []).reduce((acc, inv) => acc + Number(inv.total), 0)
 
     // B. Collected (Cobrado - Money received today)
-    const totalCollected = payments.reduce((acc, p) => acc + Number(p.amount), 0)
+    const totalCollected = (payments || []).reduce((acc, p) => acc + Number(p.amount), 0)
 
-    const collectedByMethod = payments.reduce((acc, p) => {
+    const collectedByMethod = (payments || []).reduce((acc, p) => {
         const method = p.method || "CASH"
         acc[method] = (acc[method] || 0) + Number(p.amount)
         return acc
@@ -72,16 +51,16 @@ export default async function DailyClosePage() {
     const cashCollected = collectedByMethod["CASH"] || 0
     const otherCollected = totalCollected - cashCollected
 
-    const totalExpenses = transactions.reduce((acc, t) => acc + Number(t.amount), 0)
+    const totalExpenses = (transactions || []).reduce((acc, t) => acc + Number(t.amount), 0)
     const netCashInDrawer = cashCollected - totalExpenses
 
     // Convert Decimals to numbers for the component
-    const formattedInvoices = invoices.map(inv => ({
+    const formattedInvoices = (invoices || []).map(inv => ({
         ...inv,
         total: Number(inv.total)
     }))
 
-    const formattedTransactions = transactions.map(t => ({
+    const formattedTransactions = (transactions || []).map(t => ({
         ...t,
         amount: Number(t.amount)
     }))

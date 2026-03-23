@@ -1,34 +1,42 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { Database } from "@/lib/supabase/database.types"
+
+type Dispatch = Database['public']['Tables']['Dispatch']['Row']
+type DispatchUpdate = Database['public']['Tables']['Dispatch']['Update']
+type DispatchPhoto = Database['public']['Tables']['DispatchPhoto']['Row']
+type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
 
 export async function getTechnicianDispatches(technicianId: string) {
-    const dispatches = await prisma.dispatch.findMany({
-        where: {
-            technicianId,
-            status: {
-                in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS']
-            }
-        },
-        include: {
-            invoice: {
-                include: {
-                    client: true,
-                    items: true
-                }
-            }
-        },
-        orderBy: { createdAt: 'asc' }
-    })
+    const supabase = await createClient()
 
-    // Serialize Decimal to number for client components
-    return dispatches.map(dispatch => ({
+    const { data: dispatches, error } = await supabase
+        .from('Dispatch')
+        .select(`
+            *,
+            invoice:Invoice(
+                *,
+                client:Client(*),
+                items:InvoiceItem(*)
+            )
+        `)
+        .in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS'])
+        .eq('technicianId', technicianId)
+        .order('createdAt', { ascending: true })
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return (dispatches || []).map(dispatch => ({
         ...dispatch,
         invoice: dispatch.invoice ? {
             ...dispatch.invoice,
             total: Number(dispatch.invoice.total),
-            items: dispatch.invoice.items.map(item => ({
+            items: (dispatch.invoice.items || []).map((item: InvoiceItem) => ({
                 ...item,
                 price: Number(item.price)
             }))
@@ -42,12 +50,9 @@ export async function updateDispatchStatus(
     notes?: string,
     photos?: string[]
 ) {
-    const updateData: {
-        status: string
-        notes?: string
-        deliveredAt?: Date
-        installedAt?: Date
-    } = {
+    const supabase = await createClient()
+
+    const updateData: DispatchUpdate = {
         status
     }
 
@@ -56,27 +61,35 @@ export async function updateDispatchStatus(
     }
 
     if (status === 'DELIVERED') {
-        updateData.deliveredAt = new Date()
+        updateData.deliveredAt = new Date().toISOString()
     }
 
     if (status === 'INSTALLED') {
-        updateData.installedAt = new Date()
+        updateData.installedAt = new Date().toISOString()
     }
 
-    const dispatch = await prisma.dispatch.update({
-        where: { id: dispatchId },
-        data: updateData
-    })
+    const { data: dispatch, error } = await supabase
+        .from('Dispatch')
+        .update(updateData)
+        .eq('id', dispatchId)
+        .select()
+        .single()
 
-    // Si hay fotos, guardarlas
+    if (error || !dispatch) {
+        throw error || new Error("Failed to update dispatch")
+    }
+
+    // If there are photos, save them
     if (photos && photos.length > 0) {
-        await prisma.dispatchPhoto.createMany({
-            data: photos.map(photoUrl => ({
-                dispatchId,
-                photoUrl,
-                takenBy: dispatch.technicianId || undefined
-            }))
-        })
+        const photosData = photos.map(photoUrl => ({
+            dispatchId,
+            photoUrl,
+            takenBy: dispatch.technicianId || undefined
+        }))
+
+        await supabase
+            .from('DispatchPhoto')
+            .insert(photosData)
     }
 
     revalidatePath('/technician')
@@ -86,29 +99,33 @@ export async function updateDispatchStatus(
 }
 
 export async function getDispatchById(dispatchId: string) {
-    const dispatch = await prisma.dispatch.findUnique({
-        where: { id: dispatchId },
-        include: {
-            invoice: {
-                include: {
-                    client: true,
-                    items: true
-                }
-            },
-            photos: true,
-            technician: true
-        }
-    })
+    const supabase = await createClient()
 
-    if (!dispatch) return null
+    const { data: dispatch, error } = await supabase
+        .from('Dispatch')
+        .select(`
+            *,
+            invoice:Invoice(
+                *,
+                client:Client(*),
+                items:InvoiceItem(*)
+            ),
+            photos:DispatchPhoto(*),
+            technician:User(*)
+        `)
+        .eq('id', dispatchId)
+        .single()
 
-    // Serialize Decimal to number for client components
+    if (error || !dispatch) {
+        return null
+    }
+
     return {
         ...dispatch,
         invoice: dispatch.invoice ? {
             ...dispatch.invoice,
             total: Number(dispatch.invoice.total),
-            items: dispatch.invoice.items.map(item => ({
+            items: (dispatch.invoice.items || []).map((item: InvoiceItem) => ({
                 ...item,
                 price: Number(item.price)
             }))

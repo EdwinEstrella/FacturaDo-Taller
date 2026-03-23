@@ -1,5 +1,4 @@
-import { prisma } from "@/lib/prisma"
-// import { markAsPaid } from "@/actions/invoice-actions" // Unused
+import { createClient } from "@/lib/supabase/server"
 import { PaymentDialog } from "@/components/modules/receivables/payment-dialog"
 import {
     Table,
@@ -12,17 +11,18 @@ import {
 import { formatCurrency } from "@/lib/utils"
 
 export default async function ReceivablesPage() {
-    const invoices = await prisma.invoice.findMany({
-        where: {
-            status: 'PENDING', // Assuming PENDING means Unpaid/Credit
-        },
-        include: { client: true },
-        orderBy: { createdAt: 'desc' }
-    })
+    const supabase = await createClient()
 
-    // Serialize Decimal to number for client component
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const serializedInvoices = invoices.map((inv: any) => ({
+    const { data: invoices } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            client:Client(*)
+        `)
+        .eq('status', 'PENDING')
+        .order('createdAt', { ascending: false })
+
+    const serializedInvoices = (invoices || []).map(inv => ({
         ...inv,
         total: Number(inv.total),
         balance: Number(inv.balance),

@@ -12,12 +12,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient, updateClient } from "@/actions/client-actions"
+import { createClientAction, updateClient } from "@/actions/client-actions"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 // import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
 import { Pencil, Plus } from "lucide-react"
-import { Client } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
 
 export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)
@@ -48,7 +50,7 @@ export function ClientDialog({ client }: { client?: Client }) {
         if (client) {
             res = await updateClient(client.id, null, formData)
         } else {
-            res = await createClient(null, formData)
+            res = await createClientAction(null, formData)
         }
 
         setIsPending(false)

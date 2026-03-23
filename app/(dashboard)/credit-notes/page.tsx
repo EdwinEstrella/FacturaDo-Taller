@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import {
     Table,
     TableBody,
@@ -12,17 +12,20 @@ import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateTimeDO } from "@/lib/date-utils"
 import { Printer } from "lucide-react"
-// import { Plus } from "lucide-react"
 
 export default async function CreditNotesPage() {
-    const creditNotes = await prisma.creditNote.findMany({
-        include: {
-            invoice: {
-                select: { sequenceNumber: true, clientName: true }
-            }
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    const supabase = await createClient()
+
+    const { data: creditNotes } = await supabase
+        .from('CreditNote')
+        .select(`
+            *,
+            invoice:Invoice(
+                sequenceNumber,
+                clientName
+            )
+        `)
+        .order('createdAt', { ascending: false })
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -46,13 +49,13 @@ export default async function CreditNotesPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {creditNotes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No hay notas de crédito</TableCell></TableRow>}
-                        {creditNotes.map((cn) => (
+                        {(creditNotes || []).length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No hay notas de crédito</TableCell></TableRow>}
+                        {(creditNotes || []).map((cn) => (
                             <TableRow key={cn.id}>
                                 <TableCell>#{cn.sequenceNumber}</TableCell>
                                 <TableCell>{formatDateTimeDO(cn.createdAt)}</TableCell>
-                                <TableCell>#{cn.invoice.sequenceNumber}</TableCell>
-                                <TableCell>{cn.invoice.clientName}</TableCell>
+                                <TableCell>#{cn.invoice?.sequenceNumber}</TableCell>
+                                <TableCell>{cn.invoice?.clientName}</TableCell>
                                 <TableCell>{cn.reason}</TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(Number(cn.total))}</TableCell>
                                 <TableCell className="text-right">

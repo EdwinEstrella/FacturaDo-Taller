@@ -1,28 +1,65 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { users } from "@/db/schema"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { eq } from "drizzle-orm"
+
+type User = {
+    id: string
+    name: string
+    username: string
+    phone: string | null
+    role: string
+    customPermissions: any
+    createdAt: string
+    updatedAt: string
+}
 
 const SESSION_COOKIE_NAME = "facturado_session_id"
 
 export async function login(username: string, password: string) {
     console.log("LOGIN START: ", username)
+
+    // Usar directamente el cliente de Supabase con SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+    const supabase = createSupabaseClient(
+        supabaseUrl,
+        supabaseServiceKey,
+        {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false,
+            },
+        }
+    )
+
     try {
-        const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1)
+        const { data, error } = await supabase
+            .rpc('authenticate_user', {
+                username_param: username,
+                password_param: password
+            })
 
-        if (!user) {
-            return { success: false, error: "Usuario no encontrado" }
+        if (error) {
+            console.error("LOGIN ERROR:", error)
+            return { success: false, error: "Error al autenticar" }
         }
 
-        if (user.password !== password) {
-            return { success: false, error: "Contraseña incorrecta" }
+        if (!data || data.length === 0) {
+            return { success: false, error: "Usuario o contraseña incorrectos" }
         }
+
+        // La función retorna un array de objetos JSON
+        const user = Array.isArray(data) ? data[0] : data
+        const userId = typeof user === 'object' && 'authenticate_user' in user
+            ? user.authenticate_user.id
+            : (user as any).id
 
         const cookieStore = await cookies()
-        cookieStore.set(SESSION_COOKIE_NAME, user.id, {
+        cookieStore.set(SESSION_COOKIE_NAME, userId, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -48,13 +85,31 @@ export async function getCurrentUser() {
 
     if (!userId) return null
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+    const supabase = createSupabaseClient(
+        supabaseUrl,
+        supabaseServiceKey,
+        {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false,
+            },
+        }
+    )
+
     try {
-        const [user] = await db.select({
-            id: users.id,
-            name: users.name,
-            username: users.username,
-            role: users.role
-        }).from(users).where(eq(users.id, userId)).limit(1)
+        const { data: user, error } = await supabase
+            .from('User')
+            .select('id, name, username, role')
+            .eq('id', userId)
+            .single()
+
+        if (error || !user) {
+            return null
+        }
 
         return user
     } catch {

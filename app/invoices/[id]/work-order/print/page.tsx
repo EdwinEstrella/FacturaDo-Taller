@@ -1,36 +1,38 @@
 import { notFound } from "next/navigation"
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { WorkOrderTemplate } from "@/components/modules/orders/work-order-template"
-import type { Invoice } from "@/types"
-
-interface InvoiceWithWorkOrder extends Invoice {
-    workOrder: {
-        id: string
-        status: string
-        productionNotes?: string | null
-        createdAt: Date
-        updatedAt: Date
-    }
-}
 
 export default async function PrintWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
+    const supabase = await createClient()
 
     // Fetch Invoice AND WorkOrder. id here is INVOICE ID based on route /invoices/[id]/...
-    const invoice = await prisma.invoice.findUnique({
-        where: { id },
-        include: {
-            client: true,
-            items: true,
-            workOrder: true
-        }
-    }) as InvoiceWithWorkOrder | null
+    const { data: invoice } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            client:Client(*),
+            items:InvoiceItem(*),
+            workOrder:WorkOrder(*)
+        `)
+        .eq('id', id)
+        .single()
 
     if (!invoice || !invoice.workOrder) return notFound()
 
+    // Transform the data to match the expected interface
+    const typedInvoice = {
+        ...invoice,
+        clientName: invoice.client?.name || invoice.clientName,
+        sequenceNumber: invoice.sequenceNumber,
+        workOrder: invoice.workOrder,
+        items: invoice.items || [],
+        client: invoice.client
+    }
+
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center print:bg-white print:items-start print:justify-start">
-            <WorkOrderTemplate invoice={invoice} />
+            <WorkOrderTemplate invoice={typedInvoice} />
             <script dangerouslySetInnerHTML={{ __html: 'window.print();' }} />
         </div>
     )

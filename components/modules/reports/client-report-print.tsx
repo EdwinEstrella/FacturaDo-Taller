@@ -1,7 +1,9 @@
 "use client"
 
 import Image from "next/image"
-import { Client } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 

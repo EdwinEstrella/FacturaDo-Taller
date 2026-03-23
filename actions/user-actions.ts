@@ -1,22 +1,35 @@
 'use server'
 
-import { db } from "@/lib/db"
-import { users } from "@/db/schema"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { eq, desc, ne, and } from "drizzle-orm"
+import { Database } from "@/lib/supabase/database.types"
 
-// Get all users (Admin only)
+type User = Database['public']['Tables']['User']['Row']
+type UserInsert = Database['public']['Tables']['User']['Insert']
+type UserUpdate = Database['public']['Tables']['User']['Update']
+
 export async function getUsers() {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
     }
 
+    const supabase = await createClient()
+
     try {
-        const usersList = await db.select().from(users).orderBy(desc(users.createdAt))
-        return { success: true, data: usersList }
-    } catch {
+        const { data: usersList, error } = await supabase
+            .from('User')
+            .select('*')
+            .order('createdAt', { ascending: false })
+
+        if (error) {
+            throw error
+        }
+
+        return { success: true, data: usersList || [] }
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error fetching users" }
     }
 }
@@ -30,28 +43,45 @@ interface UserInput {
     customPermissions?: Record<string, boolean> | null;
 }
 
-// Create User
 export async function createUser(data: UserInput) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
     }
 
+    const supabase = await createClient()
+
     try {
-        const [existingUser] = await db.select().from(users).where(eq(users.username, data.username)).limit(1)
+        // Check if username exists
+        const { data: existingUser } = await supabase
+            .from('User')
+            .select('id')
+            .eq('username', data.username)
+            .single()
 
         if (existingUser) {
             return { success: false, error: "El nombre de usuario ya existe" }
         }
 
-        await db.insert(users).values({
+        const userData: Record<string, unknown> = {
             name: data.name || "",
             username: data.username,
             phone: data.phone || null,
             password: data.password || "123456",
             role: data.role,
-            ...(data.customPermissions && { customPermissions: data.customPermissions })
-        })
+        }
+
+        if (data.customPermissions) {
+            userData.customPermissions = data.customPermissions
+        }
+
+        const { error } = await supabase
+            .from('User')
+            .insert(userData)
+
+        if (error) {
+            throw error
+        }
 
         revalidatePath("/settings/users")
         return { success: true }
@@ -61,38 +91,52 @@ export async function createUser(data: UserInput) {
     }
 }
 
-// Update User
 export async function updateUser(id: string, data: UserInput) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
     }
 
+    const supabase = await createClient()
+
     try {
-        // If updating username, check for uniqueness
+        // Check username uniqueness if updating
         if (data.username) {
-            const [existingUser] = await db.select().from(users).where(
-                and(
-                    eq(users.username, data.username),
-                    ne(users.id, id)
-                )
-            ).limit(1)
+            const { data: existingUser } = await supabase
+                .from('User')
+                .select('id')
+                .eq('username', data.username)
+                .neq('id', id)
+                .single()
 
             if (existingUser) {
                 return { success: false, error: "El nombre de usuario ya existe" }
             }
         }
 
-        await db.update(users)
-            .set({
-                name: data.name || undefined,
-                username: data.username,
-                phone: data.phone,
-                role: data.role,
-                ...(data.password ? { password: data.password } : {}),
-                ...(data.customPermissions && { customPermissions: data.customPermissions })
-            })
-            .where(eq(users.id, id))
+        const updateData: UserUpdate = {
+            name: data.name || undefined,
+            username: data.username,
+            phone: data.phone,
+            role: data.role,
+        }
+
+        if (data.password) {
+            updateData.password = data.password
+        }
+
+        if (data.customPermissions) {
+            updateData.customPermissions = data.customPermissions
+        }
+
+        const { error } = await supabase
+            .from('User')
+            .update(updateData)
+            .eq('id', id)
+
+        if (error) {
+            throw error
+        }
 
         revalidatePath("/settings/users")
         return { success: true }
@@ -102,23 +146,32 @@ export async function updateUser(id: string, data: UserInput) {
     }
 }
 
-// Delete User
 export async function deleteUser(id: string) {
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
     }
 
+    const supabase = await createClient()
+
     try {
         if (id === currentUser.id) {
             return { success: false, error: "No puedes eliminar tu propio usuario" }
         }
 
-        await db.delete(users).where(eq(users.id, id))
+        const { error } = await supabase
+            .from('User')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            throw error
+        }
 
         revalidatePath("/settings/users")
         return { success: true }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al eliminar usuario" }
     }
 }

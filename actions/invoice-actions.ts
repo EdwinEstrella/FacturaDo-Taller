@@ -1,11 +1,18 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-// import { redirect } from "next/navigation"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 import { addClientHistoryEntry } from "./client-history-actions"
+import { Database } from "@/lib/supabase/database.types"
+
+type Invoice = Database['public']['Tables']['Invoice']['Row']
+type InvoiceInsert = Database['public']['Tables']['Invoice']['Insert']
+type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
+type InvoiceItemInsert = Database['public']['Tables']['InvoiceItem']['Insert']
+type Product = Database['public']['Tables']['Product']['Row']
+type PaymentInsert = Database['public']['Tables']['Payment']['Insert']
 
 const InvoiceItemSchema = z.object({
     productId: z.string(),
@@ -35,16 +42,22 @@ export async function createInvoice(data: InvoiceFormData) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    // Validate data
     const validated = InvoiceSchema.safeParse(data)
 
     if (!validated.success) {
         return { success: false, error: validated.error.message }
     }
 
-    // Validate stock (pre-check before creating invoice)
+    const supabase = await createClient()
+
+    // Validate stock
     for (const item of data.items) {
-        const product = await prisma.product.findUnique({ where: { id: item.productId } })
+        const { data: product } = await supabase
+            .from('Product')
+            .select('*')
+            .eq('id', item.productId)
+            .single()
+
         if (!product) {
             return { success: false, error: `Product with ID ${item.productId} not found.` }
         }
@@ -56,13 +69,6 @@ export async function createInvoice(data: InvoiceFormData) {
     const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes, amountPaid } = validated.data
 
     const isCredit = paymentMethod === "CREDIT"
-
-    // Calculate initial status and balance
-    // If Credit: PENDING, Balance = Total
-    // If Paid Amount provided:
-    //    If Paid < Total: PENDING, Balance = Total - Paid
-    //    If Paid >= Total: PAID, Balance = 0
-    // If neither (Default Cash/Card): PAID, Balance = 0
 
     let status = "PAID"
     let balance = 0
@@ -76,59 +82,76 @@ export async function createInvoice(data: InvoiceFormData) {
     }
 
     try {
-        // 1. Create Invoice
-        const invoice = await prisma.invoice.create({
-            data: {
+        // Create Invoice
+        const { data: invoice, error: invoiceError } = await supabase
+            .from('Invoice')
+            .insert({
                 clientId: clientId,
-                clientName: clientName, // Snapshot
+                clientName: clientName,
                 total: total,
                 status: status,
                 paymentMethod: paymentMethod,
                 shippingCost: shippingCost || 0,
-                deliveryDate: deliveryDate,
+                deliveryDate: deliveryDate?.toISOString(),
                 notes: notes,
                 balance: balance,
                 tax: validated.data.tax || 0,
                 hasNcf: validated.data.hasNcf || false,
                 createdById: user.id,
-                items: {
-                    create: items.map(item => ({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity,
-                        price: item.price
-                    }))
-                }
-            }
-        })
-
-        // 1.5 Register Initial Payment if amountPaid > 0 and it's not Credit (or even if it is credit but has downpayment?)
-        // For simple "Cash" with partial:
-        if (amountPaid && amountPaid > 0) {
-            await prisma.payment.create({
-                data: {
-                    invoiceId: invoice.id,
-                    amount: amountPaid,
-                    method: paymentMethod || "CASH",
-                    date: new Date(),
-                    notes: "Pago Inicial / Abono"
-                }
             })
+            .select()
+            .single()
+
+        if (invoiceError || !invoice) {
+            throw new Error(invoiceError?.message || "Failed to create invoice")
         }
 
-        // 2. Update Stock
+        // Create Invoice Items
+        const invoiceItems = items.map(item => ({
+            invoiceId: invoice.id,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price
+        }))
+
+        const { error: itemsError } = await supabase
+            .from('InvoiceItem')
+            .insert(invoiceItems)
+
+        if (itemsError) {
+            throw new Error(itemsError.message)
+        }
+
+        // Register Initial Payment
+        if (amountPaid && amountPaid > 0) {
+            const paymentData = {
+                invoiceId: invoice.id,
+                amount: amountPaid,
+                method: paymentMethod || "CASH",
+                date: new Date().toISOString(),
+                notes: "Pago Inicial / Abono"
+            }
+            await supabase.from('Payment').insert(paymentData)
+        }
+
+        // Update Stock
         for (const item of items) {
-            // Check if product is service
-            const product = await prisma.product.findUnique({ where: { id: item.productId } })
+            const { data: product } = await supabase
+                .from('Product')
+                .select('*')
+                .eq('id', item.productId)
+                .single()
+
             if (product && !product.isService) {
-                await prisma.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { decrement: item.quantity } }
-                })
+                await supabase
+                    .from('Product')
+                    .update({ stock: product.stock - item.quantity })
+                    .eq('id', item.productId)
             }
         }
 
-        // Agregar al historial del cliente
+        // Add to client history
         if (clientId) {
             await addClientHistoryEntry(
                 clientId,
@@ -147,25 +170,31 @@ export async function createInvoice(data: InvoiceFormData) {
 }
 
 export async function getInvoices() {
-    const invoices = await prisma.invoice.findMany({
-        include: {
-            client: true,
-            items: true,
-            workOrder: true
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    const supabase = await createClient()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return invoices.map((invoice: any) => ({
+    const { data: invoices, error } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            client:Client(*),
+            items:InvoiceItem(*),
+            workOrder:WorkOrder(*)
+        `)
+        .order('createdAt', { ascending: false })
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return invoices.map(invoice => ({
         ...invoice,
         total: Number(invoice.total),
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
         hasNcf: invoice.hasNcf,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        items: (invoice.items || []).map((item: any) => ({
+        items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
             price: Number(item.price)
         }))
@@ -173,21 +202,26 @@ export async function getInvoices() {
 }
 
 export async function getInvoiceById(id: string) {
-    const invoice = await prisma.invoice.findUnique({
-        where: { id },
-        include: {
-            client: true,
-            items: true,
-            createdBy: true,
-            dispatchInfo: {
-                include: {
-                    technician: true
-                }
-            }
-        }
-    })
+    const supabase = await createClient()
 
-    if (!invoice) return null
+    const { data: invoice, error } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            client:Client(*),
+            items:InvoiceItem(*),
+            createdBy:User(*),
+            dispatchInfo:Dispatch(
+                *,
+                technician:User(*)
+            )
+        `)
+        .eq('id', id)
+        .single()
+
+    if (error || !invoice) {
+        return null
+    }
 
     return {
         ...invoice,
@@ -196,7 +230,7 @@ export async function getInvoiceById(id: string) {
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
         hasNcf: invoice.hasNcf,
-        items: invoice.items.map(item => ({
+        items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
             price: Number(item.price)
         }))
@@ -204,101 +238,115 @@ export async function getInvoiceById(id: string) {
 }
 
 export async function markAsDispatched(invoiceId: string, driverName?: string) {
-    await prisma.invoice.update({
-        where: { id: invoiceId },
-        data: {
-            dispatched: true,
-            dispatchInfo: {
-                create: {
-                    status: 'DELIVERED',
-                    driverName: driverName || 'Default Driver'
-                }
-            }
-        }
-    })
+    const supabase = await createClient()
+
+    // Update invoice
+    await supabase
+        .from('Invoice')
+        .update({ dispatched: true })
+        .eq('id', invoiceId)
+
+    // Create dispatch
+    await supabase
+        .from('Dispatch')
+        .insert({
+            invoiceId: invoiceId,
+            status: 'DELIVERED',
+            driverName: driverName || 'Default Driver'
+        })
+
     revalidatePath("/dispatch")
 }
 
 export async function markAsPaid(invoiceId: string) {
-    await prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { status: 'PAID' }
-    })
+    const supabase = await createClient()
+
+    await supabase
+        .from('Invoice')
+        .update({ status: 'PAID' })
+        .eq('id', invoiceId)
+
     revalidatePath("/receivables")
 }
 
-// Update deleteInvoice signature
 export async function deleteInvoice(id: string, password?: string) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    // Check if invoice exists and has a work order
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invoice: any = await prisma.invoice.findUnique({
-        where: { id },
-        include: { workOrder: true, dispatchInfo: true }
-    })
+    const supabase = await createClient()
 
-    if (!invoice) return { success: false, error: "Factura no encontrada" }
+    // Get invoice with related data
+    const { data: invoice } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            workOrder:WorkOrder(*),
+            dispatchInfo:Dispatch(*)
+        `)
+        .eq('id', id)
+        .single()
 
-    // 1. Check permissions first
-    // Strictly require ADMIN for any deletion
+    if (!invoice) {
+        return { success: false, error: "Factura no encontrada" }
+    }
+
     if (user.role !== 'ADMIN') {
         return { success: false, error: "Solo el Administrador puede eliminar facturas." }
     }
 
-    // 2. Verify Password
     if (!password) {
         return { success: false, error: "Contraseña requerida" }
     }
 
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    const { data: dbUser } = await supabase
+        .from('User')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
     if (!dbUser || dbUser.password !== password) {
         return { success: false, error: "Contraseña incorrecta" }
     }
 
     try {
-        // Transaction to ensure atomic deletion of dependent records
-        await prisma.$transaction(async (tx) => {
-            // 1. Revert Stock
-            // Get items to restore stock
-            const itemsToRevert = await tx.invoiceItem.findMany({
-                where: { invoiceId: id }
-            })
+        // Get items to revert stock
+        const { data: items } = await supabase
+            .from('InvoiceItem')
+            .select('*, product:Product(*)')
+            .eq('invoiceId', id)
 
-            for (const item of itemsToRevert) {
-                if (item.productId) {
-                    const product = await tx.product.findUnique({ where: { id: item.productId } })
-                    if (product && !product.isService) {
-                        await tx.product.update({
-                            where: { id: item.productId },
-                            data: { stock: { increment: item.quantity } }
-                        })
-                    }
+        if (items) {
+            for (const item of items) {
+                if (item.productId && item.product && !item.product.isService) {
+                    await supabase
+                        .from('Product')
+                        .update({ stock: item.product.stock + item.quantity })
+                        .eq('id', item.productId)
                 }
             }
+        }
 
-            // 2. Delete WorkOrder if exists
-            if (invoice.workOrder) {
-                await tx.workOrder.delete({
-                    where: { invoiceId: id }
-                })
-            }
+        // Delete WorkOrder if exists
+        if (invoice.workOrder) {
+            await supabase
+                .from('WorkOrder')
+                .delete()
+                .eq('invoiceId', id)
+        }
 
-            // 3. Delete Dispatch if exists
-            if (invoice.dispatchInfo) {
-                await tx.dispatch.delete({
-                    where: { invoiceId: id }
-                })
-            }
+        // Delete Dispatch if exists
+        if (invoice.dispatchInfo) {
+            await supabase
+                .from('Dispatch')
+                .delete()
+                .eq('invoiceId', id)
+        }
 
-            // 4. Delete Invoice (Items will be deleted via Cascade in schema, but good to be explicit or rely on schema)
-            // Schema says: invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-            await tx.invoice.delete({
-                where: { id }
-            })
-        })
+        // Delete Invoice (Items will be deleted via Cascade)
+        await supabase
+            .from('Invoice')
+            .delete()
+            .eq('id', id)
 
         revalidatePath("/invoices")
         return { success: true }
@@ -310,84 +358,98 @@ export async function deleteInvoice(id: string, password?: string) {
 
 export async function updateInvoice(id: string, data: InvoiceFormData) {
     const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') throw new Error("Unauthorized: Only Admins can edit invoices")
+    if (!user || user.role !== 'ADMIN') {
+        throw new Error("Unauthorized: Only Admins can edit invoices")
+    }
 
-    // Validate data
     const validated = InvoiceSchema.safeParse(data)
-    if (!validated.success) return { success: false, error: validated.error.message }
+    if (!validated.success) {
+        return { success: false, error: validated.error.message }
+    }
 
     const { clientId, clientName, items, total, shippingCost, deliveryDate, notes } = validated.data
+    const supabase = await createClient()
 
     try {
-        await prisma.$transaction(async (tx) => {
-            // 1. Revert Old Stock
-            const oldItems = await tx.invoiceItem.findMany({ where: { invoiceId: id } })
+        // Get old items
+        const { data: oldItems } = await supabase
+            .from('InvoiceItem')
+            .select('*, product:Product(*)')
+            .eq('invoiceId', id)
+
+        // Revert old stock
+        if (oldItems) {
             for (const item of oldItems) {
-                if (item.productId) {
-                    const product = await tx.product.findUnique({ where: { id: item.productId } })
-                    if (product && !product.isService) {
-                        await tx.product.update({
-                            where: { id: item.productId },
-                            data: { stock: { increment: item.quantity } }
-                        })
-                    }
+                if (item.productId && item.product && !item.product.isService) {
+                    await supabase
+                        .from('Product')
+                        .update({ stock: item.product.stock + item.quantity })
+                        .eq('id', item.productId)
                 }
             }
+        }
 
-            // 2. Delete Old Items
-            await tx.invoiceItem.deleteMany({ where: { invoiceId: id } })
+        // Delete old items
+        await supabase
+            .from('InvoiceItem')
+            .delete()
+            .eq('invoiceId', id)
 
-            // 3. Update Invoice Details
-            await tx.invoice.update({
-                where: { id },
-                data: {
-                    clientId,
-                    clientName,
-                    total,
-                    shippingCost: shippingCost || 0,
-                    deliveryDate: deliveryDate,
-                    notes: notes,
-                    tax: validated.data.tax || 0,
-                    hasNcf: validated.data.hasNcf || false,
-                    // Don't update sequenceNumber, createdBy, etc.
-                }
+        // Update invoice
+        await supabase
+            .from('Invoice')
+            .update({
+                clientId,
+                clientName,
+                total,
+                shippingCost: shippingCost || 0,
+                deliveryDate: deliveryDate?.toISOString(),
+                notes: notes,
+                tax: validated.data.tax || 0,
+                hasNcf: validated.data.hasNcf || false,
             })
+            .eq('id', id)
 
-            // 4. Create New Items and Deduct Stock
-            for (const item of items) {
-                // Deduct Stock
-                const product = await tx.product.findUnique({ where: { id: item.productId } })
-                if (!product) throw new Error(`Product ${item.productId} not found`)
+        // Create new items and deduct stock
+        for (const item of items) {
+            // Check product
+            const { data: product } = await supabase
+                .from('Product')
+                .select('*')
+                .eq('id', item.productId)
+                .single()
 
-                if (!product.isService) {
-                    if (product.stock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`)
-                    }
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { decrement: item.quantity } }
-                    })
-                }
-
-                // Create Item
-                await tx.invoiceItem.create({
-                    data: {
-                        invoiceId: id,
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity,
-                        price: item.price
-                    }
-                })
+            if (!product) {
+                throw new Error(`Product ${item.productId} not found`)
             }
-        })
+
+            if (!product.isService) {
+                if (product.stock < item.quantity) {
+                    throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`)
+                }
+                await supabase
+                    .from('Product')
+                    .update({ stock: product.stock - item.quantity })
+                    .eq('id', item.productId)
+            }
+
+            // Create item
+            await supabase
+                .from('InvoiceItem')
+                .insert({
+                    invoiceId: id,
+                    productId: item.productId,
+                    productName: item.productName,
+                    quantity: item.quantity,
+                    price: item.price
+                })
+        }
 
         revalidatePath("/invoices")
         revalidatePath(`/invoices/${id}`)
         return { success: true }
     } catch (e) {
         console.error("Update Invoice Error:", e)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return { success: false, error: (e as any).message || "Failed to update invoice" }
+        return { success: false, error: (e as Error).message || "Failed to update invoice" }
     }
 }

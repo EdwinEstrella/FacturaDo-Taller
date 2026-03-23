@@ -1,24 +1,28 @@
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { CreateCreditNoteForm } from "@/components/modules/credit-notes/create-credit-note-form"
+import { Database } from "@/lib/supabase/database.types"
+
+type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
 
 export default async function CreateCreditNotePage() {
-    // Look up recent invoices. Ideally filter by those that handle stock?
-    const recentInvoices = await prisma.invoice.findMany({
-        take: 50,
-        orderBy: { createdAt: 'desc' },
-        include: {
-            items: true
-        }
-    })
+    const supabase = await createClient()
 
-    // Transform for client component to avoid Decimal issues
-    const serializedInvoices = recentInvoices.map(inv => ({
+    const { data: recentInvoices } = await supabase
+        .from('Invoice')
+        .select(`
+            *,
+            items:InvoiceItem(*)
+        `)
+        .order('createdAt', { ascending: false })
+        .limit(50)
+
+    const serializedInvoices = (recentInvoices || []).map(inv => ({
         id: inv.id,
         sequenceNumber: inv.sequenceNumber,
-        clientName: inv.clientName || inv.clientName, // Fallback? Both are same field
+        clientName: inv.clientName,
         total: Number(inv.total),
         createdAt: inv.createdAt,
-        items: inv.items.map(item => ({
+        items: (inv.items || []).map((item: InvoiceItem) => ({
             id: item.id,
             productId: item.productId || "",
             productName: item.productName,

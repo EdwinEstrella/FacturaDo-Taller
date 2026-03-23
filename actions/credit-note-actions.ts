@@ -1,10 +1,10 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
-// import { redirect } from "next/navigation"
+import { Database } from "@/lib/supabase/database.types"
 
 const CreditNoteItemSchema = z.object({
     productId: z.string(),
@@ -30,45 +30,48 @@ export async function createCreditNote(data: CreditNoteFormData) {
     if (!validated.success) return { success: false, error: validated.error.message }
 
     const { invoiceId, reason, items, restoreStock } = validated.data
+    const supabase = await createClient()
 
-    // Calculate total from items
     const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
     try {
-        const result = await prisma.$transaction(async (tx) => {
-            // 1. Create Credit Note
-            const creditNote = await tx.creditNote.create({
-                data: {
-                    invoiceId,
-                    reason,
-                    total,
-                    items: items, // Stored as JSON
-                }
+        // Create Credit Note
+        const { data: creditNote, error: creditNoteError } = await supabase
+            .from('CreditNote')
+            .insert({
+                invoiceId,
+                reason,
+                total,
+                items: items as any, // Stored as JSON
             })
+            .select()
+            .single()
 
-            // 2. Restore Stock if requested
-            if (restoreStock) {
-                for (const item of items) {
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { increment: item.quantity } }
-                    })
+        if (creditNoteError || !creditNote) {
+            throw creditNoteError
+        }
+
+        // Restore Stock if requested
+        if (restoreStock) {
+            for (const item of items) {
+                const { data: product } = await supabase
+                    .from('Product')
+                    .select('stock')
+                    .eq('id', item.productId)
+                    .single()
+
+                if (product) {
+                    await supabase
+                        .from('Product')
+                        .update({ stock: product.stock + item.quantity })
+                        .eq('id', item.productId)
                 }
             }
-
-            // 3. Update Invoice?
-            // Optionally mark invoice as "Has Credit Note" or similar if schema supports.
-            // Currently CreditNote has relation to Invoice, so we can check that way.
-            // Also might want to adjust Invoice Balance if it was unpaid?
-            // If it was PAID, this creates a "Balance in Favor" theoretically, or just a refund record.
-            // For now, simple record.
-
-            return creditNote
-        })
+        }
 
         revalidatePath("/credit-notes")
         revalidatePath("/invoices")
-        return { success: true, creditNote: result }
+        return { success: true, creditNote }
 
     } catch (error) {
         console.error("Credit Note error:", error)
@@ -77,17 +80,25 @@ export async function createCreditNote(data: CreditNoteFormData) {
 }
 
 export async function getCreditNoteById(id: string) {
+    const supabase = await createClient()
+
     try {
-        const creditNote = await prisma.creditNote.findUnique({
-            where: { id },
-            include: {
-                invoice: {
-                    include: {
-                        client: true,
-                    }
-                }
-            }
-        })
+        const { data: creditNote, error } = await supabase
+            .from('CreditNote')
+            .select(`
+                *,
+                invoice:Invoice(
+                    *,
+                    client:Client(*)
+                )
+            `)
+            .eq('id', id)
+            .single()
+
+        if (error || !creditNote) {
+            return null
+        }
+
         return creditNote
     } catch (error) {
         console.error("Error fetching credit note:", error)

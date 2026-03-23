@@ -110,7 +110,7 @@ export function DailyCloseContent({
             sequenceNumber: inv.sequenceNumber,
             total: Number(inv.total),
             paymentMethod: inv.paymentMethod || 'CASH',
-            createdAt: inv.createdAt,
+            createdAt: inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
             clientName: inv.clientName || null
         }))
 
@@ -119,7 +119,7 @@ export function DailyCloseContent({
             id: t.id,
             description: t.description,
             amount: Number(t.amount),
-            date: t.date
+            date: t.date instanceof Date ? t.date.toISOString() : t.date
         }))
 
         const result = await saveDailyClose({

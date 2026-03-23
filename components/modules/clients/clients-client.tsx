@@ -16,7 +16,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import type { Client } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
 import TetrisLoading from "@/components/ui/tetris-loader"
 
 interface ClientsClientProps {

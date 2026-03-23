@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, Users, CreditCard, Activity, TrendingUp, TrendingDown } from "lucide-react"
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { formatCurrency } from "@/lib/utils"
 import {
     getRevenueComparison,
@@ -11,17 +11,28 @@ import {
 import { Overview } from "@/components/dashboard/overview"
 
 export default async function DashboardPage() {
+    const supabase = await createClient()
+
     // Obtener datos reales con comparativas
-    const [, , productCount, revenueStats, clientStats, invoiceStats, financialHistory] =
-        await Promise.all([
-            prisma.invoice.count(),
-            prisma.client.count(),
-            prisma.product.count(),
-            getRevenueComparison(),
-            getClientComparison(),
-            getInvoiceComparison(),
-            getFinancialHistory(),
-        ])
+    const [
+        { count: invoiceCount },
+        { count: clientCount },
+        { count: productCountVal },
+        revenueStats,
+        clientStats,
+        invoiceStats,
+        financialHistory
+    ] = await Promise.all([
+        supabase.from('Invoice').select('*', { count: 'exact', head: true }),
+        supabase.from('Client').select('*', { count: 'exact', head: true }),
+        supabase.from('Product').select('*', { count: 'exact', head: true }),
+        getRevenueComparison(),
+        getClientComparison(),
+        getInvoiceComparison(),
+        getFinancialHistory(),
+    ])
+
+    const productCount = productCountVal || 0
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">

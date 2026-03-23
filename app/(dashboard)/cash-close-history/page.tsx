@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -22,6 +22,8 @@ interface Props {
 }
 
 export default async function CashCloseHistoryPage({ searchParams }: Props) {
+    const supabase = await createClient()
+
     // 0. Parse Params - Next.js 15: searchParams is a Promise
     const { date: dateParam, userId: userIdParam } = await searchParams
 
@@ -33,84 +35,63 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     end.setDate(end.getDate() + 1)
 
     // 1. Fetch Users for Filter
-    const users = await prisma.user.findMany({ select: { id: true, name: true } })
+    const { data: users } = await supabase
+        .from('User')
+        .select('id, name')
 
     // 2. Build Query Filters
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const whereInvoice: any = {
-        createdAt: {
-            gte: start,
-            lt: end
-        }
-        // Removed status: 'PAID' to show all history
-    }
+    let invoicesQuery = supabase
+        .from('Invoice')
+        .select('*, createdBy:User(id, name)')
+        .gte('createdAt', start.toISOString())
+        .lt('createdAt', end.toISOString())
 
     if (userIdParam && userIdParam !== "ALL") {
-        whereInvoice.createdById = userIdParam
+        invoicesQuery = invoicesQuery.eq('createdById', userIdParam)
     }
 
-    // 3. Fetch Data
-    // A. Invoices (Created in period)
-    const invoices = await prisma.invoice.findMany({
-        where: whereInvoice,
-        include: {
-            createdBy: true
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    const { data: invoices } = await invoicesQuery.order('createdAt', { ascending: false })
 
     // B. Payments (Received in period)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wherePayment: any = {
-        date: {
-            gte: start,
-            lt: end
-        }
-    }
+    let paymentsQuery = supabase
+        .from('Payment')
+        .select('*, invoice:Invoice(sequenceNumber)')
+        .gte('date', start.toISOString())
+        .lt('date', end.toISOString())
 
     if (userIdParam && userIdParam !== "ALL") {
-        wherePayment.invoice = {
-            createdById: userIdParam
-        }
+        // Filter by invoice createdById
+        paymentsQuery = paymentsQuery.filter('invoice', 'eq', { createdById: userIdParam })
     }
 
-    const payments = await prisma.payment.findMany({
-        where: wherePayment,
-        include: {
-            invoice: true
-        },
-        orderBy: { date: 'desc' }
-    })
+    const { data: payments } = await paymentsQuery.order('date', { ascending: false })
 
     // C. Expenses
-    const transactions = await prisma.transaction.findMany({
-        where: {
-            date: {
-                gte: start,
-                lt: end
-            },
-            type: 'EXPENSE'
-        },
-        orderBy: { date: 'desc' }
-    })
+    const { data: transactions } = await supabase
+        .from('Transaction')
+        .select('*')
+        .gte('date', start.toISOString())
+        .lt('date', end.toISOString())
+        .eq('type', 'EXPENSE')
+        .order('date', { ascending: false })
 
     // 4. Calculations
     // Total Volume (All generated invoices)
-    const totalVolume = invoices.reduce((acc, inv) => acc + Number(inv.total), 0)
+    const totalVolume = (invoices || []).reduce((acc, inv) => acc + Number(inv.total), 0)
 
     // Pending (Operational metric: how much of TODAY's volume wasn't paid immediately? 
     // Or just Total Volume separate from Collected. Let's keep Volume as just Volume.)
     // Note: Pending is confusing if mixed. Let's just show Volume vs Collected.
 
     // Collected (From Payments)
-    const totalCollected = payments.reduce((acc, p) => acc + Number(p.amount), 0)
+    const totalCollected = (payments || []).reduce((acc, p) => acc + Number(p.amount), 0)
 
     // Cash Sales Logic (From Payments)
-    const cashCollected = payments
+    const cashCollected = (payments || [])
         .filter(p => !p.method || p.method === 'CASH')
         .reduce((acc, p) => acc + Number(p.amount), 0)
 
-    const totalExpenses = transactions.reduce((acc, t) => acc + Number(t.amount), 0)
+    const totalExpenses = (transactions || []).reduce((acc, t) => acc + Number(t.amount), 0)
 
     const netCash = cashCollected - totalExpenses
 
@@ -123,7 +104,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                 </p>
             </div>
 
-            <HistoryFilters users={users} />
+            <HistoryFilters users={users || []} />
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -179,8 +160,8 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {payments.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay cobros registrados</TableCell></TableRow>}
-                                {payments.map((p) => (
+                                {(payments || []).length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay cobros registrados</TableCell></TableRow>}
+                                {(payments || []).map((p) => (
                                     <TableRow key={p.id}>
                                         <TableCell>{format(p.date, "HH:mm", { locale: es })}</TableCell>
                                         <TableCell className="font-mono">{String(p.invoice.sequenceNumber).padStart(6, '0')}</TableCell>
@@ -206,8 +187,8 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {transactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay gastos registrados</TableCell></TableRow>}
-                                {transactions.map((t) => (
+                                {(transactions || []).length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay gastos registrados</TableCell></TableRow>}
+                                {(transactions || []).map((t) => (
                                     <TableRow key={t.id}>
                                         <TableCell>{format(t.date, "HH:mm", { locale: es })}</TableCell>
                                         <TableCell>{t.description}</TableCell>
@@ -235,8 +216,8 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {invoices.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se generaron facturas hoy</TableCell></TableRow>}
-                            {invoices.map((inv) => (
+                            {(invoices || []).length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se generaron facturas hoy</TableCell></TableRow>}
+                            {(invoices || []).map((inv) => (
                                 <TableRow key={inv.id}>
                                     <TableCell>{format(inv.createdAt, "HH:mm", { locale: es })}</TableCell>
                                     <TableCell>{inv.sequenceNumber}</TableCell>

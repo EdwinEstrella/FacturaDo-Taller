@@ -1,7 +1,9 @@
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
-import type { Product } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Product = Database['public']['Tables']['Product']['Row']
 
 interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number

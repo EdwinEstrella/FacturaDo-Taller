@@ -1,9 +1,16 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "@/actions/auth-actions"
+import { Database } from "@/lib/supabase/database.types"
+
+type Product = Database['public']['Tables']['Product']['Row']
+type ProductInsert = Database['public']['Tables']['Product']['Insert']
+type ProductUpdate = Database['public']['Tables']['Product']['Update']
+type ProductVariant = Database['public']['Tables']['ProductVariant']['Row']
+type ProductVariantInsert = Database['public']['Tables']['ProductVariant']['Insert']
 
 const ProductSchema = z.object({
     name: z.string().min(1),
@@ -13,13 +20,11 @@ const ProductSchema = z.object({
     stock: z.coerce.number().int().min(0),
     minStock: z.coerce.number().int().min(0).optional(),
     sku: z.string().optional(),
-    // isService: z.boolean().optional(), // Removed from input, derived from category
-    variants: z.string().optional(), // JSON string
+    variants: z.string().optional(),
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
     unitType: z.enum(["UNIT", "MEASURE"]).default("UNIT"),
 })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createProduct(prevState: any, formData: FormData) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
@@ -45,37 +50,56 @@ export async function createProduct(prevState: any, formData: FormData) {
         }
     }
 
+    const supabase = await createClient()
+
     try {
         const { category, variants, unitType, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
 
-        // Calculate total stock from variants if they exist
         const totalStock = hasVariants
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
-        await prisma.product.create({
-            data: {
-                ...rest,
-                stock: totalStock,
-                category,
-                unitType,
-                isService: category === "SERVICIO", // Auto-set based on category
-                hasVariants,
-                variants: {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    create: parsedVariants.map((v: any) => ({
-                        name: v.name,
-                        price: v.price,
-                        cost: v.cost || 0,
-                        stock: v.stock,
-                        sku: v.sku
-                    }))
-                }
-            },
-        })
+        const productData = {
+            ...rest,
+            stock: totalStock,
+            category,
+            unitType,
+            isService: category === "SERVICIO",
+            hasVariants,
+        }
+
+        const { data: product, error: productError } = await supabase
+            .from('Product')
+            .insert(productData)
+            .select()
+            .single()
+
+        if (productError || !product) {
+            throw new Error(productError?.message || "Failed to create product")
+        }
+
+        // Create variants
+        if (hasVariants) {
+            const variantData = parsedVariants.map((v: any) => ({
+                productId: product.id,
+                name: v.name,
+                price: v.price,
+                cost: v.cost || 0,
+                stock: v.stock,
+                sku: v.sku
+            }))
+
+            const { error: variantsError } = await supabase
+                .from('ProductVariant')
+                .insert(variantData)
+
+            if (variantsError) {
+                throw new Error(variantsError.message)
+            }
+        }
+
         revalidatePath("/products")
         return { message: "Producto creado correctamente" }
     } catch (e) {
@@ -85,16 +109,26 @@ export async function createProduct(prevState: any, formData: FormData) {
 }
 
 export async function getProducts() {
-    const products = await prisma.product.findMany({
-        include: { variants: true },
-        orderBy: { name: 'asc' }
-    })
+    const supabase = await createClient()
+
+    const { data: products, error } = await supabase
+        .from('Product')
+        .select(`
+            *,
+            variants:ProductVariant(*)
+        `)
+        .order('name', { ascending: true })
+
+    if (error) {
+        console.error(error)
+        return []
+    }
 
     return products.map(product => ({
         ...product,
         price: Number(product.price),
         cost: product.cost ? Number(product.cost) : 0,
-        variants: product.variants.map(variant => ({
+        variants: (product.variants || []).map((variant: ProductVariant) => ({
             ...variant,
             price: Number(variant.price),
             cost: variant.cost ? Number(variant.cost) : 0
@@ -102,7 +136,6 @@ export async function getProducts() {
     }))
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function updateProduct(id: string, prevState: any, formData: FormData) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
@@ -126,81 +159,91 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         return { errors: validatedFields.error.flatten().fieldErrors }
     }
 
+    const supabase = await createClient()
+
     try {
         const { category, variants, unitType, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
 
-        // Calculate total stock from variants if they exist
         const totalStock = hasVariants
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
-        await prisma.$transaction(async (tx) => {
-            // Update main product
-            await tx.product.update({
-                where: { id },
-                data: {
-                    ...rest,
-                    stock: totalStock,
-                    category,
-                    unitType,
-                    isService: category === "SERVICIO",
-                    hasVariants,
-                },
-            })
+        const updateData: ProductUpdate = {
+            ...rest,
+            stock: totalStock,
+            category,
+            unitType,
+            isService: category === "SERVICIO",
+            hasVariants,
+        }
 
-            if (hasVariants) {
-                // Delete missing variants (careful with existing sales, but user wants ability to manage this)
-                // For safety, we only delete variants that are NOT in the new list AND not used?
-                // For this MVP, we will try to sync.
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const newVariantIds = parsedVariants.map((v: any) => v.id).filter(Boolean)
+        // Update main product
+        const { error: updateError } = await supabase
+            .from('Product')
+            .update(updateData)
+            .eq('id', id)
 
-                await tx.productVariant.deleteMany({
-                    where: {
-                        productId: id,
-                        id: { notIn: newVariantIds }
-                    }
-                })
+        if (updateError) {
+            throw new Error(updateError.message)
+        }
 
-                // Upsert variants
-                for (const v of parsedVariants) {
-                    if (v.id) {
-                        await tx.productVariant.update({
-                            where: { id: v.id },
-                            data: {
-                                name: v.name,
-                                price: v.price,
-                                cost: v.cost || 0,
-                                stock: v.stock,
-                                sku: v.sku
-                            }
-                        })
-                    } else {
-                        await tx.productVariant.create({
-                            data: {
-                                productId: id,
-                                name: v.name,
-                                price: v.price,
-                                cost: v.cost || 0,
-                                stock: v.stock,
-                                sku: v.sku
-                            }
-                        })
-                    }
-                }
-            } else {
-                // If no variants in form, maybe user deleted all? 
-                // If hasVariants was true, we should clear?
-                // Let's rely on the flag.
-                // If switching from Variants to No Variants, we might want to keep or delete.
-                // For now, if variants array is empty, we assume no action or delete all? 
-                // Implementing: If empty array passed but productHAD variants, we delete all.
-                await tx.productVariant.deleteMany({ where: { productId: id } })
+        if (hasVariants) {
+            // Get existing variants
+            const { data: existingVariants } = await supabase
+                .from('ProductVariant')
+                .select('id')
+                .eq('productId', id)
+
+            const newVariantIds = parsedVariants
+                .map((v: any) => v.id)
+                .filter(Boolean)
+
+            const existingVariantIds = existingVariants?.map(v => v.id) || []
+
+            // Delete variants that are not in the new list
+            const variantsToDelete = existingVariantIds.filter(id => !newVariantIds.includes(id))
+            if (variantsToDelete.length > 0) {
+                await supabase
+                    .from('ProductVariant')
+                    .delete()
+                    .in('id', variantsToDelete)
             }
-        })
+
+            // Upsert variants
+            for (const v of parsedVariants) {
+                if (v.id) {
+                    await supabase
+                        .from('ProductVariant')
+                        .update({
+                            name: v.name,
+                            price: v.price,
+                            cost: v.cost || 0,
+                            stock: v.stock,
+                            sku: v.sku
+                        })
+                        .eq('id', v.id)
+                } else {
+                    await supabase
+                        .from('ProductVariant')
+                        .insert({
+                            productId: id,
+                            name: v.name,
+                            price: v.price,
+                            cost: v.cost || 0,
+                            stock: v.stock,
+                            sku: v.sku
+                        })
+                }
+            }
+        } else {
+            // Delete all variants if no variants in form
+            await supabase
+                .from('ProductVariant')
+                .delete()
+                .eq('productId', id)
+        }
 
         revalidatePath("/products")
         return { message: "Producto actualizado correctamente" }
@@ -216,43 +259,81 @@ export async function deleteProduct(id: string) {
         return { success: false, error: "No tienes permisos para eliminar productos" }
     }
 
-    // Check for usage in Invoices or Quotes
-    const usageCount = await prisma.invoiceItem.count({ where: { productId: id } })
-    const quoteCount = await prisma.quoteItem.count({ where: { productId: id } })
+    const supabase = await createClient()
 
-    if (usageCount > 0 || quoteCount > 0) {
+    // Check for usage in Invoices or Quotes
+    const { count: invoiceCount } = await supabase
+        .from('InvoiceItem')
+        .select('*', { count: 'exact', head: true })
+        .eq('productId', id)
+
+    const { count: quoteCount } = await supabase
+        .from('QuoteItem')
+        .select('*', { count: 'exact', head: true })
+        .eq('productId', id)
+
+    if ((invoiceCount || 0) > 0 || (quoteCount || 0) > 0) {
         return { success: false, error: "No se puede eliminar el producto porque tiene ventas o cotizaciones asociadas." }
     }
 
     try {
-        await prisma.product.delete({ where: { id } })
+        // Delete variants first
+        await supabase
+            .from('ProductVariant')
+            .delete()
+            .eq('productId', id)
+
+        // Delete product
+        const { error } = await supabase
+            .from('Product')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            throw error
+        }
+
         revalidatePath("/products")
         return { success: true }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al eliminar producto" }
     }
 }
 
-// Quick create for purchase form (JSON based)
 export async function quickCreateProduct(data: { name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "ACCOUNTANT")) {
         return { success: false, error: "No tienes permisos para crear productos" }
     }
 
+    const supabase = await createClient()
+
     try {
-        const product = await prisma.product.create({
-            data: {
-                name: data.name,
-                price: data.price,
-                sku: data.sku,
-                category: data.category || "ARTICULO",
-                stock: 0, // Stock will be added by the purchase
-                cost: 0 // Cost will be set by the purchase
-            }
-        })
+        const productData = {
+            name: data.name,
+            price: data.price,
+            sku: data.sku,
+            category: data.category || "ARTICULO",
+            stock: 0,
+            cost: 0,
+            isService: data.category === "SERVICIO",
+            hasVariants: false,
+            unitType: "UNIT",
+            minStock: 0,
+        }
+
+        const { data: product, error } = await supabase
+            .from('Product')
+            .insert(productData)
+            .select()
+            .single()
+
+        if (error || !product) {
+            throw error
+        }
+
         revalidatePath("/products")
-        // Serialize return
         return {
             success: true,
             product: {

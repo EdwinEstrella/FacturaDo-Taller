@@ -1,17 +1,15 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { dailyCloses } from "@/db/schema"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { eq, desc, and, gte, lt } from "drizzle-orm"
 
 interface InvoiceData {
     id: string
     sequenceNumber: number
     total: number
     paymentMethod: string
-    createdAt: Date | string
+    createdAt: string
     clientName: string | null
 }
 
@@ -19,11 +17,11 @@ interface ExpenseData {
     id: string
     description: string | null
     amount: number
-    date: Date | string
+    date: string
 }
 
 interface SaveDailyCloseData {
-    closeDate: string // ISO date string
+    closeDate: string
     totalBilled: number
     totalCollected: number
     cashCollected: number
@@ -49,57 +47,56 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
         return { success: false, error: "No autorizado" }
     }
 
+    const supabase = await createClient()
+
     try {
-        // Convertir closeDate a Date (solo fecha, sin hora)
         const closeDate = new Date(data.closeDate)
         closeDate.setHours(0, 0, 0, 0)
         const nextDay = new Date(closeDate)
         nextDay.setDate(nextDay.getDate() + 1)
 
-        // Verificar si ya existe un cierre para este día y este usuario
-        const [existing] = await db.select()
-            .from(dailyCloses)
-            .where(
-                and(
-                    gte(dailyCloses.closeDate, closeDate),
-                    lt(dailyCloses.closeDate, nextDay),
-                    eq(dailyCloses.closedBy, user.id)
-                )
-            )
-            .limit(1)
+        // Check if close exists for this day and user
+        const { data: existing } = await supabase
+            .from('DailyClose')
+            .select('id')
+            .gte('closeDate', closeDate.toISOString())
+            .lt('closeDate', nextDay.toISOString())
+            .eq('closedBy', user.id)
+            .single()
 
         const closeData = {
-            closeDate,
-            totalBilled: data.totalBilled.toString(),
-            totalCollected: data.totalCollected.toString(),
-            cashCollected: data.cashCollected.toString(),
-            otherCollected: data.otherCollected.toString(),
-            totalExpenses: data.totalExpenses.toString(),
-            netCashInDrawer: data.netCashInDrawer.toString(),
+            closeDate: closeDate.toISOString(),
+            totalBilled: data.totalBilled,
+            totalCollected: data.totalCollected,
+            cashCollected: data.cashCollected,
+            otherCollected: data.otherCollected,
+            totalExpenses: data.totalExpenses,
+            netCashInDrawer: data.netCashInDrawer,
             billBreakdownRD: data.billBreakdownRD || {},
             billBreakdownUSD: data.billBreakdownUSD || {},
             billBreakdownEUR: data.billBreakdownEUR || {},
-            totalRD: data.totalRD.toString(),
-            totalUSD: data.totalUSD.toString(),
-            totalEUR: data.totalEUR.toString(),
-            discrepancy: data.discrepancy.toString(),
+            totalRD: data.totalRD,
+            totalUSD: data.totalUSD,
+            totalEUR: data.totalEUR,
+            discrepancy: data.discrepancy,
             invoicesData: data.invoicesData,
             expensesData: data.expensesData,
             notes: data.notes || null,
         }
 
         if (existing) {
-            // Actualizar el cierre existente
-            await db.update(dailyCloses)
-                .set(closeData)
-                .where(eq(dailyCloses.id, existing.id))
+            await supabase
+                .from('DailyClose')
+                .update(closeData)
+                .eq('id', existing.id)
         } else {
-            // Crear nuevo cierre
-            await db.insert(dailyCloses).values({
-                ...closeData,
-                closedBy: user.id,
-                closedByName: user.name,
-            })
+            await supabase
+                .from('DailyClose')
+                .insert({
+                    ...closeData,
+                    closedBy: user.id,
+                    closedByName: user.name,
+                })
         }
 
         revalidatePath("/daily-close")
@@ -119,11 +116,18 @@ export async function getDailyCloseHistory() {
         return { success: false, error: "No autorizado" }
     }
 
+    const supabase = await createClient()
+
     try {
-        const history = await db.select()
-            .from(dailyCloses)
-            .orderBy(desc(dailyCloses.closeDate))
+        const { data: history, error } = await supabase
+            .from('DailyClose')
+            .select('*')
+            .order('closeDate', { ascending: false })
             .limit(50)
+
+        if (error) {
+            throw error
+        }
 
         return { success: true, history }
     } catch (error) {
@@ -139,13 +143,16 @@ export async function getDailyCloseById(id: string) {
         return { success: false, error: "No autorizado" }
     }
 
-    try {
-        const [dailyClose] = await db.select()
-            .from(dailyCloses)
-            .where(eq(dailyCloses.id, id))
-            .limit(1)
+    const supabase = await createClient()
 
-        if (!dailyClose) {
+    try {
+        const { data: dailyClose, error } = await supabase
+            .from('DailyClose')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (error || !dailyClose) {
             return { success: false, error: "Cierre no encontrado" }
         }
 

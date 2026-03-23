@@ -1,33 +1,41 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { clientHistory, invoices } from "@/db/schema"
-import { eq, desc, sql, and } from "drizzle-orm"
+import { createClient } from "@/lib/supabase/server"
+import { Database } from "@/lib/supabase/database.types"
+
+type ClientHistory = Database['public']['Tables']['ClientHistory']['Row']
+type ClientHistoryInsert = Database['public']['Tables']['ClientHistory']['Insert']
 
 export interface ClientHistoryEntry {
     id: string
     action: string
     description: string | null
     metadata: string | null
-    createdAt: Date
+    createdAt: string
 }
 
-/**
- * Registra una acción en el historial del cliente
- */
 export async function addClientHistoryEntry(
     clientId: string,
     action: string,
     description?: string,
     metadata?: Record<string, unknown>
 ) {
+    const supabase = await createClient()
+
     try {
-        await db.insert(clientHistory).values({
-            clientId,
-            action,
-            description,
-            metadata: metadata ? JSON.stringify(metadata) : null,
-        })
+        const { error } = await supabase
+            .from('ClientHistory')
+            .insert({
+                clientId,
+                action,
+                description,
+                metadata: metadata ? JSON.stringify(metadata) : null,
+            })
+
+        if (error) {
+            throw error
+        }
+
         return { success: true }
     } catch (error) {
         console.error("Error adding client history:", error)
@@ -35,24 +43,28 @@ export async function addClientHistoryEntry(
     }
 }
 
-/**
- * Obtiene el historial de un cliente
- */
 export async function getClientHistory(clientId: string): Promise<{
     success: boolean
     data?: ClientHistoryEntry[]
     error?: string
 }> {
+    const supabase = await createClient()
+
     try {
-        const history = await db.select()
-            .from(clientHistory)
-            .where(eq(clientHistory.clientId, clientId))
-            .orderBy(desc(clientHistory.createdAt))
+        const { data: history, error } = await supabase
+            .from('ClientHistory')
+            .select('*')
+            .eq('clientId', clientId)
+            .order('createdAt', { ascending: false })
             .limit(100)
+
+        if (error) {
+            throw error
+        }
 
         return {
             success: true,
-            data: history.map((h) => ({
+            data: (history || []).map((h) => ({
                 id: h.id,
                 action: h.action,
                 description: h.description,
@@ -60,51 +72,58 @@ export async function getClientHistory(clientId: string): Promise<{
                 createdAt: h.createdAt,
             })),
         }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al obtener historial" }
     }
 }
 
-/**
- * Obtiene estadísticas del cliente
- */
 export async function getClientStats(clientId: string) {
+    const supabase = await createClient()
+
     try {
         // Get invoice count
-        const invoiceCountResult = await db.select({ count: sql<number>`count(*)::int` })
-            .from(invoices)
-            .where(eq(invoices.clientId, clientId))
+        const { count: invoiceCount, error: countError } = await supabase
+            .from('Invoice')
+            .select('*', { count: 'exact', head: true })
+            .eq('clientId', clientId)
 
-        const invoiceCount = invoiceCountResult[0]?.count || 0
+        if (countError) {
+            throw countError
+        }
 
-        // Get total spent
-        const totalSpentResult = await db.select({
-            total: sql<number>`coalesce(sum(cast(${invoices.total} as numeric)), 0)`
-        })
-            .from(invoices)
-            .where(and(
-                eq(invoices.clientId, clientId),
-                eq(invoices.status, "PAID")
-            ))
+        // Get total spent from paid invoices
+        const { data: invoices, error: totalError } = await supabase
+            .from('Invoice')
+            .select('total')
+            .eq('clientId', clientId)
+            .eq('status', 'PAID')
 
-        const totalSpent = Number(totalSpentResult[0]?.total || 0)
+        if (totalError) {
+            throw totalError
+        }
+
+        const totalSpent = (invoices || []).reduce((sum, inv) => sum + Number(inv.total), 0)
 
         // Get last activity
-        const [lastActivity] = await db.select()
-            .from(clientHistory)
-            .where(eq(clientHistory.clientId, clientId))
-            .orderBy(desc(clientHistory.createdAt))
+        const { data: lastActivity, error: historyError } = await supabase
+            .from('ClientHistory')
+            .select('createdAt')
+            .eq('clientId', clientId)
+            .order('createdAt', { ascending: false })
             .limit(1)
+            .single()
 
         return {
             success: true,
             data: {
-                invoiceCount,
+                invoiceCount: invoiceCount || 0,
                 totalSpent,
                 lastActivityDate: lastActivity?.createdAt,
             },
         }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { success: false, error: "Error al obtener estadísticas" }
     }
 }

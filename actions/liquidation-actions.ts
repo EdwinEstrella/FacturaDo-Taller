@@ -1,6 +1,6 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { startOfDay, endOfDay } from "date-fns"
 
 interface LiquidationParams {
@@ -10,43 +10,41 @@ interface LiquidationParams {
 }
 
 export async function getLiquidationData({ userId, startDate, endDate }: LiquidationParams) {
+    const supabase = await createClient()
+
     try {
         // Fetch Invoices created by User in Range
-        const invoices = await prisma.invoice.findMany({
-            where: {
-                createdById: userId,
-                createdAt: {
-                    gte: startOfDay(startDate),
-                    lte: endOfDay(endDate),
-                },
-                status: { not: "CANCELLED" } // Include PAID and PENDING? Usually commissions are on Total Sales.
-            },
-            // include: {
-            //    payments: true 
-            // }
-        })
+        const { data: invoices } = await supabase
+            .from('Invoice')
+            .select('*')
+            .eq('createdById', userId)
+            .gte('createdAt', startOfDay(startDate).toISOString())
+            .lte('createdAt', endOfDay(endDate).toISOString())
+            .neq('status', "CANCELLED")
 
         // Fetch user details
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { name: true, role: true }
-        })
+        const { data: user } = await supabase
+            .from('User')
+            .select('name, role')
+            .eq('id', userId)
+            .single()
 
-        if (!user) throw new Error("User not found")
+        if (!user) {
+            throw new Error("User not found")
+        }
 
         // Calculate Totals
-        const totalSales = invoices.reduce((acc, inv) => acc + Number(inv.total), 0)
-        const totalPaid = invoices.filter(i => i.status === "PAID").reduce((acc, inv) => acc + Number(inv.total), 0)
-        const initialPending = invoices.filter(i => i.status === "PENDING").reduce((acc, inv) => acc + Number(inv.total), 0)
+        const totalSales = (invoices || []).reduce((acc, inv) => acc + Number(inv.total), 0)
+        const totalPaid = (invoices || []).filter(i => i.status === "PAID").reduce((acc, inv) => acc + Number(inv.total), 0)
+        const initialPending = (invoices || []).filter(i => i.status === "PENDING").reduce((acc, inv) => acc + Number(inv.total), 0)
 
-        // Count invoices
-        const count = invoices.length
+        const count = invoices?.length || 0
 
         return {
             success: true,
             data: {
                 user,
-                invoices: invoices.map(i => ({
+                invoices: (invoices || []).map(i => ({
                     id: i.id,
                     sequenceNumber: i.sequenceNumber,
                     createdAt: i.createdAt,
@@ -69,10 +67,17 @@ export async function getLiquidationData({ userId, startDate, endDate }: Liquida
 }
 
 export async function getUsersForLiquidation() {
-    return await prisma.user.findMany({
-        where: {
-            role: { in: ["SELLER", "TECHNICIAN", "MANAGER"] }
-        },
-        select: { id: true, name: true, role: true }
-    })
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('User')
+        .select('id, name, role')
+        .in('role', ["SELLER", "TECHNICIAN", "MANAGER"])
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return data || []
 }

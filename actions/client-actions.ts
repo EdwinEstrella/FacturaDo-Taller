@@ -1,11 +1,14 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { clients, invoices, quotes } from "@/db/schema"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { addClientHistoryEntry } from "./client-history-actions"
-import { eq, desc } from "drizzle-orm"
+import { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
+type ClientInsert = Database['public']['Tables']['Client']['Insert']
+type ClientUpdate = Database['public']['Tables']['Client']['Update']
 
 const ClientSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -16,8 +19,7 @@ const ClientSchema = z.object({
     email: z.string().email().optional().or(z.literal("")),
 })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function createClient(prevState: any, formData: FormData) {
+export async function createClientAction(prevState: any, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
@@ -33,10 +35,20 @@ export async function createClient(prevState: any, formData: FormData) {
         }
     }
 
-    try {
-        const [client] = await db.insert(clients).values(validatedFields.data).returning()
+    const supabase = await createClient()
 
-        // Agregar al historial
+    try {
+        const { data: client, error } = await supabase
+            .from('Client')
+            .insert(validatedFields.data)
+            .select()
+            .single()
+
+        if (error || !client) {
+            throw error
+        }
+
+        // Add to history
         await addClientHistoryEntry(
             client.id,
             "CREATED",
@@ -46,12 +58,12 @@ export async function createClient(prevState: any, formData: FormData) {
 
         revalidatePath("/clients")
         return { message: "Client created successfully", success: true }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { message: "Failed to create client", success: false }
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function updateClient(id: string, prevState: any, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
@@ -68,13 +80,21 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
         }
     }
 
-    try {
-        const [client] = await db.update(clients)
-            .set(validatedFields.data)
-            .where(eq(clients.id, id))
-            .returning()
+    const supabase = await createClient()
 
-        // Agregar al historial
+    try {
+        const { data: client, error } = await supabase
+            .from('Client')
+            .update(validatedFields.data)
+            .eq('id', id)
+            .select()
+            .single()
+
+        if (error || !client) {
+            throw error
+        }
+
+        // Add to history
         await addClientHistoryEntry(
             client.id,
             "UPDATED",
@@ -84,29 +104,53 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
 
         revalidatePath("/clients")
         return { message: "Client updated successfully", success: true }
-    } catch {
+    } catch (error) {
+        console.error(error)
         return { message: "Failed to update client", success: false }
     }
 }
 
 export async function deleteClient(id: string) {
-    try {
-        const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1)
+    const supabase = await createClient()
 
-        if (!client) return { success: false, error: "Cliente no encontrado" }
+    try {
+        const { data: client } = await supabase
+            .from('Client')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (!client) {
+            return { success: false, error: "Cliente no encontrado" }
+        }
 
         // Check for related invoices
-        const [invoiceCount] = await db.select({ count: invoices.id }).from(invoices).where(eq(invoices.clientId, id))
-        const [quoteCount] = await db.select({ count: quotes.id }).from(quotes).where(eq(quotes.clientId, id))
+        const { count: invoiceCount } = await supabase
+            .from('Invoice')
+            .select('*', { count: 'exact', head: true })
+            .eq('clientId', id)
 
-        if (invoiceCount || quoteCount) {
+        const { count: quoteCount } = await supabase
+            .from('Quote')
+            .select('*', { count: 'exact', head: true })
+            .eq('clientId', id)
+
+        if ((invoiceCount || 0) > 0 || (quoteCount || 0) > 0) {
             return {
                 success: false,
                 error: `No se puede eliminar. El cliente tiene registros asociados.`
             }
         }
 
-        await db.delete(clients).where(eq(clients.id, id))
+        const { error } = await supabase
+            .from('Client')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            throw error
+        }
+
         revalidatePath("/clients")
         return { success: true }
     } catch (error) {
@@ -116,5 +160,17 @@ export async function deleteClient(id: string) {
 }
 
 export async function getClients() {
-    return await db.select().from(clients).orderBy(desc(clients.createdAt))
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('Client')
+        .select('*')
+        .order('createdAt', { ascending: false })
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return data || []
 }

@@ -1,40 +1,40 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { settings } from "@/db/schema"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { eq } from "drizzle-orm"
 
-// Define types for settings
 export type CompanySettings = {
     companyName: string
     companyPhone: string
     companyRnc: string
     companyAddress: string
-    /**
-     * Plantilla de factura preferida para impresión.
-     * "ticket" = 80mm térmica, "a4" = formato carta/A4.
-     */
     invoiceTemplate?: "ticket" | "a4"
-    /**
-     * Logo de la empresa en formato data URL (base64) o URL pública.
-     */
     companyLogo?: string
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
+    const supabase = await createClient()
+
     try {
-        // Get all settings and filter in code (simpler than using inArray)
-        const allSettings = await db.select().from(settings)
+        const { data: allSettings, error } = await supabase
+            .from('Setting')
+            .select('*')
+            .in('key', [
+                "COMPANY_NAME",
+                "COMPANY_PHONE",
+                "COMPANY_RNC",
+                "COMPANY_ADDRESS",
+                "INVOICE_TEMPLATE",
+                "COMPANY_LOGO"
+            ])
 
-        const settingsData = allSettings.filter(s =>
-            ["COMPANY_NAME", "COMPANY_PHONE", "COMPANY_RNC", "COMPANY_ADDRESS", "INVOICE_TEMPLATE", "COMPANY_LOGO"].includes(s.key)
-        )
+        if (error) {
+            throw error
+        }
 
-        // Default values
         const defaults: CompanySettings = {
-            companyName: "FacturaDO", // Default
+            companyName: "FacturaDO",
             companyPhone: "",
             companyRnc: "",
             companyAddress: "",
@@ -42,8 +42,11 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             companyLogo: "",
         }
 
-        // Map DB results to object
-        const result = settingsData.reduce((acc, current) => {
+        if (!allSettings || allSettings.length === 0) {
+            return defaults
+        }
+
+        const result = allSettings.reduce((acc, current) => {
             if (current.key === "COMPANY_NAME") acc.companyName = current.value
             if (current.key === "COMPANY_PHONE") acc.companyPhone = current.value
             if (current.key === "COMPANY_RNC") acc.companyRnc = current.value
@@ -68,27 +71,40 @@ export async function getCompanySettings(): Promise<CompanySettings> {
 }
 
 export async function updateCompanySettings(data: CompanySettings) {
-    try {
-        const user = await getCurrentUser()
-        if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
-            return { success: false, error: "No tienes permisos para modificar la configuración." }
-        }
+    const user = await getCurrentUser()
 
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+        return { success: false, error: "No tienes permisos para modificar la configuración." }
+    }
+
+    const supabase = await createClient()
+
+    try {
         const invoiceTemplate = data.invoiceTemplate === "a4" ? "a4" : "ticket"
         const companyLogo = data.companyLogo ?? ""
 
         // Helper function to upsert a setting
         const upsertSetting = async (key: string, value: string) => {
-            const existing = await db.select().from(settings).where(eq(settings.key, key)).limit(1)
+            // Check if setting exists
+            const { data: existing } = await supabase
+                .from('Setting')
+                .select('key')
+                .eq('key', key)
+                .single()
 
-            if (existing.length > 0) {
-                await db.update(settings).set({ value }).where(eq(settings.key, key))
+            if (existing) {
+                await supabase
+                    .from('Setting')
+                    .update({ value })
+                    .eq('key', key)
             } else {
-                await db.insert(settings).values({ key, value })
+                await supabase
+                    .from('Setting')
+                    .insert({ key, value })
             }
         }
 
-        // Upsert each setting (in a transaction-like manner)
+        // Upsert each setting
         await upsertSetting("COMPANY_NAME", data.companyName)
         await upsertSetting("COMPANY_PHONE", data.companyPhone)
         await upsertSetting("COMPANY_RNC", data.companyRnc)
@@ -96,8 +112,8 @@ export async function updateCompanySettings(data: CompanySettings) {
         await upsertSetting("INVOICE_TEMPLATE", invoiceTemplate)
         await upsertSetting("COMPANY_LOGO", companyLogo)
 
-        revalidatePath("/settings/general") // Revalidate the form usage
-        revalidatePath("/invoices") // Revalidate invoice creation pages that might use this
+        revalidatePath("/settings/general")
+        revalidatePath("/invoices")
 
         return { success: true }
     } catch (error) {

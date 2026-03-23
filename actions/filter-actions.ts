@@ -1,10 +1,11 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
-import type { Client, Invoice } from "@prisma/client"
+import { createClient } from "@/lib/supabase/server"
+import { Database } from "@/lib/supabase/database.types"
 
-interface InvoiceWithNumberTotal extends Omit<Invoice, 'total'> {
+interface InvoiceWithNumberTotal extends Omit<Database['public']['Tables']['Invoice']['Row'], 'total'> {
     total: number
+    items: Database['public']['Tables']['InvoiceItem']['Row'][]
 }
 
 interface ClientFilters {
@@ -23,139 +24,132 @@ interface InvoiceFilters {
     period?: 'today' | 'week' | 'month' | 'year'
 }
 
-/**
- * Filtra clientes según los criterios especificados
- */
-export async function filterClients(filters: ClientFilters): Promise<Client[]> {
-    const where: {
-        name?: { contains: string; mode: 'insensitive' }
-        rnc?: { contains: string; mode: 'insensitive' }
-        createdAt?: { gte?: Date; lte?: Date }
-        id?: string
-    } = {}
+export async function filterClients(filters: ClientFilters): Promise<Database['public']['Tables']['Client']['Row'][]> {
+    const supabase = await createClient()
 
+    let query = supabase
+        .from('Client')
+        .select('*')
+        .order('createdAt', { ascending: false })
+
+    // Apply filters
     if (filters.name) {
-        where.name = { contains: filters.name, mode: 'insensitive' }
+        query = query.ilike('name', `%${filters.name}%`)
     }
 
     if (filters.rnc) {
-        where.rnc = { contains: filters.rnc, mode: 'insensitive' }
+        query = query.ilike('rnc', `%${filters.rnc}%`)
     }
 
-    if (filters.startDate || filters.endDate) {
-        where.createdAt = {}
-        if (filters.startDate) {
-            where.createdAt.gte = filters.startDate
-        }
-        if (filters.endDate) {
-            // Incluir todo el día final
-            const endOfDay = new Date(filters.endDate)
-            endOfDay.setHours(23, 59, 59, 999)
-            where.createdAt.lte = endOfDay
-        }
+    if (filters.startDate) {
+        query = query.gte('createdAt', filters.startDate.toISOString())
     }
 
-    // Buscar clientes que tengan facturas específicas
+    if (filters.endDate) {
+        const endOfDay = new Date(filters.endDate)
+        endOfDay.setHours(23, 59, 59, 999)
+        query = query.lte('createdAt', endOfDay.toISOString())
+    }
+
+    // Search clients with specific invoice
     if (filters.invoiceId) {
-        const invoice = await prisma.invoice.findUnique({
-            where: { id: filters.invoiceId },
-            select: { clientId: true }
-        })
+        const { data: invoice } = await supabase
+            .from('Invoice')
+            .select('clientId')
+            .eq('id', filters.invoiceId)
+            .single()
+
         if (invoice && invoice.clientId) {
-            where.id = invoice.clientId
+            query = query.eq('id', invoice.clientId)
         }
     }
 
-    return prisma.client.findMany({
-        where,
-        orderBy: { createdAt: 'desc' }
-    })
+    const { data, error } = await query
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return data || []
 }
 
-/**
- * Filtra facturas según los criterios especificados
- */
 export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWithNumberTotal[]> {
-    const where: {
-        createdAt?: { gte?: Date; lte?: Date }
-        total?: { gte?: number; lte?: number }
-    } = {}
+    const supabase = await createClient()
 
-    // Periodos predefinidos
+    let query = supabase
+        .from('Invoice')
+        .select(`
+            *,
+            client:Client(*),
+            items:InvoiceItem(*),
+            workOrder:WorkOrder(*)
+        `)
+        .order('createdAt', { ascending: false })
+
+    // Predefined periods
     if (filters.period) {
         const now = new Date()
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
         switch (filters.period) {
             case 'today':
-                where.createdAt = { gte: startOfDay }
+                query = query.gte('createdAt', startOfDay.toISOString())
                 break
             case 'week':
                 const startOfWeek = new Date(now)
                 startOfWeek.setDate(now.getDate() - now.getDay())
                 startOfWeek.setHours(0, 0, 0, 0)
-                where.createdAt = { gte: startOfWeek }
+                query = query.gte('createdAt', startOfWeek.toISOString())
                 break
             case 'month':
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-                where.createdAt = { gte: startOfMonth }
+                query = query.gte('createdAt', startOfMonth.toISOString())
                 break
             case 'year':
                 const startOfYear = new Date(now.getFullYear(), 0, 1)
-                where.createdAt = { gte: startOfYear }
+                query = query.gte('createdAt', startOfYear.toISOString())
                 break
         }
     }
 
-    // Rango de fechas personalizado
-    if (filters.startDate || filters.endDate) {
-        where.createdAt = where.createdAt || {}
-        if (filters.startDate) {
-            where.createdAt.gte = filters.startDate
-        }
-        if (filters.endDate) {
-            // Incluir todo el día final
-            const endOfDay = new Date(filters.endDate)
-            endOfDay.setHours(23, 59, 59, 999)
-            where.createdAt.lte = endOfDay
-        }
+    // Custom date range
+    if (filters.startDate) {
+        query = query.gte('createdAt', filters.startDate.toISOString())
     }
 
-    // Rango de montos
-    if (filters.minAmount !== undefined || filters.maxAmount !== undefined) {
-        where.total = {}
-        if (filters.minAmount !== undefined) {
-            where.total.gte = filters.minAmount
-        }
-        if (filters.maxAmount !== undefined) {
-            where.total.lte = filters.maxAmount
-        }
+    if (filters.endDate) {
+        const endOfDay = new Date(filters.endDate)
+        endOfDay.setHours(23, 59, 59, 999)
+        query = query.lte('createdAt', endOfDay.toISOString())
     }
 
-    const invoices = await prisma.invoice.findMany({
-        where,
-        include: {
-            client: true,
-            items: true,
-            workOrder: true
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+    // Amount range
+    if (filters.minAmount !== undefined) {
+        query = query.gte('total', filters.minAmount)
+    }
 
-    // Convertir Decimal a number
-    return invoices.map(invoice => ({
+    if (filters.maxAmount !== undefined) {
+        query = query.lte('total', filters.maxAmount)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return (data || []).map(invoice => ({
         ...invoice,
         total: Number(invoice.total),
-        items: invoice.items.map(item => ({
+        items: (invoice.items || []).map((item: Database['public']['Tables']['InvoiceItem']['Row']) => ({
             ...item,
             price: Number(item.price)
         }))
     }))
 }
 
-/**
- * Obtiene estadísticas de facturas filtradas
- */
 export async function getInvoiceStats(filters: InvoiceFilters) {
     const invoices = await filterInvoices(filters)
 

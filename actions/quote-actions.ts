@@ -1,10 +1,14 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { quotes, quoteItems, clients, users, invoices, invoiceItems, products } from "@/db/schema"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { eq, lte, desc, and } from "drizzle-orm"
+import { Database } from "@/lib/supabase/database.types"
+
+type Quote = Database['public']['Tables']['Quote']['Row']
+type QuoteInsert = Database['public']['Tables']['Quote']['Insert']
+type QuoteItem = Database['public']['Tables']['QuoteItem']['Row']
+type QuoteItemInsert = Database['public']['Tables']['QuoteItem']['Insert']
 
 type QuoteFormData = {
     clientId: string;
@@ -20,30 +24,46 @@ export async function createQuote(data: QuoteFormData) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
+    const supabase = await createClient()
+
     const total = data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-    // Calcular fecha de vencimiento (15 días desde hoy)
+    // Calculate expiration date (15 days from now)
     const validUntil = new Date()
     validUntil.setDate(validUntil.getDate() + 15)
 
     try {
-        const [quote] = await db.insert(quotes).values({
-            clientId: data.clientId,
-            total: total.toString(),
-            createdById: user.id,
-            status: "PENDING",
-            validUntil: validUntil,
-        }).returning()
+        const { data: quote, error: quoteError } = await supabase
+            .from('Quote')
+            .insert({
+                clientId: data.clientId,
+                total: total,
+                createdById: user.id,
+                status: "PENDING",
+                validUntil: validUntil.toISOString(),
+            })
+            .select()
+            .single()
+
+        if (quoteError || !quote) {
+            throw new Error(quoteError?.message || "Failed to create quote")
+        }
 
         // Insert items
-        for (const item of data.items) {
-            await db.insert(quoteItems).values({
-                quoteId: quote.id,
-                productId: item.productId,
-                productName: item.productName,
-                quantity: item.quantity,
-                price: item.price.toString(),
-            })
+        const quoteItems = data.items.map(item => ({
+            quoteId: quote.id,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+        }))
+
+        const { error: itemsError } = await supabase
+            .from('QuoteItem')
+            .insert(quoteItems)
+
+        if (itemsError) {
+            throw itemsError
         }
 
         // Get full quote with relations
@@ -59,54 +79,64 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 export async function getQuotes() {
-    // Primero verificar y marcar cotizaciones vencidas
-    const now = new Date()
-    await db.update(quotes)
-        .set({ status: "EXPIRED" })
-        .where(and(
-            eq(quotes.status, "PENDING"),
-            lte(quotes.validUntil, now)
-        ))
+    const supabase = await createClient()
+
+    // First, check and mark expired quotes
+    const now = new Date().toISOString()
+
+    await supabase
+        .from('Quote')
+        .update({ status: "EXPIRED" })
+        .eq('status', "PENDING")
+        .lte('validUntil', now)
 
     // Get all quotes with client and items
-    const allQuotes = await db.select().from(quotes).orderBy(desc(quotes.createdAt))
+    const { data: quotes, error } = await supabase
+        .from('Quote')
+        .select(`
+            *,
+            client:Client(*),
+            items:QuoteItem(*)
+        `)
+        .order('createdAt', { ascending: false })
 
-    // Manually fetch relations for each quote
-    const quotesWithRelations = await Promise.all(
-        allQuotes.map(async (quote) => {
-            const [client] = await db.select().from(clients).where(eq(clients.id, quote.clientId!)).limit(1)
-            const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quote.id))
+    if (error) {
+        console.error(error)
+        return []
+    }
 
-            return {
-                ...quote,
-                total: Number(quote.total),
-                client,
-                items: items.map(item => ({
-                    ...item,
-                    price: Number(item.price)
-                }))
-            }
-        })
-    )
-
-    return quotesWithRelations
+    return (quotes || []).map(quote => ({
+        ...quote,
+        total: Number(quote.total),
+        items: (quote.items || []).map((item: QuoteItem) => ({
+            ...item,
+            price: Number(item.price)
+        }))
+    }))
 }
 
 export async function getQuoteById(id: string) {
-    const [quote] = await db.select().from(quotes).where(eq(quotes.id, id)).limit(1)
+    const supabase = await createClient()
 
-    if (!quote) return null
+    const { data: quote, error } = await supabase
+        .from('Quote')
+        .select(`
+            *,
+            client:Client(*),
+            createdBy:User(*),
+            items:QuoteItem(*)
+        `)
+        .eq('id', id)
+        .single()
 
-    const [client] = await db.select().from(clients).where(eq(clients.id, quote.clientId!)).limit(1)
-    const [createdBy] = quote.createdById ? await db.select().from(users).where(eq(users.id, quote.createdById)).limit(1) : [null]
-    const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quote.id))
+    if (error || !quote) {
+        return null
+    }
 
     return {
         ...quote,
         total: Number(quote.total),
-        client,
-        createdBy,
-        items: items.map(item => ({
+        items: (quote.items || []).map((item: QuoteItem) => ({
             ...item,
             price: Number(item.price)
         }))
@@ -118,43 +148,71 @@ export async function convertQuoteToInvoice(quoteId: string) {
 
     if (!quote) return { success: false, error: "Cotización no encontrada" }
 
+    const supabase = await createClient()
+
     try {
-        const [invoice] = await db.insert(invoices).values({
-            clientId: quote.clientId,
-            clientName: quote.client?.name || "Desde Cotización",
-            total: quote.total.toString(),
-            status: "PAID",
-            paymentMethod: "CASH",
-            createdById: quote.createdById,
-            creatorName: quote.createdBy?.name,
-        }).returning()
+        const { data: invoice, error: invoiceError } = await supabase
+            .from('Invoice')
+            .insert({
+                clientId: quote.clientId,
+                clientName: quote.client?.name || "Desde Cotización",
+                total: quote.total,
+                status: "PAID",
+                paymentMethod: "CASH",
+                createdById: quote.createdById,
+                creatorName: quote.createdBy?.name,
+                balance: 0,
+                shippingCost: 0,
+                tax: 0,
+                hasNcf: false,
+                dispatched: false,
+            })
+            .select()
+            .single()
+
+        if (invoiceError || !invoice) {
+            throw new Error(invoiceError?.message || "Failed to create invoice")
+        }
 
         // Insert invoice items
-        for (const item of quote.items) {
-            await db.insert(invoiceItems).values({
-                invoiceId: invoice.id,
-                productId: item.productId,
-                productName: item.productName,
-                quantity: item.quantity,
-                price: item.price.toString(),
-            })
+        const invoiceItems = quote.items.map((item: QuoteItem) => ({
+            invoiceId: invoice.id,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+        }))
+
+        const { error: itemsError } = await supabase
+            .from('InvoiceItem')
+            .insert(invoiceItems)
+
+        if (itemsError) {
+            throw itemsError
         }
 
         // Deduct stock
         for (const item of quote.items) {
             if (item.productId) {
-                const [product] = await db.select().from(products).where(eq(products.id, item.productId)).limit(1)
-                if (product && product.category !== "SERVICIO") {
-                    await db.update(products)
-                        .set({ stock: Math.max(0, product.stock - item.quantity) })
-                        .where(eq(products.id, item.productId))
+                const { data: product } = await supabase
+                    .from('Product')
+                    .select('*')
+                    .eq('id', item.productId)
+                    .single()
+
+                if (product && !product.isService) {
+                    await supabase
+                        .from('Product')
+                        .update({ stock: Math.max(0, product.stock - item.quantity) })
+                        .eq('id', item.productId)
                 }
             }
         }
 
-        await db.update(quotes)
-            .set({ status: "ACCEPTED" })
-            .where(eq(quotes.id, quoteId))
+        await supabase
+            .from('Quote')
+            .update({ status: "ACCEPTED" })
+            .eq('id', quoteId)
 
         revalidatePath("/invoices")
         return { success: true, invoiceId: invoice.id }
@@ -169,8 +227,17 @@ export async function deleteQuote(quoteId: string) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
+    const supabase = await createClient()
+
     try {
-        await db.delete(quotes).where(eq(quotes.id, quoteId))
+        const { error } = await supabase
+            .from('Quote')
+            .delete()
+            .eq('id', quoteId)
+
+        if (error) {
+            throw error
+        }
 
         revalidatePath("/quotes")
         return { success: true }
@@ -184,24 +251,29 @@ export async function markExpiredQuotes() {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
+    const supabase = await createClient()
+
     try {
-        const now = new Date()
+        const now = new Date().toISOString()
 
-        const expiredQuotes = await db.select().from(quotes).where(
-            and(
-                eq(quotes.status, "PENDING"),
-                lte(quotes.validUntil, now)
-            )
-        )
+        const { data: expiredQuotes, error } = await supabase
+            .from('Quote')
+            .select('id')
+            .eq('status', "PENDING")
+            .lte('validUntil', now)
 
-        for (const quote of expiredQuotes) {
-            await db.update(quotes)
-                .set({ status: "EXPIRED" })
-                .where(eq(quotes.id, quote.id))
+        if (error) {
+            throw error
         }
 
+        await supabase
+            .from('Quote')
+            .update({ status: "EXPIRED" })
+            .eq('status', "PENDING")
+            .lte('validUntil', now)
+
         revalidatePath("/quotes")
-        return { success: true, count: expiredQuotes.length }
+        return { success: true, count: expiredQuotes?.length || 0 }
     } catch (error) {
         console.error("Error marking expired quotes:", error)
         return { success: false, error: "Error al marcar cotizaciones vencidas" }
@@ -218,25 +290,32 @@ export async function cleanupExpiredQuotes() {
         return { success: false, error: "No tienes permisos para eliminar cotizaciones" }
     }
 
+    const supabase = await createClient()
+
     try {
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-        const expiredQuotes = await db.select().from(quotes).where(
-            and(
-                eq(quotes.status, "EXPIRED"),
-                lte(quotes.validUntil, thirtyDaysAgo)
-            )
-        )
+        const { data: expiredQuotes, error } = await supabase
+            .from('Quote')
+            .select('id')
+            .eq('status', "EXPIRED")
+            .lte('validUntil', thirtyDaysAgo.toISOString())
 
-        let count = 0
-        for (const quote of expiredQuotes) {
-            await db.delete(quotes).where(eq(quotes.id, quote.id))
-            count++
+        if (error) {
+            throw error
+        }
+
+        if (expiredQuotes && expiredQuotes.length > 0) {
+            const idsToDelete = expiredQuotes.map(q => q.id)
+            await supabase
+                .from('Quote')
+                .delete()
+                .in('id', idsToDelete)
         }
 
         revalidatePath("/quotes")
-        return { success: true, count }
+        return { success: true, count: expiredQuotes?.length || 0 }
     } catch (error) {
         console.error("Error cleaning up expired quotes:", error)
         return { success: false, error: "Error al limpiar cotizaciones vencidas" }

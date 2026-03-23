@@ -1,49 +1,69 @@
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
-// Manage fiscal sequences (e.g. B0100000001)
-// We can store them in a simple Setting model or a dedicated table.
-// For this demo we use 'Setting' model.
-
 export async function getFiscalSequences() {
-    const settings = await prisma.setting.findMany({
-        where: { key: { startsWith: 'NCF_' } }
-    })
-    return settings
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('Setting')
+        .select('*')
+        .like('key', 'NCF_%')
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+
+    return data || []
 }
 
 export async function updateFiscalSequence(type: string, current: string) {
-    await prisma.setting.upsert({
-        where: { key: `NCF_${type}` },
-        update: { value: current },
-        create: { key: `NCF_${type}`, value: current }
-    })
+    const supabase = await createClient()
+
+    const { data: existing } = await supabase
+        .from('Setting')
+        .select('key')
+        .eq('key', `NCF_${type}`)
+        .single()
+
+    if (existing) {
+        await supabase
+            .from('Setting')
+            .update({ value: current })
+            .eq('key', `NCF_${type}`)
+    } else {
+        await supabase
+            .from('Setting')
+            .insert({ key: `NCF_${type}`, value: current })
+    }
+
     revalidatePath("/fiscal")
 }
 
 export async function generateNCF(type: string) {
-    // Logic to increment NCF
-    // Simple implementation: Get current, increment, save.
+    const supabase = await createClient()
     const key = `NCF_${type}`
-    const setting = await prisma.setting.findUnique({ where: { key } })
+
+    const { data: setting } = await supabase
+        .from('Setting')
+        .select('*')
+        .eq('key', key)
+        .single()
 
     if (!setting) return null
 
-    const current = setting.value // e.g. B0100000005
-    // Parse and increment
-    const prefix = current.substring(0, 3) // B01
+    const current = setting.value
+    const prefix = current.substring(0, 3)
     const numberPart = current.substring(3)
     const nextNumber = (parseInt(numberPart) + 1).toString().padStart(8, '0')
     const nextNCF = `${prefix}${nextNumber}`
 
-    // Update DB
-    await prisma.setting.update({
-        where: { key },
-        data: { value: nextNCF }
-    })
+    await supabase
+        .from('Setting')
+        .update({ value: nextNCF })
+        .eq('key', key)
 
-    return current // Return the one we just "used" (or the previous one? Usually we return the current one and bump for next)
-    // Actually typically: Current is the NEXT available. So we return Current, and update DB to Current+1.
+    return current
 }

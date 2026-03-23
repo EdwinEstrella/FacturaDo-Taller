@@ -2,7 +2,7 @@
  * Utilidades para estadísticas y comparaciones del dashboard
  */
 
-import { prisma } from "./prisma"
+import { createAdminClient } from "./supabase/server"
 
 interface ComparisonResult {
     current: number
@@ -67,27 +67,22 @@ function getDateRanges() {
  */
 export async function getRevenueComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
+    const supabase = createAdminClient()
 
-    const [currentMonth, previousMonth] = await Promise.all([
-        prisma.payment.aggregate({
-            where: {
-                date: { gte: currentStart },
-            },
-            _sum: { amount: true },
-        }),
-        prisma.payment.aggregate({
-            where: {
-                date: {
-                    gte: previousStart,
-                    lte: previousEnd,
-                },
-            },
-            _sum: { amount: true },
-        }),
+    const [currentMonthResult, previousMonthResult] = await Promise.all([
+        supabase
+            .from('Payment')
+            .select('amount')
+            .gte('date', currentStart.toISOString()),
+        supabase
+            .from('Payment')
+            .select('amount')
+            .gte('date', previousStart.toISOString())
+            .lte('date', previousEnd.toISOString()),
     ])
 
-    const current = Number(currentMonth._sum.amount || 0)
-    const previous = Number(previousMonth._sum.amount || 0)
+    const current = (currentMonthResult.data || []).reduce((sum, p) => sum + Number(p.amount), 0)
+    const previous = (previousMonthResult.data || []).reduce((sum, p) => sum + Number(p.amount), 0)
     const result = calculatePercentageChange(current, previous)
     const text = getComparisonText(result)
 
@@ -105,27 +100,28 @@ export async function getRevenueComparison(): Promise<ComparisonResult & { text:
  */
 export async function getClientComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
+    const supabase = createAdminClient()
 
-    const [currentMonth, previousMonth] = await Promise.all([
-        prisma.client.count({
-            where: { createdAt: { gte: currentStart } },
-        }),
-        prisma.client.count({
-            where: {
-                createdAt: {
-                    gte: previousStart,
-                    lte: previousEnd,
-                },
-            },
-        }),
+    const [currentMonthResult, previousMonthResult] = await Promise.all([
+        supabase
+            .from('Client')
+            .select('id', { count: 'exact', head: true })
+            .gte('createdAt', currentStart.toISOString()),
+        supabase
+            .from('Client')
+            .select('id', { count: 'exact', head: true })
+            .gte('createdAt', previousStart.toISOString())
+            .lte('createdAt', previousEnd.toISOString()),
     ])
 
-    const result = calculatePercentageChange(currentMonth, previousMonth)
+    const current = currentMonthResult.count || 0
+    const previous = previousMonthResult.count || 0
+    const result = calculatePercentageChange(current, previous)
     const text = getComparisonText(result)
 
     return {
-        current: currentMonth,
-        previous: previousMonth,
+        current,
+        previous,
         percentage: result.percentage,
         isPositive: result.isPositive,
         text,
@@ -137,27 +133,28 @@ export async function getClientComparison(): Promise<ComparisonResult & { text: 
  */
 export async function getInvoiceComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
+    const supabase = createAdminClient()
 
-    const [currentMonth, previousMonth] = await Promise.all([
-        prisma.invoice.count({
-            where: { createdAt: { gte: currentStart } },
-        }),
-        prisma.invoice.count({
-            where: {
-                createdAt: {
-                    gte: previousStart,
-                    lte: previousEnd,
-                },
-            },
-        }),
+    const [currentMonthResult, previousMonthResult] = await Promise.all([
+        supabase
+            .from('Invoice')
+            .select('id', { count: 'exact', head: true })
+            .gte('createdAt', currentStart.toISOString()),
+        supabase
+            .from('Invoice')
+            .select('id', { count: 'exact', head: true })
+            .gte('createdAt', previousStart.toISOString())
+            .lte('createdAt', previousEnd.toISOString()),
     ])
 
-    const result = calculatePercentageChange(currentMonth, previousMonth)
+    const current = currentMonthResult.count || 0
+    const previous = previousMonthResult.count || 0
+    const result = calculatePercentageChange(current, previous)
     const text = getComparisonText(result)
 
     return {
-        current: currentMonth,
-        previous: previousMonth,
+        current,
+        previous,
         percentage: result.percentage,
         isPositive: result.isPositive,
         text,
@@ -171,7 +168,7 @@ export async function getFinancialHistory() {
     const today = new Date()
     const months: { name: string; date: Date; total: number }[] = []
 
-    // Generar nombres de los últimos 6 meses
+    // Generate last 6 months
     for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
         months.push({
@@ -182,24 +179,19 @@ export async function getFinancialHistory() {
     }
 
     const startPeriod = months[0].date
+    const supabase = createAdminClient()
 
-    // Agrupar PAGOS por mes
-    const payments = await prisma.payment.findMany({
-        where: {
-            date: { gte: startPeriod }
-        },
-        select: {
-            amount: true,
-            date: true
-        }
-    })
+    // Get payments
+    const { data: payments } = await supabase
+        .from('Payment')
+        .select('amount, date')
+        .gte('date', startPeriod.toISOString()) as { data: { amount: string | number; date: string }[] | null }
 
     // Sum by month
-    payments.forEach(p => {
-        // Find matching month
+    (payments || []).forEach(p => {
         const monthIndex = months.findIndex(m =>
-            p.date.getFullYear() === m.date.getFullYear() &&
-            p.date.getMonth() === m.date.getMonth()
+            new Date(p.date).getFullYear() === m.date.getFullYear() &&
+            new Date(p.date).getMonth() === m.date.getMonth()
         )
         if (monthIndex !== -1) {
             months[monthIndex].total += Number(p.amount)

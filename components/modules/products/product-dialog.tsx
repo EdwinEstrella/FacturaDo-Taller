@@ -23,7 +23,9 @@ import {
 import { createProduct, updateProduct } from "@/actions/product-actions"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
-import { Product } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Product = Database['public']['Tables']['Product']['Row']
 import { Edit, X } from "lucide-react"
 
 function SubmitButton({ isEdit }: { isEdit: boolean }) {

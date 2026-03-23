@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/table"
 import { getClientHistory } from "@/actions/client-history-actions"
 import { getClientStats } from "@/actions/client-history-actions"
-import type { Client } from "@prisma/client"
+import type { Database } from "@/lib/supabase/database.types"
+
+type Client = Database['public']['Tables']['Client']['Row']
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Link from "next/link"
@@ -81,7 +83,10 @@ export function ClientHistoryDialog({ client }: ClientHistoryDialogProps) {
             ])
 
             if (historyData.success && historyData.data) {
-                setHistory(historyData.data)
+                setHistory(historyData.data.map(h => ({
+                    ...h,
+                    createdAt: new Date(h.createdAt)
+                })))
             }
 
             if (statsData.success && statsData.data) {
