@@ -14,7 +14,6 @@ export interface WindowBreakdownItem {
     resCabAlfDiv?: number
     resVAnchoDiv?: number
     resVAltura?: number
-    notas?: string
 }
 
 export interface WindowBreakdownData {
@@ -133,5 +132,55 @@ export async function deleteWindowBreakdown(breakdownId: string) {
     } catch (error) {
         console.error("Error deleting breakdown:", error)
         return { success: false, error: "Error al eliminar desglose" }
+    }
+}
+
+export async function getPendingBreakdowns(clientName: string, technicianName: string, windowType: "P65" | "TRADICIONAL") {
+    const insforge = createServerClient()
+
+    try {
+        const { data, error } = await insforge.database
+            .from('WindowBreakdown')
+            .select('*')
+            .eq('clientName', clientName)
+            .eq('technicianName', technicianName)
+            .eq('windowType', windowType)
+            .is('printedAt', null)
+            .order('createdAt', { ascending: false })
+
+        if (error) throw error
+
+        return data?.map(breakdown => ({
+            ...breakdown,
+            items: typeof breakdown.items === 'string' ? JSON.parse(breakdown.items) : breakdown.items
+        })) || []
+    } catch (error) {
+        console.error("Error getting pending breakdowns:", error)
+        return []
+    }
+}
+
+export async function deletePendingBreakdowns(clientName: string, technicianName: string, windowType: "P65" | "TRADICIONAL") {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const insforge = createServerClient()
+
+    try {
+        const { error } = await insforge.database
+            .from('WindowBreakdown')
+            .delete()
+            .eq('clientName', clientName)
+            .eq('technicianName', technicianName)
+            .eq('windowType', windowType)
+            .is('printedAt', null)
+
+        if (error) throw error
+
+        revalidatePath('/desglose')
+        return { success: true }
+    } catch (error) {
+        console.error("Error deleting pending breakdowns:", error)
+        return { success: false, error: "Error al eliminar desgloses pendientes" }
     }
 }

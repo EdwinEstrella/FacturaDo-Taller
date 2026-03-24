@@ -1,29 +1,54 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { saveWindowBreakdown, markAsPrinted, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 
 interface CalculationResults {
     id: number
     ancho: number
     alto: number
-    notas: string
-    resRiel: number
+    resCabRiel: number
     resLateral: number
     resJambas: number
     resCabAlfDiv: number
     resVAnchoDiv: number
-    resVAlto: number
+    resVAltura: number
+}
+
+interface ImportedWindowBreakdownItem {
+    id: number
+    ancho: number
+    alto: number
+}
+
+interface WindowBreakdown {
+    id: string
+    clientName: string | null
+    technicianName: string | null
+    totalWindows: number
+    createdAt: string
+    printedAt: string | null
+    items: ImportedWindowBreakdownItem[]
 }
 
 function decimalToFraction(dec: number): string {
-    const whole = Math.floor(dec)
-    const fraction = dec - whole
+    // Redondear a 4 decimales para evitar problemas de precisión de JavaScript
+    const rounded = Math.round(dec * 10000) / 10000
+    const whole = Math.floor(rounded)
+    const fraction = rounded - whole
 
     // Si no hay parte fraccionaria, devolver solo el entero
     if (fraction === 0) return `${whole}`
@@ -80,7 +105,6 @@ function decimalToFraction(dec: number): string {
 export default function VentanaTradicionalPage() {
     const [alto, setAlto] = useState<string>("")
     const [ancho, setAncho] = useState<string>("")
-    const [notas, setNotas] = useState<string>("")
     const [resultados, setResultados] = useState<CalculationResults[]>([])
     const [contador, setContador] = useState<number>(0)
     const [mostrarImpresion, setMostrarImpresion] = useState<boolean>(false)
@@ -90,11 +114,26 @@ export default function VentanaTradicionalPage() {
     const [isClient, setIsClient] = useState<boolean>(false)
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
     const [guardando, setGuardando] = useState<boolean>(false)
+    const [historial, setHistorial] = useState<any[]>([])
+    const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
+    const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
+    const [breakdownsPendientes, setBreakdownsPendientes] = useState<any[]>([])
 
     // Evitar error de hidratación - inicializar isClient
     useState(() => {
         setIsClient(true)
     })
+
+    const cargarHistorial = async () => {
+        const breakdowns = await getWindowBreakdowns("TRADICIONAL")
+        setHistorial(breakdowns as any[])
+    }
+
+    useEffect(() => {
+        if (isClient) {
+            cargarHistorial()
+        }
+    }, [isClient])
 
     const guardarDatosCliente = () => {
         if (!nombreCliente) {
@@ -215,13 +254,12 @@ export default function VentanaTradicionalPage() {
                             ...r,
                             ancho: anchoValue,
                             alto: altoValue,
-                            notas: notas,
-                            resRiel,
+                            resCabRiel: resRiel,
                             resLateral,
                             resJambas,
                             resCabAlfDiv,
                             resVAnchoDiv,
-                            resVAlto
+                            resVAltura: resVAlto
                         }
                     }
                     return r
@@ -234,13 +272,12 @@ export default function VentanaTradicionalPage() {
                     id: contador + 1,
                     ancho: anchoValue,
                     alto: altoValue,
-                    notas: notas,
-                    resRiel,
+                    resCabRiel: resRiel,
                     resLateral,
                     resJambas,
                     resCabAlfDiv,
                     resVAnchoDiv,
-                    resVAlto
+                    resVAltura: resVAlto
                 }
                 setResultados([...resultados, nuevoResultado])
                 setContador(contador + 1)
@@ -249,7 +286,6 @@ export default function VentanaTradicionalPage() {
             // Limpiar inputs para siguiente cálculo
             setAlto("")
             setAncho("")
-            setNotas("")
 
             // Enfocar en el input de ancho
             setTimeout(() => {
@@ -264,7 +300,6 @@ export default function VentanaTradicionalPage() {
         if (fila) {
             setAncho(decimalToFraction(fila.ancho))
             setAlto(decimalToFraction(fila.alto))
-            setNotas(fila.notas)
             setFilaEditando(id)
         }
     }
@@ -275,28 +310,81 @@ export default function VentanaTradicionalPage() {
             setFilaEditando(null)
             setAlto("")
             setAncho("")
-            setNotas("")
         }
     }
 
     const cancelarEdicion = () => {
         setFilaEditando(null)
-        setNombreCliente("")
-        setNombreTecnico("")
         setAlto("")
         setAncho("")
-        setNotas("")
     }
 
-    const limpiar = () => {
-        setNombreCliente("")
-        setNombreTecnico("")
+    const limpiar = async () => {
+        // Check for pending breakdowns in database
+        if (nombreCliente && nombreTecnico) {
+            const pendings = await getPendingBreakdowns(nombreCliente, nombreTecnico, "TRADICIONAL")
+
+            if (pendings.length > 0) {
+                // Show dialog with pending breakdowns
+                setBreakdownsPendientes(pendings)
+                setMostrarReinicioDialog(true)
+                return
+            }
+        }
+
+        // If no pending breakdowns, just clear the form
         setAlto("")
         setAncho("")
-        setNotas("")
         setResultados([])
         setContador(0)
         setDatosGuardados(false)
+        setNombreCliente("")
+        setNombreTecnico("")
+    }
+
+    const handleSeguirEditando = () => {
+        // Load the most recent pending breakdown
+        if (breakdownsPendientes.length > 0) {
+            const mostRecent = breakdownsPendientes[0]
+
+            // Load items from the breakdown
+            setResultados(mostRecent.items.map((item: any) => ({
+                id: item.id,
+                ancho: item.ancho,
+                alto: item.alto,
+                resCabRiel: item.resCabRiel || 0,
+                resLateral: item.resLateral || 0,
+                resJambas: item.resJambas || 0,
+                resCabAlfDiv: item.resCabAlfDiv || 0,
+                resVAnchoDiv: item.resVAnchoDiv || 0,
+                resVAltura: item.resVAltura || 0
+            })))
+
+            setContador(mostRecent.items.length)
+            setMostrarReinicioDialog(false)
+            setBreakdownsPendientes([])
+        }
+    }
+
+    const handleEliminarPendientes = async () => {
+        // Delete all pending breakdowns
+        if (nombreCliente && nombreTecnico) {
+            await deletePendingBreakdowns(nombreCliente, nombreTecnico, "TRADICIONAL")
+
+            // Reload historial
+            await cargarHistorial()
+
+            // Clear form
+            setAlto("")
+            setAncho("")
+            setResultados([])
+            setContador(0)
+            setDatosGuardados(false)
+            setNombreCliente("")
+            setNombreTecnico("")
+            setMostrarReinicioDialog(false)
+            setBreakdownsPendientes([])
+        }
     }
 
     const handleImprimir = () => {
@@ -326,13 +414,12 @@ export default function VentanaTradicionalPage() {
                 id: r.id,
                 ancho: r.ancho,
                 alto: r.alto,
-                resCabRiel: r.resRiel,
+                resCabRiel: r.resCabRiel,
                 resLateral: r.resLateral,
                 resJambas: r.resJambas,
                 resCabAlfDiv: r.resCabAlfDiv,
                 resVAnchoDiv: r.resVAnchoDiv,
-                resVAltura: r.resVAlto,
-                notas: r.notas
+                resVAltura: r.resVAltura
             }))
 
             const result = await saveWindowBreakdown({
@@ -345,6 +432,9 @@ export default function VentanaTradicionalPage() {
             if (result.success) {
                 // Marcar como impreso
                 await markAsPrinted(result.id!)
+
+                // Recargar historial
+                await cargarHistorial()
 
                 // Mostrar impresión
                 setMostrarImpresion(true)
@@ -366,13 +456,13 @@ export default function VentanaTradicionalPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Ventana Tradicional</h1>
-                {datosGuardados && (
+                {isClient && datosGuardados && (
                     <p className="text-muted-foreground mt-1">
                         Cliente: <span className="font-semibold text-foreground">{nombreCliente}</span> |
                         Técnico: <span className="font-semibold text-foreground">{nombreTecnico}</span>
                     </p>
                 )}
-                {!datosGuardados && (
+                {isClient && !datosGuardados && (
                     <p className="text-muted-foreground">
                         Calculadora para ventanas tradicionales
                     </p>
@@ -380,90 +470,7 @@ export default function VentanaTradicionalPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Resultados a la izquierda */}
-                {resultados.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Resultados de Cálculos</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-16">No.</TableHead>
-                                            <TableHead className="bg-blue-200">Ancho</TableHead>
-                                            <TableHead className="bg-green-200">Alto</TableHead>
-                                            <TableHead>Des. Riel</TableHead>
-                                            <TableHead>Des. Lat</TableHead>
-                                            <TableHead>Des. Jam</TableHead>
-                                            <TableHead>Cab/Alf</TableHead>
-                                            <TableHead>V. Ancho</TableHead>
-                                            <TableHead>V. Alto</TableHead>
-                                            <TableHead>Notas</TableHead>
-                                            <TableHead className="w-24">Acciones</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {resultados.map((resultado) => (
-                                            <TableRow
-                                                key={resultado.id}
-                                                className={`cursor-pointer transition-colors ${
-                                                    filaEditando === resultado.id ? 'bg-yellow-100' : 'hover:bg-muted'
-                                                }`}
-                                                onClick={() => editarFila(resultado.id)}
-                                            >
-                                                <TableCell className="font-medium">{resultado.id}</TableCell>
-                                                <TableCell className="font-semibold bg-blue-100">{decimalToFraction(resultado.ancho)}</TableCell>
-                                                <TableCell className="font-semibold bg-green-100">{decimalToFraction(resultado.alto)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resRiel)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resLateral)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resJambas)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resCabAlfDiv)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAnchoDiv)}</TableCell>
-                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAlto)}</TableCell>
-                                                <TableCell className="text-xs">{resultado.notas}</TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            eliminarFila(resultado.id)
-                                                        }}
-                                                    >
-                                                        ×
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                            <div className="mt-4 flex gap-2">
-                                <Button
-                                    onClick={handleGuardarEImprimir}
-                                    disabled={guardando || !nombreCliente}
-                                    className="flex-1"
-                                >
-                                    {guardando ? "Guardando..." : "Guardar e Imprimir"}
-                                </Button>
-                                <Button
-                                    onClick={handleImprimir}
-                                    variant="outline"
-                                    disabled={!nombreCliente}
-                                >
-                                    Previsualizar
-                                </Button>
-                                <Button variant="outline" onClick={limpiar}>
-                                    Limpiar Todo
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Inputs a la derecha */}
+                {/* Inputs a la izquierda */}
                 <Card>
                     <CardHeader>
                         <CardTitle>
@@ -473,7 +480,7 @@ export default function VentanaTradicionalPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-4">
                             {/* Información del cliente - SIEMPRE visible */}
-                            {!datosGuardados && (
+                            {isClient && !datosGuardados && (
                                 <div className="border-b border-dashed pb-4">
                                     <p className="text-sm font-semibold mb-3">Información del Cliente (Presiona Enter para guardar)</p>
                                     <div className="space-y-3">
@@ -524,7 +531,7 @@ export default function VentanaTradicionalPage() {
                             )}
 
                             {/* Mostrar datos guardados con opción de editar */}
-                            {datosGuardados && (
+                            {isClient && datosGuardados && (
                                 <div className="border-b border-dashed pb-4">
                                     <p className="text-sm font-semibold mb-3">Información del Cliente</p>
                                     <div className="space-y-2 text-sm">
@@ -542,7 +549,7 @@ export default function VentanaTradicionalPage() {
                             )}
 
                             {/* Medidas de la ventana */}
-                            {datosGuardados && (
+                            {isClient && datosGuardados && (
                                 <>
                                     <div className="border-t border-dashed pt-4">
                                         <p className="text-sm font-semibold mb-3">Medidas de la Ventana</p>
@@ -579,22 +586,12 @@ export default function VentanaTradicionalPage() {
                                             className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="notas">Notas (opcional)</Label>
-                                        <Input
-                                            id="notas"
-                                            type="text"
-                                            placeholder="Ej: Tipo de vidrio, color, etc."
-                                            value={notas}
-                                            onChange={(e) => setNotas(e.target.value)}
-                                        />
-                                    </div>
                                 </>
                             )}
                         </div>
 
                         <div className="flex gap-2">
-                            {datosGuardados && (
+                            {isClient && datosGuardados && (
                                 <Button
                                     onClick={calcular}
                                     disabled={!alto || !ancho}
@@ -627,6 +624,99 @@ export default function VentanaTradicionalPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Resultados a la derecha */}
+                {resultados.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Resultados de Cálculos</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-16">No.</TableHead>
+                                            <TableHead className="bg-blue-200">Ancho</TableHead>
+                                            <TableHead className="bg-green-200">Alto</TableHead>
+                                            <TableHead>Des. Cab/Riel</TableHead>
+                                            <TableHead>Des. Lateral</TableHead>
+                                            <TableHead>Des. Jambas</TableHead>
+                                            <TableHead>Cab/Alf</TableHead>
+                                            <TableHead>V. Ancho</TableHead>
+                                            <TableHead>V. Altura</TableHead>
+                                            <TableHead className="w-24">Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {resultados.map((resultado) => (
+                                            <TableRow
+                                                key={resultado.id}
+                                                className={`cursor-pointer transition-colors ${
+                                                    filaEditando === resultado.id ? 'bg-yellow-100' : 'hover:bg-muted'
+                                                }`}
+                                                onClick={() => editarFila(resultado.id)}
+                                            >
+                                                <TableCell className="font-medium">{resultado.id}</TableCell>
+                                                <TableCell className="font-semibold bg-blue-100">{decimalToFraction(resultado.ancho)}</TableCell>
+                                                <TableCell className="font-semibold bg-green-100">{decimalToFraction(resultado.alto)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resCabRiel)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resLateral)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resJambas)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resCabAlfDiv)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAnchoDiv)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAltura)}</TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            eliminarFila(resultado.id)
+                                                        }}
+                                                    >
+                                                        ×
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <div className="mt-4 flex gap-2">
+                                <Button
+                                    onClick={handleGuardarEImprimir}
+                                    disabled={guardando || !nombreCliente}
+                                    className="flex-1"
+                                >
+                                    {guardando ? "Guardando..." : "Guardar e Imprimir"}
+                                </Button>
+                                <Button
+                                    onClick={handleImprimir}
+                                    variant="outline"
+                                    disabled={!nombreCliente}
+                                >
+                                    Previsualizar
+                                </Button>
+                                <Button variant="outline" onClick={limpiar}>
+                                    Limpiar
+                                </Button>
+                            </div>
+
+                            {historial.length > 0 && (
+                                <div className="mt-4">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setMostrarHistorial(!mostrarHistorial)}
+                                        className="w-full"
+                                    >
+                                        {mostrarHistorial ? "Ocultar" : "Ver"} Historial ({historial.length})
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             {/* Previsualización de impresión */}
@@ -672,9 +762,22 @@ export default function VentanaTradicionalPage() {
                         <div className="text-center mb-3">
                             <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
                             <p className="text-xs">Ventana Tradicional</p>
-                            <p className="text-xs">Fecha: {isClient && new Date().toLocaleDateString('es-DO')}</p>
-                            <p className="text-xs">Hora: {isClient && new Date().toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
+
+                        <div className="border-b border-dashed border-black mb-2"></div>
+
+                        {/* Información del pedido */}
+                        <div className="mb-2 text-xs">
+                            {nombreCliente && (
+                                <p><strong>Cliente:</strong> {nombreCliente}</p>
+                            )}
+                            {nombreTecnico && (
+                                <p><strong>Técnico:</strong> {nombreTecnico}</p>
+                            )}
+                            <p><strong>Digitado:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                        </div>
+
+                        <div className="border-b border-dashed border-black mb-2"></div>
 
                         <div className="border-b border-dashed border-black mb-2"></div>
 
@@ -683,16 +786,15 @@ export default function VentanaTradicionalPage() {
                             <thead>
                                 <tr className="border-b border-black">
                                     <th className="text-left py-1 w-6">Fab</th>
-                                    <th className="text-center py-1 w-6">No</th>
-                                    <th className="text-center py-1 w-10">Ancho</th>
-                                    <th className="text-center py-1 w-10">Alto</th>
-                                    <th className="text-center py-1 w-10">Riel</th>
-                                    <th className="text-center py-1 w-10">Lat</th>
-                                    <th className="text-center py-1 w-10">Jam</th>
-                                    <th className="text-center py-1 w-10">C/A</th>
-                                    <th className="text-center py-1 w-10">V.A</th>
-                                    <th className="text-center py-1 w-10">V.Al</th>
-                                    <th className="text-left py-1">Notas</th>
+                                    <th className="text-center py-1 w-8">No</th>
+                                    <th className="text-center py-1 w-12 bg-blue-100">Ancho</th>
+                                    <th className="text-center py-1 w-12 bg-green-100">Alto</th>
+                                    <th className="text-center py-1">Cab/R</th>
+                                    <th className="text-center py-1">Lat</th>
+                                    <th className="text-center py-1">Jam</th>
+                                    <th className="text-center py-1">C/A</th>
+                                    <th className="text-center py-1">V.A</th>
+                                    <th className="text-center py-1">V.Al</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -704,13 +806,12 @@ export default function VentanaTradicionalPage() {
                                         <td className="py-1 text-center">{resultado.id}</td>
                                         <td className="py-1 text-center bg-blue-50">{decimalToFraction(resultado.ancho)}</td>
                                         <td className="py-1 text-center bg-green-50">{decimalToFraction(resultado.alto)}</td>
-                                        <td className="py-1 text-center">{decimalToFraction(resultado.resRiel)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resCabRiel)}</td>
                                         <td className="py-1 text-center">{decimalToFraction(resultado.resLateral)}</td>
                                         <td className="py-1 text-center">{decimalToFraction(resultado.resJambas)}</td>
                                         <td className="py-1 text-center">{decimalToFraction(resultado.resCabAlfDiv)}</td>
                                         <td className="py-1 text-center">{decimalToFraction(resultado.resVAnchoDiv)}</td>
-                                        <td className="py-1 text-center">{decimalToFraction(resultado.resVAlto)}</td>
-                                        <td className="py-1 text-left text-[10px]">{resultado.notas}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resVAltura)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -725,11 +826,108 @@ export default function VentanaTradicionalPage() {
 
                         {/* Footer */}
                         <div className="border-t border-dashed border-black mt-3 pt-2 text-center">
-                            <p className="text-[10px] italic">Generado por FacturaDO - Ventana Tradicional</p>
+                            <p className="text-[10px] italic">Generado por FacturaDO - Desglose Ventana Tradicional</p>
                         </div>
                     </div>
                 </>
             )}
+
+            {/* Historial de desgloses */}
+            {mostrarHistorial && historial.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Historial de Desgloses Guardados</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {historial.map((breakdown) => (
+                                <div key={breakdown.id} className="border rounded-lg p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <p className="font-semibold">{breakdown.clientName || "Sin cliente"}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {breakdown.technicianName && `Técnico: ${breakdown.technicianName} | `}
+                                                {new Date(breakdown.createdAt).toLocaleDateString('es-DO')}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-muted-foreground">
+                                                {breakdown.totalWindows} ventanas
+                                            </p>
+                                            {breakdown.printedAt && (
+                                                <p className="text-xs text-green-600">
+                                                    Impreso: {new Date(breakdown.printedAt).toLocaleDateString('es-DO')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs">
+                                        <p className="font-medium mb-1">Ventanas:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {breakdown.items.slice(0, 5).map((item: any, idx: number) => (
+                                                <span key={idx} className="bg-muted px-2 py-1 rounded">
+                                                    #{item.id}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
+                                                </span>
+                                            ))}
+                                            {breakdown.items.length > 5 && (
+                                                <span className="text-muted-foreground">
+                                                    +{breakdown.items.length - 5} más
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Dialogo de reinicio con ventanas pendientes */}
+            <Dialog open={mostrarReinicioDialog} onOpenChange={setMostrarReinicioDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Ventanas Pendientes de Edición</DialogTitle>
+                        <DialogDescription>
+                            Se encontraron {breakdownsPendientes.length} desglose(s) pendiente(s) sin imprimir para {nombreCliente} con técnico {nombreTecnico}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                            ¿Qué deseas hacer con estas ventanas pendientes?
+                        </p>
+                        <div className="space-y-2">
+                            {breakdownsPendientes.map((breakdown) => (
+                                <div key={breakdown.id} className="text-sm p-2 border rounded">
+                                    <p className="font-medium">{breakdown.totalWindows} ventana(s)</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Creado: {new Date(breakdown.createdAt).toLocaleString('es-DO')}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setMostrarReinicioDialog(false)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleEliminarPendientes}
+                        >
+                            Eliminar
+                        </Button>
+                        <Button
+                            onClick={handleSeguirEditando}
+                        >
+                            Seguir Editando
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

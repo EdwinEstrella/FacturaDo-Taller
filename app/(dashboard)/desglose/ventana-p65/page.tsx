@@ -4,9 +4,17 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 
 interface CalculationResults {
     id: number
@@ -105,6 +113,8 @@ export default function VentanaP65Page() {
     const [nombreTecnico, setNombreTecnico] = useState<string>("")
     const [historial, setHistorial] = useState<WindowBreakdown[]>([])
     const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
+    const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
+    const [breakdownsPendientes, setBreakdownsPendientes] = useState<any[]>([])
     const [guardando, setGuardando] = useState<boolean>(false)
     const [isClient, setIsClient] = useState<boolean>(false)
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
@@ -335,14 +345,72 @@ export default function VentanaP65Page() {
         setAncho("")
     }
 
-    const limpiar = () => {
-        setNombreCliente("")
-        setNombreTecnico("")
+    const limpiar = async () => {
+        // Check for pending breakdowns in database
+        if (nombreCliente && nombreTecnico) {
+            const pendings = await getPendingBreakdowns(nombreCliente, nombreTecnico, "P65")
+
+            if (pendings.length > 0) {
+                // Show dialog with pending breakdowns
+                setBreakdownsPendientes(pendings)
+                setMostrarReinicioDialog(true)
+                return
+            }
+        }
+
+        // If no pending breakdowns, just clear the form
         setAlto("")
         setAncho("")
         setResultados([])
         setContador(0)
         setDatosGuardados(false)
+        setNombreCliente("")
+        setNombreTecnico("")
+    }
+
+    const handleSeguirEditando = () => {
+        // Load the most recent pending breakdown
+        if (breakdownsPendientes.length > 0) {
+            const mostRecent = breakdownsPendientes[0]
+
+            // Load items from the breakdown
+            setResultados(mostRecent.items.map((item: any) => ({
+                id: item.id,
+                ancho: item.ancho,
+                alto: item.alto,
+                resCabRiel: item.resCabRiel || 0,
+                resLateral: item.resLateral || 0,
+                resJambas: item.resJambas || 0,
+                resCabAlfDiv: item.resCabAlfDiv || 0,
+                resVAnchoDiv: item.resVAnchoDiv || 0,
+                resVAltura: item.resVAltura || 0
+            })))
+
+            setContador(mostRecent.items.length)
+            setMostrarReinicioDialog(false)
+            setBreakdownsPendientes([])
+        }
+    }
+
+    const handleEliminarPendientes = async () => {
+        // Delete all pending breakdowns
+        if (nombreCliente && nombreTecnico) {
+            await deletePendingBreakdowns(nombreCliente, nombreTecnico, "P65")
+
+            // Reload historial
+            await cargarHistorial()
+
+            // Clear form
+            setAlto("")
+            setAncho("")
+            setResultados([])
+            setContador(0)
+            setDatosGuardados(false)
+            setNombreCliente("")
+            setNombreTecnico("")
+            setMostrarReinicioDialog(false)
+            setBreakdownsPendientes([])
+        }
     }
 
     const handleImprimir = () => {
@@ -409,7 +477,7 @@ export default function VentanaP65Page() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Ventana P65</h1>
-                {datosGuardados && (
+                {isClient && datosGuardados && (
                     <p className="text-muted-foreground mt-1">
                         Cliente: <span className="font-semibold text-foreground">{nombreCliente}</span> |
                         Técnico: <span className="font-semibold text-foreground">{nombreTecnico}</span>
@@ -423,7 +491,161 @@ export default function VentanaP65Page() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Resultados a la izquierda */}
+                {/* Inputs a la izquierda */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>
+                            {filaEditando !== null ? `Editando Fila #${filaEditando}` : "Medidas de la Ventana"}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-4">
+                            {/* Información del cliente - SIEMPRE visible */}
+                            {isClient && !datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente (Presiona Enter para guardar)</p>
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cliente">Nombre del Cliente *</Label>
+                                            <Input
+                                                id="cliente"
+                                                type="text"
+                                                placeholder="Nombre del cliente (requerido) - Presiona Enter"
+                                                value={nombreCliente}
+                                                onChange={(e) => setNombreCliente(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
+                                                        inputTecnico?.focus()
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="tecnico">Nombre del Técnico *</Label>
+                                            <Input
+                                                id="tecnico"
+                                                type="text"
+                                                placeholder="Nombre del técnico (requerido) - Presiona Enter para guardar"
+                                                value={nombreTecnico}
+                                                onChange={(e) => setNombreTecnico(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        guardarDatosCliente()
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={guardarDatosCliente}
+                                            disabled={!nombreCliente || !nombreTecnico}
+                                            className="w-full"
+                                        >
+                                            Guardar y Comenzar
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mostrar datos guardados con opción de editar */}
+                            {isClient && datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente</p>
+                                    <div className="space-y-2 text-sm">
+                                        <p><span className="font-medium">Cliente:</span> {nombreCliente}</p>
+                                        <p><span className="font-medium">Técnico:</span> {nombreTecnico}</p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDatosGuardados(false)}
+                                        >
+                                            Modificar Datos
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Medidas de la ventana */}
+                            {isClient && datosGuardados && (
+                                <>
+                                    <div className="border-t border-dashed pt-4">
+                                        <p className="text-sm font-semibold mb-3">Medidas de la Ventana</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="ancho">Ancho</Label>
+                                        <Input
+                                            id="ancho"
+                                            type="text"
+                                            placeholder="Ej: 14 1/4 o 14.25"
+                                            value={ancho}
+                                            onChange={(e) => setAncho(e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    calcular()
+                                                }
+                                            }}
+                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="alto">Alto</Label>
+                                        <Input
+                                            id="alto"
+                                            type="text"
+                                            placeholder="Ej: 7 5/8 o 7.625"
+                                            value={alto}
+                                            onChange={(e) => setAlto(e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    calcular()
+                                                }
+                                            }}
+                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2">
+                            {isClient && datosGuardados && (
+                                <Button
+                                    onClick={calcular}
+                                    disabled={!alto || !ancho}
+                                    className="flex-1"
+                                    variant={filaEditando !== null ? "default" : "default"}
+                                >
+                                    {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
+                                </Button>
+                            )}
+                            {filaEditando !== null ? (
+                                <Button variant="outline" onClick={cancelarEdicion}>
+                                    Cancelar
+                                </Button>
+                            ) : resultados.length > 0 ? (
+                                <Button variant="outline" onClick={limpiar}>
+                                    Reiniciar
+                                </Button>
+                            ) : null}
+                        </div>
+
+                        <div className="text-sm text-muted-foreground">
+                            <p className="font-medium mb-2">Instrucciones:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                                <li>1. Ingresa el nombre del cliente y presiona Enter</li>
+                                <li>2. Ingresa el nombre del técnico y presiona Enter (o clic en Guardar)</li>
+                                <li>3. Ingresa medidas en fracciones (ej: 14 1/4) o decimales (ej: 14.25)</li>
+                                <li>4. Presiona Enter o click en Calcular para agregar ventana</li>
+                                <li>5. Haz click en cualquier fila para editarla</li>
+                                <li>6. Guarda e imprime cuando termines</li>
+                            </ul>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Resultados a la derecha */}
                 {resultados.length > 0 && (
                     <Card>
                         <CardHeader>
@@ -515,160 +737,6 @@ export default function VentanaP65Page() {
                         </CardContent>
                     </Card>
                 )}
-
-                {/* Inputs a la derecha */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>
-                            {filaEditando !== null ? `Editando Fila #${filaEditando}` : "Medidas de la Ventana"}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-4">
-                            {/* Información del cliente - SIEMPRE visible */}
-                            {!datosGuardados && (
-                                <div className="border-b border-dashed pb-4">
-                                    <p className="text-sm font-semibold mb-3">Información del Cliente (Presiona Enter para guardar)</p>
-                                    <div className="space-y-3">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="cliente">Nombre del Cliente *</Label>
-                                            <Input
-                                                id="cliente"
-                                                type="text"
-                                                placeholder="Nombre del cliente (requerido) - Presiona Enter"
-                                                value={nombreCliente}
-                                                onChange={(e) => setNombreCliente(e.target.value)}
-                                                onKeyPress={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault()
-                                                        const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
-                                                        inputTecnico?.focus()
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="tecnico">Nombre del Técnico *</Label>
-                                            <Input
-                                                id="tecnico"
-                                                type="text"
-                                                placeholder="Nombre del técnico (requerido) - Presiona Enter para guardar"
-                                                value={nombreTecnico}
-                                                onChange={(e) => setNombreTecnico(e.target.value)}
-                                                onKeyPress={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault()
-                                                        guardarDatosCliente()
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                        <Button
-                                            onClick={guardarDatosCliente}
-                                            disabled={!nombreCliente || !nombreTecnico}
-                                            className="w-full"
-                                        >
-                                            Guardar y Comenzar
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Mostrar datos guardados con opción de editar */}
-                            {datosGuardados && (
-                                <div className="border-b border-dashed pb-4">
-                                    <p className="text-sm font-semibold mb-3">Información del Cliente</p>
-                                    <div className="space-y-2 text-sm">
-                                        <p><span className="font-medium">Cliente:</span> {nombreCliente}</p>
-                                        <p><span className="font-medium">Técnico:</span> {nombreTecnico}</p>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setDatosGuardados(false)}
-                                        >
-                                            Modificar Datos
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Medidas de la ventana */}
-                            {datosGuardados && (
-                                <>
-                                    <div className="border-t border-dashed pt-4">
-                                        <p className="text-sm font-semibold mb-3">Medidas de la Ventana</p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="ancho">Ancho</Label>
-                                        <Input
-                                            id="ancho"
-                                            type="text"
-                                            placeholder="Ej: 14 1/4 o 14.25"
-                                            value={ancho}
-                                            onChange={(e) => setAncho(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    calcular()
-                                                }
-                                            }}
-                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="alto">Alto</Label>
-                                        <Input
-                                            id="alto"
-                                            type="text"
-                                            placeholder="Ej: 7 5/8 o 7.625"
-                                            value={alto}
-                                            onChange={(e) => setAlto(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    calcular()
-                                                }
-                                            }}
-                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
-                                        />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="flex gap-2">
-                            {datosGuardados && (
-                                <Button
-                                    onClick={calcular}
-                                    disabled={!alto || !ancho}
-                                    className="flex-1"
-                                    variant={filaEditando !== null ? "default" : "default"}
-                                >
-                                    {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
-                                </Button>
-                            )}
-                            {filaEditando !== null ? (
-                                <Button variant="outline" onClick={cancelarEdicion}>
-                                    Cancelar
-                                </Button>
-                            ) : resultados.length > 0 ? (
-                                <Button variant="outline" onClick={limpiar}>
-                                    Reiniciar
-                                </Button>
-                            ) : null}
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                            <p className="font-medium mb-2">Instrucciones:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                                <li>1. Ingresa el nombre del cliente y presiona Enter</li>
-                                <li>2. Ingresa el nombre del técnico y presiona Enter (o clic en Guardar)</li>
-                                <li>3. Ingresa medidas en fracciones (ej: 14 1/4) o decimales (ej: 14.25)</li>
-                                <li>4. Presiona Enter o click en Calcular para agregar ventana</li>
-                                <li>5. Haz click en cualquier fila para editarla</li>
-                                <li>6. Guarda e imprime cuando termines</li>
-                            </ul>
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Previsualización de impresión */}
@@ -836,6 +904,52 @@ export default function VentanaP65Page() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Dialogo de reinicio con ventanas pendientes */}
+            <Dialog open={mostrarReinicioDialog} onOpenChange={setMostrarReinicioDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Ventanas Pendientes de Edición</DialogTitle>
+                        <DialogDescription>
+                            Se encontraron {breakdownsPendientes.length} desglose(s) pendiente(s) sin imprimir para {nombreCliente} con técnico {nombreTecnico}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                            ¿Qué deseas hacer con estas ventanas pendientes?
+                        </p>
+                        <div className="space-y-2">
+                            {breakdownsPendientes.map((breakdown) => (
+                                <div key={breakdown.id} className="text-sm p-2 border rounded">
+                                    <p className="font-medium">{breakdown.totalWindows} ventana(s)</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Creado: {new Date(breakdown.createdAt).toLocaleString('es-DO')}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setMostrarReinicioDialog(false)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleEliminarPendientes}
+                        >
+                            Eliminar
+                        </Button>
+                        <Button
+                            onClick={handleSeguirEditando}
+                        >
+                            Seguir Editando
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
