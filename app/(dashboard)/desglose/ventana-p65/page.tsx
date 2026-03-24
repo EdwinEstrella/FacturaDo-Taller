@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 
 interface CalculationResults {
     id: number
@@ -118,6 +118,7 @@ export default function VentanaP65Page() {
     const [guardando, setGuardando] = useState<boolean>(false)
     const [isClient, setIsClient] = useState<boolean>(false)
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
+    const [currentBreakdownId, setCurrentBreakdownId] = useState<string | null>(null)
 
     // Evitar error de hidratación
     useEffect(() => {
@@ -161,7 +162,7 @@ export default function VentanaP65Page() {
         setHistorial(breakdowns as WindowBreakdown[])
     }
 
-    const guardarDatosCliente = () => {
+    const guardarDatosCliente = async () => {
         if (!nombreCliente) {
             alert("Por favor ingresa el nombre del cliente")
             setTimeout(() => {
@@ -180,14 +181,30 @@ export default function VentanaP65Page() {
             return
         }
 
-        // Guardar los datos y mostrar los campos de medidas
-        setDatosGuardados(true)
+        setGuardando(true)
 
-        // Enfocar en el campo de ancho
-        setTimeout(() => {
-            const inputAncho = document.getElementById("ancho") as HTMLInputElement
-            inputAncho?.focus()
-        }, 100)
+        try {
+            // Crear breakdown inicial en la base de datos
+            const result = await createInitialBreakdown("P65", nombreCliente, nombreTecnico)
+
+            if (result.success) {
+                setCurrentBreakdownId(result.id || null)
+                setDatosGuardados(true)
+
+                // Enfocar en el campo de ancho
+                setTimeout(() => {
+                    const inputAncho = document.getElementById("ancho") as HTMLInputElement
+                    inputAncho?.focus()
+                }, 100)
+            } else {
+                alert("Error al guardar: " + result.error)
+            }
+        } catch (error) {
+            console.error("Error al guardar datos del cliente:", error)
+            alert("Error al guardar los datos del cliente")
+        } finally {
+            setGuardando(false)
+        }
     }
 
     const parseFraction = (value: string): number => {
@@ -222,7 +239,7 @@ export default function VentanaP65Page() {
         return total
     }
 
-    const calcular = () => {
+    const calcular = async () => {
         // Verificar que haya datos del cliente y técnico antes de agregar ventanas
         if (!nombreCliente) {
             alert("Por favor ingresa el nombre del cliente antes de agregar ventanas")
@@ -312,6 +329,38 @@ export default function VentanaP65Page() {
             // Limpiar inputs para siguiente cálculo
             setAlto("")
             setAncho("")
+
+            // Actualizar breakdown en la base de datos
+            if (currentBreakdownId) {
+                const items: WindowBreakdownItem[] = resultados.map(r => ({
+                    id: r.id,
+                    ancho: r.ancho,
+                    alto: r.alto,
+                    resCabRiel: r.resCabRiel,
+                    resLateral: r.resLateral,
+                    resJambas: r.resJambas,
+                    resCabAlfDiv: r.resCabAlfDiv,
+                    resVAnchoDiv: r.resVAnchoDiv,
+                    resVAltura: r.resVAltura
+                }))
+
+                // Agregar la nueva ventana
+                if (filaEditando === null) {
+                    items.push({
+                        id: contador + 1,
+                        ancho: anchoValue,
+                        alto: altoValue,
+                        resCabRiel,
+                        resLateral,
+                        resJambas,
+                        resCabAlfDiv,
+                        resVAnchoDiv,
+                        resVAltura
+                    })
+                }
+
+                await updateBreakdownItems(currentBreakdownId, items)
+            }
 
             // Enfocar en el input de ancho
             setTimeout(() => {
@@ -427,44 +476,71 @@ export default function VentanaP65Page() {
             return
         }
 
+        if (resultados.length === 0) {
+            alert("Por favor agrega al menos una ventana antes de guardar")
+            return
+        }
+
         setGuardando(true)
 
         try {
-            // Guardar en base de datos
-            const items: WindowBreakdownItem[] = resultados.map(r => ({
-                id: r.id,
-                ancho: r.ancho,
-                alto: r.alto,
-                resCabRiel: r.resCabRiel,
-                resLateral: r.resLateral,
-                resJambas: r.resJambas,
-                resCabAlfDiv: r.resCabAlfDiv,
-                resVAnchoDiv: r.resVAnchoDiv,
-                resVAltura: r.resVAltura
-            }))
+            let breakdownId = currentBreakdownId
 
-            const result = await saveWindowBreakdown({
-                windowType: "P65",
-                clientName: nombreCliente,
-                technicianName: nombreTecnico || undefined,
-                items
-            })
+            // Si no hay un breakdown actual, crear uno nuevo
+            if (!breakdownId) {
+                const items: WindowBreakdownItem[] = resultados.map(r => ({
+                    id: r.id,
+                    ancho: r.ancho,
+                    alto: r.alto,
+                    resCabRiel: r.resCabRiel,
+                    resLateral: r.resLateral,
+                    resJambas: r.resJambas,
+                    resCabAlfDiv: r.resCabAlfDiv,
+                    resVAnchoDiv: r.resVAnchoDiv,
+                    resVAltura: r.resVAltura
+                }))
 
-            if (result.success) {
-                // Marcar como impreso
-                await markAsPrinted(result.id!)
+                const result = await saveWindowBreakdown({
+                    windowType: "P65",
+                    clientName: nombreCliente,
+                    technicianName: nombreTecnico || undefined,
+                    items
+                })
 
-                // Recargar historial
-                await cargarHistorial()
+                if (!result.success) {
+                    alert("Error al guardar: " + result.error)
+                    return
+                }
 
-                // Mostrar impresión
-                setMostrarImpresion(true)
-
-                // Limpiar localStorage después de guardar exitosamente
-                localStorage.removeItem(LOCAL_STORAGE_KEY)
+                breakdownId = result.id!
             } else {
-                alert("Error al guardar: " + result.error)
+                // Actualizar el breakdown existente
+                const items: WindowBreakdownItem[] = resultados.map(r => ({
+                    id: r.id,
+                    ancho: r.ancho,
+                    alto: r.alto,
+                    resCabRiel: r.resCabRiel,
+                    resLateral: r.resLateral,
+                    resJambas: r.resJambas,
+                    resCabAlfDiv: r.resCabAlfDiv,
+                    resVAnchoDiv: r.resVAnchoDiv,
+                    resVAltura: r.resVAltura
+                }))
+
+                await updateBreakdownItems(breakdownId, items)
             }
+
+            // Marcar como impreso
+            await markAsPrinted(breakdownId)
+
+            // Recargar historial
+            await cargarHistorial()
+
+            // Mostrar impresión
+            setMostrarImpresion(true)
+
+            // Limpiar localStorage después de guardar exitosamente
+            localStorage.removeItem(LOCAL_STORAGE_KEY)
         } catch (error) {
             console.error("Error al guardar e imprimir:", error)
             alert("Error al guardar el desglose")
@@ -540,10 +616,10 @@ export default function VentanaP65Page() {
                                         </div>
                                         <Button
                                             onClick={guardarDatosCliente}
-                                            disabled={!nombreCliente || !nombreTecnico}
+                                            disabled={!nombreCliente || !nombreTecnico || guardando}
                                             className="w-full"
                                         >
-                                            Guardar y Comenzar
+                                            {guardando ? "Guardando..." : "Guardar y Comenzar"}
                                         </Button>
                                     </div>
                                 </div>
@@ -659,9 +735,9 @@ export default function VentanaP65Page() {
                                             <TableHead className="w-16">No.</TableHead>
                                             <TableHead className="bg-blue-200">Ancho</TableHead>
                                             <TableHead className="bg-green-200">Alto</TableHead>
-                                            <TableHead>Des. Cab/Riel</TableHead>
-                                            <TableHead>Des. Lateral</TableHead>
-                                            <TableHead>Des. Jambas</TableHead>
+                                            <TableHead>Cab/Riel</TableHead>
+                                            <TableHead>Lateral</TableHead>
+                                            <TableHead>Jambas</TableHead>
                                             <TableHead>Cab/Alf</TableHead>
                                             <TableHead>V. Ancho</TableHead>
                                             <TableHead>V. Altura</TableHead>
@@ -711,13 +787,6 @@ export default function VentanaP65Page() {
                                 >
                                     {guardando ? "Guardando..." : "Guardar e Imprimir"}
                                 </Button>
-                                <Button
-                                    onClick={handleImprimir}
-                                    variant="outline"
-                                    disabled={!nombreCliente}
-                                >
-                                    Previsualizar
-                                </Button>
                                 <Button variant="outline" onClick={limpiar}>
                                     Limpiar
                                 </Button>
@@ -762,19 +831,6 @@ export default function VentanaP65Page() {
                             }
                         }
                     `}</style>
-
-                    <Card className="mb-4 no-print">
-                        <CardHeader>
-                            <CardTitle>Previsualización de Impresión</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="mb-4">Se imprimirán {resultados.length} ventanas en formato térmico (80mm).</p>
-                            <div className="flex gap-2">
-                                <Button onClick={() => window.print()}>Imprimir</Button>
-                                <Button variant="outline" onClick={() => setMostrarImpresion(false)}>Cerrar</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
 
                     {/* Contenido de impresión térmica */}
                     <div id="printable-area" className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">

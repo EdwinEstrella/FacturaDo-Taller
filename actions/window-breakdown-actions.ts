@@ -61,6 +61,67 @@ export async function saveWindowBreakdown(data: WindowBreakdownData) {
     }
 }
 
+export async function createInitialBreakdown(windowType: "P65" | "TRADICIONAL", clientName: string, technicianName: string) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const insforge = createServerClient()
+
+    try {
+        const id = crypto.randomUUID()
+        const now = new Date().toISOString()
+
+        const { error } = await insforge.database
+            .from('WindowBreakdown')
+            .insert([{
+                id,
+                windowType,
+                clientName,
+                technicianName,
+                createdById: user.id,
+                createdByName: user.name || user.username,
+                items: JSON.stringify([]),
+                totalWindows: 0,
+                createdAt: now,
+                printedAt: null,
+                printedBy: null
+            }])
+
+        if (error) throw error
+
+        revalidatePath('/desglose')
+        return { success: true, id }
+    } catch (error) {
+        console.error("Error creating initial breakdown:", error)
+        return { success: false, error: "Error al crear desglose inicial" }
+    }
+}
+
+export async function updateBreakdownItems(breakdownId: string, items: WindowBreakdownItem[]) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const insforge = createServerClient()
+
+    try {
+        const { error } = await insforge.database
+            .from('WindowBreakdown')
+            .update({
+                items: JSON.stringify(items),
+                totalWindows: items.length
+            })
+            .eq('id', breakdownId)
+
+        if (error) throw error
+
+        revalidatePath('/desglose')
+        return { success: true }
+    } catch (error) {
+        console.error("Error updating breakdown items:", error)
+        return { success: false, error: "Error al actualizar items del desglose" }
+    }
+}
+
 export async function getWindowBreakdowns(windowType?: "P65" | "TRADICIONAL") {
     const insforge = createServerClient()
 
