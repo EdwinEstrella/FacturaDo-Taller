@@ -3,15 +3,6 @@
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 
-interface InvoiceItem {
-    id: string
-    invoiceId: string
-    productId: string | null
-    productName: string
-    quantity: number
-    price: string | number
-}
-
 export async function createWorkOrder(invoiceId: string, notes: string) {
     const insforge = createServerClient()
 

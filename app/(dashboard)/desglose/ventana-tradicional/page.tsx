@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { saveWindowBreakdown, markAsPrinted, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 
 interface CalculationResults {
     id: number
@@ -87,11 +88,42 @@ export default function VentanaTradicionalPage() {
     const [nombreCliente, setNombreCliente] = useState<string>("")
     const [nombreTecnico, setNombreTecnico] = useState<string>("")
     const [isClient, setIsClient] = useState<boolean>(false)
+    const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
+    const [guardando, setGuardando] = useState<boolean>(false)
 
     // Evitar error de hidratación - inicializar isClient
     useState(() => {
         setIsClient(true)
     })
+
+    const guardarDatosCliente = () => {
+        if (!nombreCliente) {
+            alert("Por favor ingresa el nombre del cliente")
+            setTimeout(() => {
+                const inputCliente = document.getElementById("cliente") as HTMLInputElement
+                inputCliente?.focus()
+            }, 100)
+            return
+        }
+
+        if (!nombreTecnico) {
+            alert("Por favor ingresa el nombre del técnico")
+            setTimeout(() => {
+                const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
+                inputTecnico?.focus()
+            }, 100)
+            return
+        }
+
+        // Guardar los datos y mostrar los campos de medidas
+        setDatosGuardados(true)
+
+        // Enfocar en el campo de ancho
+        setTimeout(() => {
+            const inputAncho = document.getElementById("ancho") as HTMLInputElement
+            inputAncho?.focus()
+        }, 100)
+    }
 
     const parseFraction = (value: string): number => {
         if (!value.trim()) return 0
@@ -159,15 +191,15 @@ export default function VentanaTradicionalPage() {
 
             // Des. Jamba: 1 al alto
             const desJamba = 1
-            const resJamba = altoValue - desJamba
+            const resJambas = altoValue - desJamba
 
             // Cab/alf: 1/2 (0.5) al ancho ORIGINAL, dividido entre 2
             const desCabAlf = 0.5
             const resCabAlf = anchoValue - desCabAlf
             const resCabAlfDiv = resCabAlf / 2
 
-            // Des. V. Ancho: 4 3/8 (4.375) al ancho ORIGINAL, dividido entre 2
-            const desVAncho = 4.375
+            // Des. V. Ancho: 4 al ancho ORIGINAL, dividido entre 2
+            const desVAncho = 4
             const resVAncho = anchoValue - desVAncho
             const resVAnchoDiv = resVAncho / 2
 
@@ -249,30 +281,102 @@ export default function VentanaTradicionalPage() {
 
     const cancelarEdicion = () => {
         setFilaEditando(null)
+        setNombreCliente("")
+        setNombreTecnico("")
         setAlto("")
         setAncho("")
         setNotas("")
     }
 
     const limpiar = () => {
+        setNombreCliente("")
+        setNombreTecnico("")
         setAlto("")
         setAncho("")
         setNotas("")
         setResultados([])
         setContador(0)
+        setDatosGuardados(false)
     }
 
     const handleImprimir = () => {
         setMostrarImpresion(true)
+        // Pequeño delay para asegurar que el contenido se renderice antes de imprimir
+        setTimeout(() => {
+            window.print()
+        }, 100)
+    }
+
+    const handleGuardarEImprimir = async () => {
+        if (!nombreCliente || !nombreTecnico) {
+            alert("Por favor completa todos los campos requeridos")
+            return
+        }
+
+        if (resultados.length === 0) {
+            alert("Por favor agrega al menos una ventana antes de guardar")
+            return
+        }
+
+        setGuardando(true)
+
+        try {
+            // Guardar en base de datos
+            const items: WindowBreakdownItem[] = resultados.map(r => ({
+                id: r.id,
+                ancho: r.ancho,
+                alto: r.alto,
+                resCabRiel: r.resRiel,
+                resLateral: r.resLateral,
+                resJambas: r.resJambas,
+                resCabAlfDiv: r.resCabAlfDiv,
+                resVAnchoDiv: r.resVAnchoDiv,
+                resVAltura: r.resVAlto,
+                notas: r.notas
+            }))
+
+            const result = await saveWindowBreakdown({
+                windowType: "TRADICIONAL",
+                clientName: nombreCliente,
+                technicianName: nombreTecnico,
+                items
+            })
+
+            if (result.success) {
+                // Marcar como impreso
+                await markAsPrinted(result.id!)
+
+                // Mostrar impresión
+                setMostrarImpresion(true)
+
+                // Mostrar mensaje de éxito
+                alert("Desglose guardado exitosamente en el historial")
+            } else {
+                alert("Error al guardar: " + result.error)
+            }
+        } catch (error) {
+            console.error("Error al guardar e imprimir:", error)
+            alert("Error al guardar el desglose")
+        } finally {
+            setGuardando(false)
+        }
     }
 
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Ventana Tradicional</h1>
-                <p className="text-muted-foreground">
-                    Calculadora para ventanas tradicionales
-                </p>
+                {datosGuardados && (
+                    <p className="text-muted-foreground mt-1">
+                        Cliente: <span className="font-semibold text-foreground">{nombreCliente}</span> |
+                        Técnico: <span className="font-semibold text-foreground">{nombreTecnico}</span>
+                    </p>
+                )}
+                {!datosGuardados && (
+                    <p className="text-muted-foreground">
+                        Calculadora para ventanas tradicionales
+                    </p>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -290,6 +394,12 @@ export default function VentanaTradicionalPage() {
                                             <TableHead className="w-16">No.</TableHead>
                                             <TableHead className="bg-blue-200">Ancho</TableHead>
                                             <TableHead className="bg-green-200">Alto</TableHead>
+                                            <TableHead>Des. Riel</TableHead>
+                                            <TableHead>Des. Lat</TableHead>
+                                            <TableHead>Des. Jam</TableHead>
+                                            <TableHead>Cab/Alf</TableHead>
+                                            <TableHead>V. Ancho</TableHead>
+                                            <TableHead>V. Alto</TableHead>
                                             <TableHead>Notas</TableHead>
                                             <TableHead className="w-24">Acciones</TableHead>
                                         </TableRow>
@@ -306,6 +416,12 @@ export default function VentanaTradicionalPage() {
                                                 <TableCell className="font-medium">{resultado.id}</TableCell>
                                                 <TableCell className="font-semibold bg-blue-100">{decimalToFraction(resultado.ancho)}</TableCell>
                                                 <TableCell className="font-semibold bg-green-100">{decimalToFraction(resultado.alto)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resRiel)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resLateral)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resJambas)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resCabAlfDiv)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAnchoDiv)}</TableCell>
+                                                <TableCell className="text-xs">{decimalToFraction(resultado.resVAlto)}</TableCell>
                                                 <TableCell className="text-xs">{resultado.notas}</TableCell>
                                                 <TableCell>
                                                     <Button
@@ -325,8 +441,19 @@ export default function VentanaTradicionalPage() {
                                 </Table>
                             </div>
                             <div className="mt-4 flex gap-2">
-                                <Button onClick={handleImprimir}>
-                                    Imprimir
+                                <Button
+                                    onClick={handleGuardarEImprimir}
+                                    disabled={guardando || !nombreCliente}
+                                    className="flex-1"
+                                >
+                                    {guardando ? "Guardando..." : "Guardar e Imprimir"}
+                                </Button>
+                                <Button
+                                    onClick={handleImprimir}
+                                    variant="outline"
+                                    disabled={!nombreCliente}
+                                >
+                                    Previsualizar
                                 </Button>
                                 <Button variant="outline" onClick={limpiar}>
                                     Limpiar Todo
@@ -345,77 +472,157 @@ export default function VentanaTradicionalPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="ancho">Ancho</Label>
-                                <Input
-                                    id="ancho"
-                                    type="text"
-                                    placeholder="Ej: 14 1/4 o 14.25"
-                                    value={ancho}
-                                    onChange={(e) => setAncho(e.target.value)}
-                                    onKeyPress={(e) => {
-                                        if (e.key === 'Enter') {
-                                            calcular()
-                                        }
-                                    }}
-                                    className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="alto">Alto</Label>
-                                <Input
-                                    id="alto"
-                                    type="text"
-                                    placeholder="Ej: 7 5/8 o 7.625"
-                                    value={alto}
-                                    onChange={(e) => setAlto(e.target.value)}
-                                    onKeyPress={(e) => {
-                                        if (e.key === 'Enter') {
-                                            calcular()
-                                        }
-                                    }}
-                                    className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="notas">Notas (opcional)</Label>
-                                <Input
-                                    id="notas"
-                                    type="text"
-                                    placeholder="Ej: Tipo de vidrio, color, etc."
-                                    value={notas}
-                                    onChange={(e) => setNotas(e.target.value)}
-                                />
-                            </div>
+                            {/* Información del cliente - SIEMPRE visible */}
+                            {!datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente (Presiona Enter para guardar)</p>
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cliente">Nombre del Cliente *</Label>
+                                            <Input
+                                                id="cliente"
+                                                type="text"
+                                                placeholder="Nombre del cliente (requerido) - Presiona Enter"
+                                                value={nombreCliente}
+                                                onChange={(e) => setNombreCliente(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
+                                                        inputTecnico?.focus()
+                                                    }
+                                                }}
+                                                className={!nombreCliente ? "border-red-300" : ""}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="tecnico">Nombre del Técnico *</Label>
+                                            <Input
+                                                id="tecnico"
+                                                type="text"
+                                                placeholder="Nombre del técnico (requerido) - Presiona Enter para guardar"
+                                                value={nombreTecnico}
+                                                onChange={(e) => setNombreTecnico(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        guardarDatosCliente()
+                                                    }
+                                                }}
+                                                className={!nombreTecnico ? "border-red-300" : ""}
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={guardarDatosCliente}
+                                            disabled={!nombreCliente || !nombreTecnico}
+                                            className="w-full"
+                                        >
+                                            Guardar y Comenzar
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mostrar datos guardados con opción de editar */}
+                            {datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente</p>
+                                    <div className="space-y-2 text-sm">
+                                        <p><span className="font-medium">Cliente:</span> {nombreCliente}</p>
+                                        <p><span className="font-medium">Técnico:</span> {nombreTecnico}</p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDatosGuardados(false)}
+                                        >
+                                            Modificar Datos
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Medidas de la ventana */}
+                            {datosGuardados && (
+                                <>
+                                    <div className="border-t border-dashed pt-4">
+                                        <p className="text-sm font-semibold mb-3">Medidas de la Ventana</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="ancho">Ancho</Label>
+                                        <Input
+                                            id="ancho"
+                                            type="text"
+                                            placeholder="Ej: 14 1/4 o 14.25"
+                                            value={ancho}
+                                            onChange={(e) => setAncho(e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    calcular()
+                                                }
+                                            }}
+                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="alto">Alto</Label>
+                                        <Input
+                                            id="alto"
+                                            type="text"
+                                            placeholder="Ej: 7 5/8 o 7.625"
+                                            value={alto}
+                                            onChange={(e) => setAlto(e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    calcular()
+                                                }
+                                            }}
+                                            className={filaEditando !== null ? "border-yellow-500 bg-yellow-50" : ""}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="notas">Notas (opcional)</Label>
+                                        <Input
+                                            id="notas"
+                                            type="text"
+                                            placeholder="Ej: Tipo de vidrio, color, etc."
+                                            value={notas}
+                                            onChange={(e) => setNotas(e.target.value)}
+                                        />
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex gap-2">
-                            <Button
-                                onClick={calcular}
-                                disabled={!alto || !ancho}
-                                className="flex-1"
-                                variant={filaEditando !== null ? "default" : "default"}
-                            >
-                                {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
-                            </Button>
+                            {datosGuardados && (
+                                <Button
+                                    onClick={calcular}
+                                    disabled={!alto || !ancho}
+                                    className="flex-1"
+                                    variant={filaEditando !== null ? "default" : "default"}
+                                >
+                                    {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
+                                </Button>
+                            )}
                             {filaEditando !== null ? (
                                 <Button variant="outline" onClick={cancelarEdicion}>
                                     Cancelar
                                 </Button>
-                            ) : (
+                            ) : resultados.length > 0 ? (
                                 <Button variant="outline" onClick={limpiar}>
                                     Reiniciar
                                 </Button>
-                            )}
+                            ) : null}
                         </div>
 
                         <div className="text-sm text-muted-foreground">
                             <p className="font-medium mb-2">Instrucciones:</p>
                             <ul className="list-disc list-inside space-y-1">
-                                <li>Ingresa medidas en fracciones (ej: 14 1/4) o decimales (ej: 14.25)</li>
-                                <li>Presiona Enter o click en Calcular</li>
-                                <li>Haz click en cualquier fila para editarla</li>
-                                <li>Los cálculos específicos se agregarán cuando los proporciones</li>
+                                <li>1. Ingresa el nombre del cliente y presiona Enter</li>
+                                <li>2. Ingresa el nombre del técnico y presiona Enter (o clic en Guardar)</li>
+                                <li>3. Ingresa medidas en fracciones (ej: 14 1/4) o decimales (ej: 14.25)</li>
+                                <li>4. Presiona Enter o click en Calcular para agregar ventana</li>
+                                <li>5. Haz click en cualquier fila para editarla</li>
                             </ul>
                         </div>
                     </CardContent>
@@ -476,9 +683,15 @@ export default function VentanaTradicionalPage() {
                             <thead>
                                 <tr className="border-b border-black">
                                     <th className="text-left py-1 w-6">Fab</th>
-                                    <th className="text-center py-1 w-8">No</th>
-                                    <th className="text-center py-1">Ancho</th>
-                                    <th className="text-center py-1">Alto</th>
+                                    <th className="text-center py-1 w-6">No</th>
+                                    <th className="text-center py-1 w-10">Ancho</th>
+                                    <th className="text-center py-1 w-10">Alto</th>
+                                    <th className="text-center py-1 w-10">Riel</th>
+                                    <th className="text-center py-1 w-10">Lat</th>
+                                    <th className="text-center py-1 w-10">Jam</th>
+                                    <th className="text-center py-1 w-10">C/A</th>
+                                    <th className="text-center py-1 w-10">V.A</th>
+                                    <th className="text-center py-1 w-10">V.Al</th>
                                     <th className="text-left py-1">Notas</th>
                                 </tr>
                             </thead>
@@ -491,6 +704,12 @@ export default function VentanaTradicionalPage() {
                                         <td className="py-1 text-center">{resultado.id}</td>
                                         <td className="py-1 text-center bg-blue-50">{decimalToFraction(resultado.ancho)}</td>
                                         <td className="py-1 text-center bg-green-50">{decimalToFraction(resultado.alto)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resRiel)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resLateral)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resJambas)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resCabAlfDiv)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resVAnchoDiv)}</td>
+                                        <td className="py-1 text-center">{decimalToFraction(resultado.resVAlto)}</td>
                                         <td className="py-1 text-left text-[10px]">{resultado.notas}</td>
                                     </tr>
                                 ))}

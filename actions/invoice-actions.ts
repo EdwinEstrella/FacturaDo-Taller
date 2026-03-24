@@ -1,7 +1,7 @@
 "use server"
 
 import { createServerClient } from "@/lib/insforge/client"
-import type { InvoiceItem, InvoiceUpdate } from "@/types"
+import type { InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"

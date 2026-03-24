@@ -104,7 +104,7 @@ export async function getClientStats(clientId: string) {
         const totalSpent = (invoices || []).reduce((sum, inv) => sum + Number(inv.total), 0)
 
         // Get last activity
-        const { data: lastActivity, error: historyError } = await insforge.database
+        const { data: lastActivity } = await insforge.database
             .from('ClientHistory')
             .select('createdAt')
             .eq('clientId', clientId)

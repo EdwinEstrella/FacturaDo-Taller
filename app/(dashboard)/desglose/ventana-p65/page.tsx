@@ -107,6 +107,7 @@ export default function VentanaP65Page() {
     const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
     const [guardando, setGuardando] = useState<boolean>(false)
     const [isClient, setIsClient] = useState<boolean>(false)
+    const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
 
     // Evitar error de hidratación
     useEffect(() => {
@@ -148,6 +149,35 @@ export default function VentanaP65Page() {
     const cargarHistorial = async () => {
         const breakdowns = await getWindowBreakdowns("P65")
         setHistorial(breakdowns as WindowBreakdown[])
+    }
+
+    const guardarDatosCliente = () => {
+        if (!nombreCliente) {
+            alert("Por favor ingresa el nombre del cliente")
+            setTimeout(() => {
+                const inputCliente = document.getElementById("cliente") as HTMLInputElement
+                inputCliente?.focus()
+            }, 100)
+            return
+        }
+
+        if (!nombreTecnico) {
+            alert("Por favor ingresa el nombre del técnico")
+            setTimeout(() => {
+                const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
+                inputTecnico?.focus()
+            }, 100)
+            return
+        }
+
+        // Guardar los datos y mostrar los campos de medidas
+        setDatosGuardados(true)
+
+        // Enfocar en el campo de ancho
+        setTimeout(() => {
+            const inputAncho = document.getElementById("ancho") as HTMLInputElement
+            inputAncho?.focus()
+        }, 100)
     }
 
     const parseFraction = (value: string): number => {
@@ -306,14 +336,21 @@ export default function VentanaP65Page() {
     }
 
     const limpiar = () => {
+        setNombreCliente("")
+        setNombreTecnico("")
         setAlto("")
         setAncho("")
         setResultados([])
         setContador(0)
+        setDatosGuardados(false)
     }
 
     const handleImprimir = () => {
         setMostrarImpresion(true)
+        // Pequeño delay para asegurar que el contenido se renderice antes de imprimir
+        setTimeout(() => {
+            window.print()
+        }, 100)
     }
 
     const handleGuardarEImprimir = async () => {
@@ -372,9 +409,17 @@ export default function VentanaP65Page() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Ventana P65</h1>
-                <p className="text-muted-foreground">
-                    Calculadora para ventanas tipo P65 con todos los descuentos
-                </p>
+                {datosGuardados && (
+                    <p className="text-muted-foreground mt-1">
+                        Cliente: <span className="font-semibold text-foreground">{nombreCliente}</span> |
+                        Técnico: <span className="font-semibold text-foreground">{nombreTecnico}</span>
+                    </p>
+                )}
+                {!datosGuardados && (
+                    <p className="text-muted-foreground">
+                        Calculadora para ventanas tipo P65 con todos los descuentos
+                    </p>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -481,42 +526,74 @@ export default function VentanaP65Page() {
                     <CardContent className="space-y-4">
                         <div className="space-y-4">
                             {/* Información del cliente - SIEMPRE visible */}
-                            <div className="border-b border-dashed pb-4">
-                                <p className="text-sm font-semibold mb-3">Información del Cliente</p>
-                                <div className="space-y-3">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="cliente">Nombre del Cliente *</Label>
-                                        <Input
-                                            id="cliente"
-                                            type="text"
-                                            placeholder="Nombre del cliente (requerido)"
-                                            value={nombreCliente}
-                                            onChange={(e) => setNombreCliente(e.target.value)}
-                                            className={!nombreCliente ? "border-red-300" : ""}
-                                        />
-                                        {!nombreCliente && (
-                                            <p className="text-xs text-red-500">Debe ingresar el cliente antes de agregar ventanas</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="tecnico">Nombre del Técnico *</Label>
-                                        <Input
-                                            id="tecnico"
-                                            type="text"
-                                            placeholder="Nombre del técnico que solicitó (requerido)"
-                                            value={nombreTecnico}
-                                            onChange={(e) => setNombreTecnico(e.target.value)}
-                                            className={!nombreTecnico ? "border-red-300" : ""}
-                                        />
-                                        {!nombreTecnico && (
-                                            <p className="text-xs text-red-500">Debe ingresar el técnico antes de agregar ventanas</p>
-                                        )}
+                            {!datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente (Presiona Enter para guardar)</p>
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cliente">Nombre del Cliente *</Label>
+                                            <Input
+                                                id="cliente"
+                                                type="text"
+                                                placeholder="Nombre del cliente (requerido) - Presiona Enter"
+                                                value={nombreCliente}
+                                                onChange={(e) => setNombreCliente(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        const inputTecnico = document.getElementById("tecnico") as HTMLInputElement
+                                                        inputTecnico?.focus()
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="tecnico">Nombre del Técnico *</Label>
+                                            <Input
+                                                id="tecnico"
+                                                type="text"
+                                                placeholder="Nombre del técnico (requerido) - Presiona Enter para guardar"
+                                                value={nombreTecnico}
+                                                onChange={(e) => setNombreTecnico(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        guardarDatosCliente()
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={guardarDatosCliente}
+                                            disabled={!nombreCliente || !nombreTecnico}
+                                            className="w-full"
+                                        >
+                                            Guardar y Comenzar
+                                        </Button>
                                     </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Mostrar datos guardados con opción de editar */}
+                            {datosGuardados && (
+                                <div className="border-b border-dashed pb-4">
+                                    <p className="text-sm font-semibold mb-3">Información del Cliente</p>
+                                    <div className="space-y-2 text-sm">
+                                        <p><span className="font-medium">Cliente:</span> {nombreCliente}</p>
+                                        <p><span className="font-medium">Técnico:</span> {nombreTecnico}</p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDatosGuardados(false)}
+                                        >
+                                            Modificar Datos
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Medidas de la ventana */}
-                            {nombreCliente && nombreTecnico && (
+                            {datosGuardados && (
                                 <>
                                     <div className="border-t border-dashed pt-4">
                                         <p className="text-sm font-semibold mb-3">Medidas de la Ventana</p>
@@ -555,41 +632,37 @@ export default function VentanaP65Page() {
                                     </div>
                                 </>
                             )}
-
-                            {(!nombreCliente || !nombreTecnico) && (
-                                <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                    <p className="text-sm text-yellow-800">⚠️ Ingrese el nombre del cliente y técnico para comenzar</p>
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex gap-2">
-                            <Button
-                                onClick={calcular}
-                                disabled={!nombreCliente || !nombreTecnico || !alto || !ancho}
-                                className="flex-1"
-                                variant={filaEditando !== null ? "default" : "default"}
-                            >
-                                {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
-                            </Button>
+                            {datosGuardados && (
+                                <Button
+                                    onClick={calcular}
+                                    disabled={!alto || !ancho}
+                                    className="flex-1"
+                                    variant={filaEditando !== null ? "default" : "default"}
+                                >
+                                    {filaEditando !== null ? "Actualizar (Enter)" : "Calcular (Enter)"}
+                                </Button>
+                            )}
                             {filaEditando !== null ? (
                                 <Button variant="outline" onClick={cancelarEdicion}>
                                     Cancelar
                                 </Button>
-                            ) : (
-                                <Button variant="outline" onClick={limpiar} disabled={!nombreCliente && !nombreTecnico}>
+                            ) : resultados.length > 0 ? (
+                                <Button variant="outline" onClick={limpiar}>
                                     Reiniciar
                                 </Button>
-                            )}
+                            ) : null}
                         </div>
 
                         <div className="text-sm text-muted-foreground">
                             <p className="font-medium mb-2">Instrucciones:</p>
                             <ul className="list-disc list-inside space-y-1">
-                                <li>1. Ingresa el nombre del cliente (requerido)</li>
-                                <li>2. Ingresa el nombre del técnico (requerido)</li>
+                                <li>1. Ingresa el nombre del cliente y presiona Enter</li>
+                                <li>2. Ingresa el nombre del técnico y presiona Enter (o clic en Guardar)</li>
                                 <li>3. Ingresa medidas en fracciones (ej: 14 1/4) o decimales (ej: 14.25)</li>
-                                <li>4. Presiona Enter o click en Calcular</li>
+                                <li>4. Presiona Enter o click en Calcular para agregar ventana</li>
                                 <li>5. Haz click en cualquier fila para editarla</li>
                                 <li>6. Guarda e imprime cuando termines</li>
                             </ul>

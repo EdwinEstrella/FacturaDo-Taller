@@ -27,7 +27,7 @@ import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
-import type { Client, Product } from "@/types"
+import type { Client, Product, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -328,7 +328,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                             if (product.hasVariants && product.variants && product.variants.length > 0) {
                                                 return (
                                                     <div key={product.id}>
-                                                        {product.variants.map((variant: any) => (
+                                                        {product.variants.map((variant: ProductVariant) => (
                                                             <CommandItem
                                                                 key={variant.id}
                                                                 value={`${product.name} ${variant.name} ${variant.sku || ""}`}
@@ -338,7 +338,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                                                 <div className="flex flex-col">
                                                                     <span>{product.name} - {variant.name}</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        SKU: {variant.sku || product.sku} | Stock: {variant.stock} | Precio: RD${Number(variant.price)}
+                                                                        SKU: {variant.sku || product.sku} | Precio: RD${Number(variant.price)}
                                                                     </span>
                                                                 </div>
                                                             </CommandItem>
