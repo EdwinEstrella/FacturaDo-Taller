@@ -21,9 +21,7 @@ import {
 } from "@/components/ui/table"
 import { getClientHistory } from "@/actions/client-history-actions"
 import { getClientStats } from "@/actions/client-history-actions"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Client = Database['public']['Tables']['Client']['Row']
+import type { Client } from "@/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Link from "next/link"

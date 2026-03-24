@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
@@ -24,11 +24,11 @@ export async function registerPayment(data: PaymentFormData) {
     if (!validated.success) return { success: false, error: validated.error.message }
 
     const { invoiceId, amount, method, reference, notes, date } = validated.data
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Get invoice
-        const { data: invoice } = await supabase
+        const { data: invoice } = await insforge.database
             .from('Invoice')
             .select('*')
             .eq('id', invoiceId)
@@ -46,19 +46,19 @@ export async function registerPayment(data: PaymentFormData) {
         }
 
         // Create Payment
-        await supabase
+        await insforge.database
             .from('Payment')
-            .insert({
+            .insert([{
                 invoiceId,
                 amount,
                 method,
                 reference,
                 notes,
                 date: (date || new Date()).toISOString(),
-            })
+            }])
 
         // Update Invoice
-        const { data: updatedInvoice } = await supabase
+        const { data: updatedInvoice } = await insforge.database
             .from('Invoice')
             .update({
                 balance: newBalance,

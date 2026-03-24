@@ -1,24 +1,20 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
+import type { InvoiceItem, InvoiceUpdate } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 import { addClientHistoryEntry } from "./client-history-actions"
-import { Database } from "@/lib/supabase/database.types"
 
-type Invoice = Database['public']['Tables']['Invoice']['Row']
-type InvoiceInsert = Database['public']['Tables']['Invoice']['Insert']
-type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
-type InvoiceItemInsert = Database['public']['Tables']['InvoiceItem']['Insert']
-type Product = Database['public']['Tables']['Product']['Row']
-type PaymentInsert = Database['public']['Tables']['Payment']['Insert']
+
 
 const InvoiceItemSchema = z.object({
     productId: z.string(),
     productName: z.string(),
     quantity: z.number().min(1),
     price: z.number().min(0),
+    variantId: z.string().optional(),
 })
 
 const InvoiceSchema = z.object({
@@ -48,21 +44,45 @@ export async function createInvoice(data: InvoiceFormData) {
         return { success: false, error: validated.error.message }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Validate stock
     for (const item of data.items) {
-        const { data: product } = await supabase
-            .from('Product')
-            .select('*')
-            .eq('id', item.productId)
-            .single()
+        // Si tiene variantId, validar stock de la variante
+        if (item.variantId) {
+            const { data: variant } = await insforge.database
+                .from('ProductVariant')
+                .select('*')
+                .eq('id', item.variantId)
+                .single()
 
-        if (!product) {
-            return { success: false, error: `Product with ID ${item.productId} not found.` }
-        }
-        if (!product.isService && product.stock < item.quantity) {
-            return { success: false, error: `Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}` }
+            if (!variant) {
+                return { success: false, error: `Variant with ID ${item.variantId} not found.` }
+            }
+
+            const { data: product } = await insforge.database
+                .from('Product')
+                .select('isService')
+                .eq('id', item.productId)
+                .single()
+
+            if (product && !product.isService && Number(variant.stock) < item.quantity) {
+                return { success: false, error: `Insufficient stock for variant ${item.productName}. Available: ${variant.stock}, Requested: ${item.quantity}` }
+            }
+        } else {
+            // Validar stock del producto principal
+            const { data: product } = await insforge.database
+                .from('Product')
+                .select('*')
+                .eq('id', item.productId)
+                .single()
+
+            if (!product) {
+                return { success: false, error: `Product with ID ${item.productId} not found.` }
+            }
+            if (!product.isService && product.stock < item.quantity) {
+                return { success: false, error: `Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}` }
+            }
         }
     }
 
@@ -83,9 +103,9 @@ export async function createInvoice(data: InvoiceFormData) {
 
     try {
         // Create Invoice
-        const { data: invoice, error: invoiceError } = await supabase
+        const { data: invoice, error: invoiceError } = await insforge.database
             .from('Invoice')
-            .insert({
+            .insert([{
                 clientId: clientId,
                 clientName: clientName,
                 total: total,
@@ -98,7 +118,7 @@ export async function createInvoice(data: InvoiceFormData) {
                 tax: validated.data.tax || 0,
                 hasNcf: validated.data.hasNcf || false,
                 createdById: user.id,
-            })
+            }])
             .select()
             .single()
 
@@ -112,10 +132,11 @@ export async function createInvoice(data: InvoiceFormData) {
             productId: item.productId,
             productName: item.productName,
             quantity: item.quantity,
-            price: item.price
+            price: item.price,
+            variantId: item.variantId || null
         }))
 
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await insforge.database
             .from('InvoiceItem')
             .insert(invoiceItems)
 
@@ -132,22 +153,39 @@ export async function createInvoice(data: InvoiceFormData) {
                 date: new Date().toISOString(),
                 notes: "Pago Inicial / Abono"
             }
-            await supabase.from('Payment').insert(paymentData)
+            await insforge.database.from('Payment').insert(paymentData)
         }
 
         // Update Stock
         for (const item of items) {
-            const { data: product } = await supabase
-                .from('Product')
-                .select('*')
-                .eq('id', item.productId)
-                .single()
+            // Si es variante, actualizar stock de la variante
+            if (item.variantId) {
+                const { data: variant } = await insforge.database
+                    .from('ProductVariant')
+                    .select('*')
+                    .eq('id', item.variantId)
+                    .single()
 
-            if (product && !product.isService) {
-                await supabase
+                if (variant) {
+                    await insforge.database
+                        .from('ProductVariant')
+                        .update({ stock: Number(variant.stock) - item.quantity })
+                        .eq('id', item.variantId)
+                }
+            } else {
+                // Actualizar stock del producto principal
+                const { data: product } = await insforge.database
                     .from('Product')
-                    .update({ stock: product.stock - item.quantity })
+                    .select('*')
                     .eq('id', item.productId)
+                    .single()
+
+                if (product && !product.isService) {
+                    await insforge.database
+                        .from('Product')
+                        .update({ stock: product.stock - item.quantity })
+                        .eq('id', item.productId)
+                }
             }
         }
 
@@ -170,9 +208,9 @@ export async function createInvoice(data: InvoiceFormData) {
 }
 
 export async function getInvoices() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: invoices, error } = await supabase
+    const { data: invoices, error } = await insforge.database
         .from('Invoice')
         .select(`
             *,
@@ -202,9 +240,9 @@ export async function getInvoices() {
 }
 
 export async function getInvoiceById(id: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: invoice, error } = await supabase
+    const { data: invoice, error } = await insforge.database
         .from('Invoice')
         .select(`
             *,
@@ -238,30 +276,30 @@ export async function getInvoiceById(id: string) {
 }
 
 export async function markAsDispatched(invoiceId: string, driverName?: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Update invoice
-    await supabase
+    await insforge.database
         .from('Invoice')
         .update({ dispatched: true })
         .eq('id', invoiceId)
 
     // Create dispatch
-    await supabase
+    await insforge.database
         .from('Dispatch')
-        .insert({
+        .insert([{
             invoiceId: invoiceId,
             status: 'DELIVERED',
             driverName: driverName || 'Default Driver'
-        })
+        }])
 
     revalidatePath("/dispatch")
 }
 
 export async function markAsPaid(invoiceId: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    await supabase
+    await insforge.database
         .from('Invoice')
         .update({ status: 'PAID' })
         .eq('id', invoiceId)
@@ -273,10 +311,10 @@ export async function deleteInvoice(id: string, password?: string) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Get invoice with related data
-    const { data: invoice } = await supabase
+    const { data: invoice } = await insforge.database
         .from('Invoice')
         .select(`
             *,
@@ -298,7 +336,7 @@ export async function deleteInvoice(id: string, password?: string) {
         return { success: false, error: "Contraseña requerida" }
     }
 
-    const { data: dbUser } = await supabase
+    const { data: dbUser } = await insforge.database
         .from('User')
         .select('*')
         .eq('id', user.id)
@@ -310,7 +348,7 @@ export async function deleteInvoice(id: string, password?: string) {
 
     try {
         // Get items to revert stock
-        const { data: items } = await supabase
+        const { data: items } = await insforge.database
             .from('InvoiceItem')
             .select('*, product:Product(*)')
             .eq('invoiceId', id)
@@ -318,7 +356,7 @@ export async function deleteInvoice(id: string, password?: string) {
         if (items) {
             for (const item of items) {
                 if (item.productId && item.product && !item.product.isService) {
-                    await supabase
+                    await insforge.database
                         .from('Product')
                         .update({ stock: item.product.stock + item.quantity })
                         .eq('id', item.productId)
@@ -328,7 +366,7 @@ export async function deleteInvoice(id: string, password?: string) {
 
         // Delete WorkOrder if exists
         if (invoice.workOrder) {
-            await supabase
+            await insforge.database
                 .from('WorkOrder')
                 .delete()
                 .eq('invoiceId', id)
@@ -336,14 +374,14 @@ export async function deleteInvoice(id: string, password?: string) {
 
         // Delete Dispatch if exists
         if (invoice.dispatchInfo) {
-            await supabase
+            await insforge.database
                 .from('Dispatch')
                 .delete()
                 .eq('invoiceId', id)
         }
 
         // Delete Invoice (Items will be deleted via Cascade)
-        await supabase
+        await insforge.database
             .from('Invoice')
             .delete()
             .eq('id', id)
@@ -368,11 +406,11 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
     }
 
     const { clientId, clientName, items, total, shippingCost, deliveryDate, notes } = validated.data
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Get old items
-        const { data: oldItems } = await supabase
+        const { data: oldItems } = await insforge.database
             .from('InvoiceItem')
             .select('*, product:Product(*)')
             .eq('invoiceId', id)
@@ -381,7 +419,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
         if (oldItems) {
             for (const item of oldItems) {
                 if (item.productId && item.product && !item.product.isService) {
-                    await supabase
+                    await insforge.database
                         .from('Product')
                         .update({ stock: item.product.stock + item.quantity })
                         .eq('id', item.productId)
@@ -390,13 +428,13 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
         }
 
         // Delete old items
-        await supabase
+        await insforge.database
             .from('InvoiceItem')
             .delete()
             .eq('invoiceId', id)
 
         // Update invoice
-        await supabase
+        await insforge.database
             .from('Invoice')
             .update({
                 clientId,
@@ -413,7 +451,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
         // Create new items and deduct stock
         for (const item of items) {
             // Check product
-            const { data: product } = await supabase
+            const { data: product } = await insforge.database
                 .from('Product')
                 .select('*')
                 .eq('id', item.productId)
@@ -427,22 +465,22 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                 if (product.stock < item.quantity) {
                     throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`)
                 }
-                await supabase
+                await insforge.database
                     .from('Product')
                     .update({ stock: product.stock - item.quantity })
                     .eq('id', item.productId)
             }
 
             // Create item
-            await supabase
+            await insforge.database
                 .from('InvoiceItem')
-                .insert({
+                .insert([{
                     invoiceId: id,
                     productId: item.productId,
                     productName: item.productName,
                     quantity: item.quantity,
                     price: item.price
-                })
+                }])
         }
 
         revalidatePath("/invoices")

@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 
@@ -14,10 +14,10 @@ export type CompanySettings = {
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: allSettings, error } = await supabase
+        const { data: allSettings, error } = await insforge.database
             .from('Setting')
             .select('*')
             .in('key', [
@@ -77,7 +77,7 @@ export async function updateCompanySettings(data: CompanySettings) {
         return { success: false, error: "No tienes permisos para modificar la configuración." }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const invoiceTemplate = data.invoiceTemplate === "a4" ? "a4" : "ticket"
@@ -86,21 +86,21 @@ export async function updateCompanySettings(data: CompanySettings) {
         // Helper function to upsert a setting
         const upsertSetting = async (key: string, value: string) => {
             // Check if setting exists
-            const { data: existing } = await supabase
+            const { data: existing } = await insforge.database
                 .from('Setting')
                 .select('key')
                 .eq('key', key)
                 .single()
 
             if (existing) {
-                await supabase
+                await insforge.database
                     .from('Setting')
                     .update({ value })
                     .eq('key', key)
             } else {
-                await supabase
+                await insforge.database
                     .from('Setting')
-                    .insert({ key, value })
+                    .insert([{ key, value }])
             }
         }
 

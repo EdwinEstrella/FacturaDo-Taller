@@ -1,9 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Client = Database['public']['Tables']['Client']['Row']
+import type { Client } from "@/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 

@@ -1,14 +1,11 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { addClientHistoryEntry } from "./client-history-actions"
-import { Database } from "@/lib/supabase/database.types"
 
-type Client = Database['public']['Tables']['Client']['Row']
-type ClientInsert = Database['public']['Tables']['Client']['Insert']
-type ClientUpdate = Database['public']['Tables']['Client']['Update']
+
 
 const ClientSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -19,7 +16,7 @@ const ClientSchema = z.object({
     email: z.string().email().optional().or(z.literal("")),
 })
 
-export async function createClientAction(prevState: any, formData: FormData) {
+export async function createClientAction(prevState: unknown, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
@@ -35,12 +32,12 @@ export async function createClientAction(prevState: any, formData: FormData) {
         }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: client, error } = await supabase
+        const { data: client, error } = await insforge.database
             .from('Client')
-            .insert(validatedFields.data)
+            .insert([validatedFields.data])
             .select()
             .single()
 
@@ -64,7 +61,7 @@ export async function createClientAction(prevState: any, formData: FormData) {
     }
 }
 
-export async function updateClient(id: string, prevState: any, formData: FormData) {
+export async function updateClient(id: string, prevState: unknown, formData: FormData) {
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
@@ -80,10 +77,10 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
         }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: client, error } = await supabase
+        const { data: client, error } = await insforge.database
             .from('Client')
             .update(validatedFields.data)
             .eq('id', id)
@@ -111,10 +108,10 @@ export async function updateClient(id: string, prevState: any, formData: FormDat
 }
 
 export async function deleteClient(id: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: client } = await supabase
+        const { data: client } = await insforge.database
             .from('Client')
             .select('*')
             .eq('id', id)
@@ -125,12 +122,12 @@ export async function deleteClient(id: string) {
         }
 
         // Check for related invoices
-        const { count: invoiceCount } = await supabase
+        const { count: invoiceCount } = await insforge.database
             .from('Invoice')
             .select('*', { count: 'exact', head: true })
             .eq('clientId', id)
 
-        const { count: quoteCount } = await supabase
+        const { count: quoteCount } = await insforge.database
             .from('Quote')
             .select('*', { count: 'exact', head: true })
             .eq('clientId', id)
@@ -142,7 +139,7 @@ export async function deleteClient(id: string) {
             }
         }
 
-        const { error } = await supabase
+        const { error } = await insforge.database
             .from('Client')
             .delete()
             .eq('id', id)
@@ -160,9 +157,9 @@ export async function deleteClient(id: string) {
 }
 
 export async function getClients() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
         .from('Client')
         .select('*')
         .order('createdAt', { ascending: false })

@@ -23,9 +23,7 @@ import {
 import { createProduct, updateProduct } from "@/actions/product-actions"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Product = Database['public']['Tables']['Product']['Row']
+import type { Product } from "@/types"
 import { Edit, X } from "lucide-react"
 
 function SubmitButton({ isEdit }: { isEdit: boolean }) {
@@ -153,7 +151,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="category" className="text-right">Categoría</Label>
                             <div className="col-span-3">
-                                <Select name="category" defaultValue={category} onValueChange={setCategory}>
+                                <Select name="category" defaultValue={category} onValueChange={(value) => setCategory(value as "MATERIAL" | "ARTICULO" | "SERVICIO")}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>

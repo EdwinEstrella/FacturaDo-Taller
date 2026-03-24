@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import {
     Table,
     TableBody,
@@ -14,9 +14,9 @@ import { formatDateTimeDO } from "@/lib/date-utils"
 import { Printer } from "lucide-react"
 
 export default async function CreditNotesPage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: creditNotes } = await supabase
+    const { data: creditNotes } = await insforge.database
         .from('CreditNote')
         .select(`
             *,

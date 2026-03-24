@@ -1,5 +1,5 @@
 import Image from "next/image"
-import type { Invoice, InvoiceItem } from "@/types"
+import type { Invoice, InvoiceItem, Client } from "@/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -11,8 +11,10 @@ interface WorkOrder {
     updatedAt: Date
 }
 
-interface InvoiceWithWorkOrder extends Invoice {
+interface InvoiceWithWorkOrder extends Omit<Invoice, 'clientName' | 'sequenceNumber'> {
     workOrder: WorkOrder
+    client?: Client
+    items: InvoiceItem[]
     clientName?: string | null
     sequenceNumber?: string | null
 }

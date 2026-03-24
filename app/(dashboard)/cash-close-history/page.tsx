@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -22,7 +22,7 @@ interface Props {
 }
 
 export default async function CashCloseHistoryPage({ searchParams }: Props) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // 0. Parse Params - Next.js 15: searchParams is a Promise
     const { date: dateParam, userId: userIdParam } = await searchParams
@@ -35,12 +35,12 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     end.setDate(end.getDate() + 1)
 
     // 1. Fetch Users for Filter
-    const { data: users } = await supabase
+    const { data: users } = await insforge.database
         .from('User')
         .select('id, name')
 
     // 2. Build Query Filters
-    let invoicesQuery = supabase
+    let invoicesQuery = insforge.database
         .from('Invoice')
         .select('*, createdBy:User(id, name)')
         .gte('createdAt', start.toISOString())
@@ -53,7 +53,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     const { data: invoices } = await invoicesQuery.order('createdAt', { ascending: false })
 
     // B. Payments (Received in period)
-    let paymentsQuery = supabase
+    let paymentsQuery = insforge.database
         .from('Payment')
         .select('*, invoice:Invoice(sequenceNumber)')
         .gte('date', start.toISOString())
@@ -67,7 +67,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     const { data: payments } = await paymentsQuery.order('date', { ascending: false })
 
     // C. Expenses
-    const { data: transactions } = await supabase
+    const { data: transactions } = await insforge.database
         .from('Transaction')
         .select('*')
         .gte('date', start.toISOString())

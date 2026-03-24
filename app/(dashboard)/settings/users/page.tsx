@@ -10,11 +10,13 @@ export default async function UsersPage() {
     // Safety check if error or no users
     const safeUsers = success && users ? users : []
 
-    // Convert Prisma Role to UserRole
-    const convertedUsers: User[] = safeUsers.map((user) => ({
+    // Convert to match component User interface
+    const convertedUsers = safeUsers.map((user) => ({
         ...user,
         role: user.role as User["role"],
-        customPermissions: user.customPermissions as Record<string, unknown> | null
+        customPermissions: user.customPermissions as Record<string, unknown> | null,
+        createdAt: user.createdAt instanceof Date ? user.createdAt : new Date(user.createdAt),
+        updatedAt: user.updatedAt instanceof Date ? user.updatedAt : new Date(user.updatedAt)
     }))
 
     return (

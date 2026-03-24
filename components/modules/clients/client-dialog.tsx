@@ -17,9 +17,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 // import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
 import { Pencil, Plus } from "lucide-react"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Client = Database['public']['Tables']['Client']['Row']
+import type { Client } from "@/types"
 
 export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)

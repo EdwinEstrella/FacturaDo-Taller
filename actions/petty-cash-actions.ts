@@ -1,15 +1,15 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
 
 export async function getPettyCashSummary() {
     const user = await getCurrentUser()
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Get last closing
-    const { data: lastClosing } = await supabase
+    const { data: lastClosing } = await insforge.database
         .from('PettyCashClosing')
         .select('*')
         .order('closedAt', { ascending: false })
@@ -19,7 +19,7 @@ export async function getPettyCashSummary() {
     const openingBalance = lastClosing?.closingBalance ?? 0
 
     // Get pending transactions
-    const { data: pendingTransactions } = await supabase
+    const { data: pendingTransactions } = await insforge.database
         .from('Transaction')
         .select('*')
         .eq('category', 'PETTY_CASH')
@@ -41,7 +41,7 @@ export async function getPettyCashSummary() {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    const { data: cashInvoicesToday } = await supabase
+    const { data: cashInvoicesToday } = await insforge.database
         .from('Invoice')
         .select('id, total, createdAt, sequenceNumber')
         .gte('createdAt', today.toISOString())
@@ -56,7 +56,7 @@ export async function getPettyCashSummary() {
     const discrepancy = currentBalance - expectedBalance
 
     // Get closing history
-    const { data: closings } = await supabase
+    const { data: closings } = await insforge.database
         .from('PettyCashClosing')
         .select('*')
         .order('closedAt', { ascending: false })
@@ -87,11 +87,11 @@ export async function closePettyCash(formData: FormData) {
         throw new Error("Solo los administradores pueden cerrar caja chica")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
     const notes = formData.get("notes") as string | null
 
     // Get last closing
-    const { data: lastClosing } = await supabase
+    const { data: lastClosing } = await insforge.database
         .from('PettyCashClosing')
         .select('*')
         .order('closedAt', { ascending: false })
@@ -101,7 +101,7 @@ export async function closePettyCash(formData: FormData) {
     const openingBalance = lastClosing?.closingBalance ?? 0
 
     // Get pending transactions
-    const { data: pendingTransactions } = await supabase
+    const { data: pendingTransactions } = await insforge.database
         .from('Transaction')
         .select('*')
         .eq('category', 'PETTY_CASH')
@@ -119,9 +119,9 @@ export async function closePettyCash(formData: FormData) {
     const closingBalance = Number(openingBalance) + totalIncome - totalExpense
 
     // Create closing
-    const { data: closing, error: closingError } = await supabase
+    const { data: closing, error: closingError } = await insforge.database
         .from('PettyCashClosing')
-        .insert({
+        .insert([{
             openingBalance,
             totalIncome,
             totalExpense,
@@ -129,7 +129,7 @@ export async function closePettyCash(formData: FormData) {
             notes,
             closedBy: user.id,
             closedByName: user.name
-        })
+        }])
         .select()
         .single()
 
@@ -138,7 +138,7 @@ export async function closePettyCash(formData: FormData) {
     }
 
     // Associate transactions with closing
-    await supabase
+    await insforge.database
         .from('Transaction')
         .update({ closingId: closing.id })
         .eq('category', 'PETTY_CASH')
@@ -155,17 +155,17 @@ export async function addPettyCashIncome(formData: FormData) {
         throw new Error("Monto inválido")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    await supabase
+    await insforge.database
         .from('Transaction')
-        .insert({
+        .insert([{
             type: "INCOME",
             category: "PETTY_CASH",
             amount,
             description,
             date: new Date().toISOString()
-        })
+        }])
 
     revalidatePath("/petty-cash")
 }
@@ -178,17 +178,17 @@ export async function addPettyCashExpense(formData: FormData) {
         throw new Error("Monto inválido")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    await supabase
+    await insforge.database
         .from('Transaction')
-        .insert({
+        .insert([{
             type: "EXPENSE",
             category: "PETTY_CASH",
             amount,
             description,
             date: new Date().toISOString()
-        })
+        }])
 
     revalidatePath("/petty-cash")
 }

@@ -1,10 +1,8 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import { Database } from "@/lib/supabase/database.types"
+import { createServerClient } from "@/lib/insforge/client"
 
-type ClientHistory = Database['public']['Tables']['ClientHistory']['Row']
-type ClientHistoryInsert = Database['public']['Tables']['ClientHistory']['Insert']
+
 
 export interface ClientHistoryEntry {
     id: string
@@ -20,17 +18,17 @@ export async function addClientHistoryEntry(
     description?: string,
     metadata?: Record<string, unknown>
 ) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { error } = await supabase
+        const { error } = await insforge.database
             .from('ClientHistory')
-            .insert({
+            .insert([{
                 clientId,
                 action,
                 description,
                 metadata: metadata ? JSON.stringify(metadata) : null,
-            })
+            }])
 
         if (error) {
             throw error
@@ -48,10 +46,10 @@ export async function getClientHistory(clientId: string): Promise<{
     data?: ClientHistoryEntry[]
     error?: string
 }> {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: history, error } = await supabase
+        const { data: history, error } = await insforge.database
             .from('ClientHistory')
             .select('*')
             .eq('clientId', clientId)
@@ -79,11 +77,11 @@ export async function getClientHistory(clientId: string): Promise<{
 }
 
 export async function getClientStats(clientId: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Get invoice count
-        const { count: invoiceCount, error: countError } = await supabase
+        const { count: invoiceCount, error: countError } = await insforge.database
             .from('Invoice')
             .select('*', { count: 'exact', head: true })
             .eq('clientId', clientId)
@@ -93,7 +91,7 @@ export async function getClientStats(clientId: string) {
         }
 
         // Get total spent from paid invoices
-        const { data: invoices, error: totalError } = await supabase
+        const { data: invoices, error: totalError } = await insforge.database
             .from('Invoice')
             .select('total')
             .eq('clientId', clientId)
@@ -106,7 +104,7 @@ export async function getClientStats(clientId: string) {
         const totalSpent = (invoices || []).reduce((sum, inv) => sum + Number(inv.total), 0)
 
         // Get last activity
-        const { data: lastActivity, error: historyError } = await supabase
+        const { data: lastActivity, error: historyError } = await insforge.database
             .from('ClientHistory')
             .select('createdAt')
             .eq('clientId', clientId)

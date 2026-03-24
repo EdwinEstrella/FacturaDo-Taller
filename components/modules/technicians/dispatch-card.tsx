@@ -41,7 +41,7 @@ export function DispatchCard({ dispatch, onUpdateStatus }: DispatchCardProps) {
 
         setUploading(true)
         try {
-            // Aquí iría la lógica de subida a Supabase Storage
+            // Aquí iría la lógica de subida a InsForge Storage
             // Por ahora, simulamos con URLs locales
             const newPhotos: string[] = []
             for (let i = 0; i < files.length; i++) {

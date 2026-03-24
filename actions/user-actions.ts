@@ -1,13 +1,39 @@
 'use server'
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { Database } from "@/lib/supabase/database.types"
 
-type User = Database['public']['Tables']['User']['Row']
-type UserInsert = Database['public']['Tables']['User']['Insert']
-type UserUpdate = Database['public']['Tables']['User']['Update']
+interface User {
+    id: string
+    name: string | null
+    username: string
+    phone: string | null
+    password: string
+    role: string
+    customPermissions: Record<string, boolean> | null
+    created_at: string
+    updated_at: string
+}
+
+interface UserInsert {
+    id?: string
+    name: string | null
+    username: string
+    phone: string | null
+    password: string
+    role: string
+    customPermissions?: Record<string, boolean> | null
+}
+
+interface UserUpdate {
+    name?: string | null
+    username?: string
+    phone?: string | null
+    password?: string
+    role?: string
+    customPermissions?: Record<string, boolean> | null
+}
 
 export async function getUsers() {
     const currentUser = await getCurrentUser()
@@ -15,13 +41,13 @@ export async function getUsers() {
         throw new Error("Unauthorized")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: usersList, error } = await supabase
-            .from('User')
+        const { data: usersList, error } = await insforge.database
+            .from('users')
             .select('*')
-            .order('createdAt', { ascending: false })
+            .order('created_at', { ascending: false })
 
         if (error) {
             throw error
@@ -49,12 +75,12 @@ export async function createUser(data: UserInput) {
         throw new Error("Unauthorized")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Check if username exists
-        const { data: existingUser } = await supabase
-            .from('User')
+        const { data: existingUser } = await insforge.database
+            .from('users')
             .select('id')
             .eq('username', data.username)
             .single()
@@ -68,16 +94,16 @@ export async function createUser(data: UserInput) {
             username: data.username,
             phone: data.phone || null,
             password: data.password || "123456",
-            role: data.role,
+            role: data.role.toUpperCase(),
         }
 
         if (data.customPermissions) {
             userData.customPermissions = data.customPermissions
         }
 
-        const { error } = await supabase
-            .from('User')
-            .insert(userData)
+        const { error } = await insforge.database
+            .from('users')
+            .insert([userData])
 
         if (error) {
             throw error
@@ -97,13 +123,13 @@ export async function updateUser(id: string, data: UserInput) {
         throw new Error("Unauthorized")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Check username uniqueness if updating
         if (data.username) {
-            const { data: existingUser } = await supabase
-                .from('User')
+            const { data: existingUser } = await insforge.database
+                .from('users')
                 .select('id')
                 .eq('username', data.username)
                 .neq('id', id)
@@ -118,7 +144,7 @@ export async function updateUser(id: string, data: UserInput) {
             name: data.name || undefined,
             username: data.username,
             phone: data.phone,
-            role: data.role,
+            role: data.role.toUpperCase(),
         }
 
         if (data.password) {
@@ -129,8 +155,8 @@ export async function updateUser(id: string, data: UserInput) {
             updateData.customPermissions = data.customPermissions
         }
 
-        const { error } = await supabase
-            .from('User')
+        const { error } = await insforge.database
+            .from('users')
             .update(updateData)
             .eq('id', id)
 
@@ -152,15 +178,15 @@ export async function deleteUser(id: string) {
         throw new Error("Unauthorized")
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         if (id === currentUser.id) {
             return { success: false, error: "No puedes eliminar tu propio usuario" }
         }
 
-        const { error } = await supabase
-            .from('User')
+        const { error } = await insforge.database
+            .from('users')
             .delete()
             .eq('id', id)
 

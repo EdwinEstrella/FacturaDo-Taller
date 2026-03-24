@@ -1,10 +1,11 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
+import type { Product } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
-import { Database } from "@/lib/supabase/database.types"
+
 
 const PurchaseItemSchema = z.object({
     productId: z.string(),
@@ -31,9 +32,9 @@ const SupplierSchema = z.object({
 })
 
 export async function getSuppliers() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
         .from('Supplier')
         .select('*')
         .order('name', { ascending: true })
@@ -53,10 +54,10 @@ export async function createSupplier(data: z.infer<typeof SupplierSchema>) {
     const validated = SupplierSchema.safeParse(data)
     if (!validated.success) return { success: false, error: validated.error.message }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: supplier, error } = await supabase
+        const { data: supplier, error } = await insforge.database
             .from('Supplier')
             .insert(validated.data)
             .select()
@@ -82,22 +83,22 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
     if (!validated.success) return { success: false, error: validated.error.message }
 
     const { supplierId, supplierName, date, items, notes } = validated.data
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const total = items.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0)
 
     try {
         // Create Purchase Record
-        const { data: purchase, error: purchaseError } = await supabase
+        const { data: purchase, error: purchaseError } = await insforge.database
             .from('Purchase')
-            .insert({
+            .insert([{
                 supplierId,
                 supplierName,
                 date: date.toISOString(),
                 total,
                 notes,
                 status: "COMPLETED",
-            })
+            }])
             .select()
             .single()
 
@@ -115,7 +116,7 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
             total: item.quantity * item.unitCost
         }))
 
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await insforge.database
             .from('PurchaseItem')
             .insert(purchaseItems)
 
@@ -125,7 +126,7 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
 
         // Update Inventory & Cost for each product
         for (const item of items) {
-            const { data: product } = await supabase
+            const { data: product } = await insforge.database
                 .from('Product')
                 .select('*')
                 .eq('id', item.productId)
@@ -133,7 +134,7 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
 
             if (!product) continue
 
-            const updateData: Database['public']['Tables']['Product']['Update'] = {
+            const updateData: Partial<Product> = {
                 stock: product.stock + item.quantity
             }
 
@@ -147,23 +148,23 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
                 updateData.price = item.newPrice
             }
 
-            await supabase
+            await insforge.database
                 .from('Product')
                 .update(updateData)
                 .eq('id', item.productId)
         }
 
         // Create Expense Transaction
-        await supabase
+        await insforge.database
             .from('Transaction')
-            .insert({
+            .insert([{
                 type: "EXPENSE",
                 category: "PURCHASE",
                 amount: total,
                 description: `Compra de Mercancía #${purchase.sequenceNumber} - ${supplierName || 'Proveedor'}`,
                 date: date.toISOString(),
                 referenceId: purchase.id
-            })
+            }])
 
         revalidatePath("/liquidations")
         revalidatePath("/products")

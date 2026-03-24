@@ -2,7 +2,7 @@
  * Utilidades para estadísticas y comparaciones del dashboard
  */
 
-import { createAdminClient } from "./supabase/server"
+import { createServerClient } from "./insforge/client"
 
 interface ComparisonResult {
     current: number
@@ -67,14 +67,14 @@ function getDateRanges() {
  */
 export async function getRevenueComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
-    const supabase = createAdminClient()
+    const insforge = createServerClient()
 
     const [currentMonthResult, previousMonthResult] = await Promise.all([
-        supabase
+        insforge.database
             .from('Payment')
             .select('amount')
             .gte('date', currentStart.toISOString()),
-        supabase
+        insforge.database
             .from('Payment')
             .select('amount')
             .gte('date', previousStart.toISOString())
@@ -100,14 +100,14 @@ export async function getRevenueComparison(): Promise<ComparisonResult & { text:
  */
 export async function getClientComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
-    const supabase = createAdminClient()
+    const insforge = createServerClient()
 
     const [currentMonthResult, previousMonthResult] = await Promise.all([
-        supabase
+        insforge.database
             .from('Client')
             .select('id', { count: 'exact', head: true })
             .gte('createdAt', currentStart.toISOString()),
-        supabase
+        insforge.database
             .from('Client')
             .select('id', { count: 'exact', head: true })
             .gte('createdAt', previousStart.toISOString())
@@ -133,14 +133,14 @@ export async function getClientComparison(): Promise<ComparisonResult & { text: 
  */
 export async function getInvoiceComparison(): Promise<ComparisonResult & { text: string }> {
     const { currentStart, previousStart, previousEnd } = getDateRanges()
-    const supabase = createAdminClient()
+    const insforge = createServerClient()
 
     const [currentMonthResult, previousMonthResult] = await Promise.all([
-        supabase
+        insforge.database
             .from('Invoice')
             .select('id', { count: 'exact', head: true })
             .gte('createdAt', currentStart.toISOString()),
-        supabase
+        insforge.database
             .from('Invoice')
             .select('id', { count: 'exact', head: true })
             .gte('createdAt', previousStart.toISOString())
@@ -179,10 +179,10 @@ export async function getFinancialHistory() {
     }
 
     const startPeriod = months[0].date
-    const supabase = createAdminClient()
+    const insforge = createServerClient()
 
     // Get payments
-    const { data: payments } = await supabase
+    const { data: payments } = await insforge.database
         .from('Payment')
         .select('amount, date')
         .gte('date', startPeriod.toISOString()) as { data: { amount: string | number; date: string }[] | null }

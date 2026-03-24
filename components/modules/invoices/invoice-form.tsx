@@ -27,10 +27,7 @@ import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Client = Database['public']['Tables']['Client']['Row']
-type Product = Database['public']['Tables']['Product']['Row']
+import type { Client, Product } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -60,6 +57,8 @@ interface InvoiceItemState {
     productName: string
     price: number
     quantity: number
+    variantId?: string
+    variantName?: string
 }
 
 export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
@@ -88,24 +87,57 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const [openProduct, setOpenProduct] = useState(false)
     const [openClient, setOpenClient] = useState(false)
 
-    const addItem = (product: SerializedProduct) => {
+    const addItem = (product: SerializedProduct, variant?: { id: string; name: string; price: number }) => {
         setItems(prev => {
-            const existing = prev.find(p => p.productId === product.id)
+            // Si es variante, buscamos por variantId, si no, por productId
+            const existing = variant
+                ? prev.find(p => p.variantId === variant.id)
+                : prev.find(p => p.productId === product.id && !p.variantId)
+
             if (existing) {
-                return prev.map(p => p.productId === product.id ? { ...p, quantity: p.quantity + 1 } : p)
+                return prev.map(p => {
+                    if (variant) {
+                        return p.variantId === variant.id ? { ...p, quantity: p.quantity + 1 } : p
+                    } else {
+                        return p.productId === product.id && !p.variantId ? { ...p, quantity: p.quantity + 1 } : p
+                    }
+                })
             }
-            return [...prev, { productId: product.id, productName: product.name, price: Number(product.price), quantity: 1 }]
+
+            const newItem: InvoiceItemState = {
+                productId: product.id,
+                productName: variant ? `${product.name} - ${variant.name}` : product.name,
+                price: variant ? variant.price : Number(product.price),
+                quantity: 1
+            }
+
+            if (variant) {
+                newItem.variantId = variant.id
+                newItem.variantName = variant.name
+            }
+
+            return [...prev, newItem]
         })
         setOpenProduct(false)
     }
 
-    const removeItem = (id: string) => {
-        setItems(prev => prev.filter(p => p.productId !== id))
+    const removeItem = (productId: string, variantId?: string) => {
+        setItems(prev => prev.filter(p => {
+            if (variantId) {
+                return !(p.productId === productId && p.variantId === variantId)
+            }
+            return p.productId !== productId
+        }))
     }
 
-    const updateQuantity = (id: string, q: number) => {
+    const updateQuantity = (productId: string, variantId: string | undefined, q: number) => {
         if (q < 1) return
-        setItems(prev => prev.map(p => p.productId === id ? { ...p, quantity: q } : p))
+        setItems(prev => prev.map(p => {
+            if (variantId) {
+                return p.productId === productId && p.variantId === variantId ? { ...p, quantity: q } : p
+            }
+            return p.productId === productId ? { ...p, quantity: q } : p
+        }))
     }
 
     const [hasNcf, setHasNcf] = useState<boolean>(initialData?.hasNcf || false)
@@ -291,23 +323,47 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                     <CommandInput placeholder="Buscar producto..." />
                                     <CommandEmpty>No encontrado.</CommandEmpty>
                                     <CommandGroup>
-                                        {initialProducts.map((product) => (
-                                            <CommandItem
-                                                key={product.id}
-                                                value={`${product.name} ${product.sku || ""}`}
-                                                onSelect={() => addItem(product as SerializedProduct)}
-                                            >
-                                                <Check
-                                                    className={cn(
-                                                        "mr-2 h-4 w-4 opacity-0"
-                                                    )}
-                                                />
-                                                <div className="flex flex-col">
-                                                    <span>{product.name}</span>
-                                                    <span className="text-xs text-muted-foreground">SKU: {product.sku} | Stock: {product.stock}</span>
-                                                </div>
-                                            </CommandItem>
-                                        ))}
+                                        {(initialProducts as SerializedProduct[]).map((product) => {
+                                            // Si tiene variantes, mostrar las variantes en lugar del producto
+                                            if (product.hasVariants && product.variants && product.variants.length > 0) {
+                                                return (
+                                                    <div key={product.id}>
+                                                        {product.variants.map((variant: any) => (
+                                                            <CommandItem
+                                                                key={variant.id}
+                                                                value={`${product.name} ${variant.name} ${variant.sku || ""}`}
+                                                                onSelect={() => addItem(product, { id: variant.id, name: variant.name, price: Number(variant.price) })}
+                                                            >
+                                                                <Check className="mr-2 h-4 w-4 opacity-0" />
+                                                                <div className="flex flex-col">
+                                                                    <span>{product.name} - {variant.name}</span>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        SKU: {variant.sku || product.sku} | Stock: {variant.stock} | Precio: RD${Number(variant.price)}
+                                                                    </span>
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </div>
+                                                )
+                                            }
+
+                                            // Producto sin variantes
+                                            return (
+                                                <CommandItem
+                                                    key={product.id}
+                                                    value={`${product.name} ${product.sku || ""}`}
+                                                    onSelect={() => addItem(product)}
+                                                >
+                                                    <Check className="mr-2 h-4 w-4 opacity-0" />
+                                                    <div className="flex flex-col">
+                                                        <span>{product.name}</span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            SKU: {product.sku} | Stock: {product.stock} | {product.unitType === "UNIT" ? "Por Unidad" : "Por Medida"}
+                                                        </span>
+                                                    </div>
+                                                </CommandItem>
+                                            )
+                                        })}
                                     </CommandGroup>
                                 </Command>
                             </PopoverContent>
@@ -362,7 +418,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         <h3 className="font-semibold mb-4">Detalle</h3>
                         <div className="space-y-2">
                             {items.map(item => (
-                                <div key={item.productId} className="flex items-center justify-between border-b pb-2">
+                                <div key={`${item.productId}-${item.variantId || 'no-variant'}`} className="flex items-center justify-between border-b pb-2">
                                     <div className="flex-1">
                                         <p className="font-medium">{item.productName}</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {item.quantity}</p>
@@ -371,13 +427,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                         <Input
                                             type="number"
                                             value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value))}
+                                            onChange={(e) => updateQuantity(item.productId, item.variantId, parseInt(e.target.value))}
                                             className="w-16 h-8"
                                         />
                                         <div className="font-bold w-20 text-right">
                                             {formatCurrency(item.price * item.quantity)}
                                         </div>
-                                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId)}>
+                                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId, item.variantId)}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
                                     </div>

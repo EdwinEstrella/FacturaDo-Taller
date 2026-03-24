@@ -96,19 +96,21 @@ interface SidebarContent {
 
 // Helper to filter routes based on role (Client side check)
 const checkRole = (role: string, href: string) => {
-    if (role === 'ADMIN') return true
-    if (role === 'SELLER' || role === 'CUSTOM') {
+    const normalizedRole = role.toUpperCase()
+    if (normalizedRole === 'ADMIN') return true
+    if (normalizedRole === 'SELLER' || normalizedRole === 'CUSTOM') {
+        // SELLER y CUSTOM tienen acceso a desglose (Ventanas P65 y Tradicional)
         const blocked = ['/analytics', '/accounting', '/liquidations', '/fiscal', '/settings/users', '/technician']
         return !blocked.includes(href)
     }
-    if (role === 'ACCOUNTANT') {
+    if (normalizedRole === 'ACCOUNTANT') {
         const blocked = ['/warehouse', '/products', '/settings/users', '/technician']
         return !blocked.includes(href)
     }
-    if (role === 'TECHNICIAN') {
+    if (normalizedRole === 'TECHNICIAN') {
         return ['/technician'].includes(href)
     }
-    if (role === 'MANAGER') {
+    if (normalizedRole === 'MANAGER') {
         const blocked = ['/liquidations', '/settings/users']
         return !blocked.includes(href)
     }
@@ -211,6 +213,26 @@ function getSidebarContent(activeSection: string, role: string): SidebarContent 
         ]
     }
 
+    // Desglose Content
+    const desgloseContent: SidebarContent = {
+        title: "Desglose",
+        sections: [
+            {
+                title: "Tipos de Ventana",
+                items: [
+                    { icon: <View size={16} className="text-neutral-900" />, label: "Ventana P65", href: "/desglose/ventana-p65" },
+                    { icon: <Catalog size={16} className="text-neutral-900" />, label: "Ventana Tradicional", href: "/desglose/ventana-tradicional" },
+                ].filter(item => checkRole(role, item.href!))
+            },
+            {
+                title: "Registro",
+                items: [
+                    { icon: <Report size={16} className="text-neutral-900" />, label: "Historial", href: "/desglose/historial" },
+                ].filter(item => checkRole(role, item.href!))
+            }
+        ]
+    }
+
     // Empty default
     const empty: SidebarContent = { title: "", sections: [] }
 
@@ -219,7 +241,8 @@ function getSidebarContent(activeSection: string, role: string): SidebarContent 
         billing: billingContent,
         operations: operationsContent,
         finance: financeContent,
-        settings: settingsContent
+        settings: settingsContent,
+        desglose: desgloseContent
     };
 
     return map[activeSection] || empty;
@@ -261,16 +284,19 @@ function IconNavigation({
     onSectionChange: (section: string) => void;
     user: UserProps | null;
 }) {
-    const role = user?.role || "SELLER";
+    const role = (user?.role || "SELLER").toUpperCase();
 
     const navItems = [
         { id: "dashboard", icon: <Dashboard size={20} />, label: "Panel Principal" },
         { id: "billing", icon: <Receipt size={20} />, label: "Facturación" },
         { id: "operations", icon: <Box size={20} />, label: "Operaciones" },
         { id: "finance", icon: <Money size={20} />, label: "Finanzas" },
+        { id: "desglose", icon: <Task size={20} />, label: "Desglose" },
     ];
 
     let visibleNavItems = navItems;
+    // Desglose está disponible para todos los roles (incluyendo SELLER)
+    // Solo se restringe finanzas para roles que no sean ADMIN, MANAGER, ACCOUNTANT
     if (role !== 'ADMIN' && role !== 'MANAGER' && role !== 'ACCOUNTANT') {
         visibleNavItems = navItems.filter(i => i.id !== 'finance')
     }
@@ -374,7 +400,7 @@ function DetailSidebar({ activeSection, user, onCollapseChange }: {
     onCollapseChange?: (collapsed: boolean) => void;
 }) {
     const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-    const role = user?.role || "SELLER";
+    const role = (user?.role || "SELLER").toUpperCase();
     const content = getSidebarContent(activeSection, role);
 
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -617,6 +643,8 @@ function getSectionFromPath(pathname: string) {
         return "operations";
     } else if (pathname.includes("/accounting") || pathname.includes("/liquidations") || pathname.includes("/fiscal") || pathname.includes("/petty-cash") || pathname.includes("/daily-close") || pathname.includes("/cash-close-history")) {
         return "finance";
+    } else if (pathname.includes("/desglose")) {
+        return "desglose";
     } else if (pathname.includes("/analytics")) {
         return "dashboard";
     } else if (pathname.includes("/settings")) {

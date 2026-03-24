@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { PaymentDialog } from "@/components/modules/receivables/payment-dialog"
 import {
     Table,
@@ -11,9 +11,9 @@ import {
 import { formatCurrency } from "@/lib/utils"
 
 export default async function ReceivablesPage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: invoices } = await supabase
+    const { data: invoices } = await insforge.database
         .from('Invoice')
         .select(`
             *,

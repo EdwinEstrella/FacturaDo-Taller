@@ -1,13 +1,11 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { CreateCreditNoteForm } from "@/components/modules/credit-notes/create-credit-note-form"
-import { Database } from "@/lib/supabase/database.types"
-
-type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
+import type { InvoiceItem } from "@/types"
 
 export default async function CreateCreditNotePage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: recentInvoices } = await supabase
+    const { data: recentInvoices } = await insforge.database
         .from('Invoice')
         .select(`
             *,

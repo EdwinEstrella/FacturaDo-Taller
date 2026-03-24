@@ -1,169 +1,183 @@
-/**
- * Tipos compartidos para la aplicación
- * Evita el uso de 'any' y proporciona tipado fuerte
- */
+// Tipos compartidos para reemplazar Database types de Supabase
 
-// ==================== User Types ====================
+// Tipos base
 export type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM"
 
-export interface User {
+export interface Client {
     id: string
-    name: string | null
-    username: string
-    password: string
-    role: UserRole
-    customPermissions?: Record<string, unknown> | null
-    createdAt: Date
-    updatedAt: Date
-}
-
-export interface CreateUserInput {
     name: string
-    username: string
-    password: string
-    role: UserRole
+    rnc: string | null
+    cedula: string | null
+    address: string | null
+    phone: string | null
+    email: string | null
+    createdAt: string
+    updatedAt: string
 }
 
-export interface UpdateUserInput {
-    name?: string
-    username?: string
-    password?: string
-    role?: UserRole
+export interface Product {
+    id: string
+    name: string
+    description: string | null
+    price: string | number
+    cost: string | number
+    stock: number
+    minStock: number
+    sku: string | null
+    category: "MATERIAL" | "ARTICULO" | "SERVICIO"
+    unitType: "UNIT" | "MEASURE"
+    isService: boolean
+    hasVariants: boolean
+    variants?: ProductVariant[]
+    createdAt: string
+    updatedAt: string
 }
 
-// ==================== Invoice Types ====================
-export interface InvoiceItem {
+export interface ProductVariant {
     id: string
     productId: string
+    name: string
+    price: string | number
+    cost: string | number
+    sku: string | null
+    createdAt: string
+}
+
+export interface InvoiceItem {
+    id: string
+    invoiceId: string
+    productId: string | null
     productName: string
     quantity: number
-    price: number
-    invoiceId?: string
+    price: string | number
+    createdAt: string
 }
 
 export interface Invoice {
     id: string
-    clientId: string
-    client: {
-        id: string
-        name: string
-        rnc?: string | null
-        address?: string | null
-        phone?: string | null
-        email?: string | null
-    }
-    items: InvoiceItem[]
-    total: number
-    paymentMethod?: string | null
-    ncfType?: string | null
+    clientId: string | null
+    clientName: string | null
+    total: string | number
+    balance: string | number
+    status: "PAID" | "PENDING" | "CANCELLED"
+    paymentMethod: string
+    shippingCost: string | number
+    tax: string | number
+    hasNcf: boolean
     ncf?: string | null
-    status?: string | null
-    createdAt: Date
-    updatedAt: Date
+    dispatched: boolean
+    deliveryDate: string | null
+    notes: string | null
+    createdAt: string
+    updatedAt: string
+    createdById: string
+    creatorName: string | null
+    sequenceNumber: number
 }
 
-export interface CreateInvoiceInput {
-    clientId: string
-    clientName?: string
-    items: {
-        productId: string
-        productName: string
-        quantity: number
-        price: number
-    }[]
-    total: number
-    paymentMethod?: string
-    ncfType?: string
+export interface QuoteItem {
+    id: string
+    quoteId: string
+    productId: string | null
+    productName: string
+    quantity: number
+    price: string | number
 }
 
-// ==================== Client Types ====================
-export interface Client {
+export interface Dispatch {
+    id: string
+    invoiceId: string
+    status: "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "DELIVERED" | "INSTALLED"
+    technicianId: string | null
+    driverName: string | null
+    notes: string | null
+    deliveredAt: string | null
+    installedAt: string | null
+    createdAt: string
+}
+
+export interface DispatchPhoto {
+    id: string
+    dispatchId: string
+    url: string
+    createdAt: string
+}
+
+export interface Quote {
+    id: string
+    clientId: string | null
+    clientName: string | null
+    total: string | number
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CONVERTED"
+    notes: string | null
+    validUntil: string | null
+    createdAt: string
+    updatedAt: string
+    createdById: string
+    sequenceNumber: number
+}
+
+export interface User {
     id: string
     name: string
+    username: string
+    password: string
+    phone: string | null
+    role: UserRole
+    customPermissions: Record<string, unknown>
+    createdAt: string | Date
+    updatedAt: string | Date
+}
+
+// Tipos para actualizaciones (todos los campos son opcionales excepto id)
+export interface ClientUpdate {
+    id?: string
+    name?: string
     rnc?: string | null
+    cedula?: string | null
     address?: string | null
     phone?: string | null
     email?: string | null
-    createdAt: Date
-    updatedAt: Date
 }
 
-export interface CreateClientInput {
-    name: string
-    rnc?: string
-    address?: string
-    phone?: string
-    email?: string
-}
-
-// ==================== Product Types ====================
-export interface Product {
-    id: string
-    name: string
-    description?: string | null
-    price: number
-    stock: number
-    createdAt: Date
-    updatedAt: Date
-}
-
-export interface CreateProductInput {
-    name: string
-    description?: string
-    price: number
-    stock?: number
-}
-
-// ==================== Quote Types ====================
-export interface Quote {
-    id: string
-    clientId: string
-    client: Client
-    items: InvoiceItem[]
-    total: number
-    validUntil?: Date | null
-    status?: string | null
-    createdAt: Date
-    updatedAt: Date
-}
-
-// ==================== Work Order Types ====================
-export interface WorkOrder {
-    id: string
-    invoiceId: string
-    status: string
-    productionNotes?: string | null
-    createdAt: Date
-    updatedAt: Date
-}
-
-// ==================== Dispatch Types ====================
-export interface DispatchInfo {
-    id: string
-    invoiceId: string
+export interface DispatchUpdate {
+    id?: string
+    status?: "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "DELIVERED" | "INSTALLED"
+    technicianId?: string | null
     driverName?: string | null
-    vehiclePlate?: string | null
-    deliveryDate?: Date | null
     notes?: string | null
-    createdAt: Date
-    updatedAt: Date
+    deliveredAt?: string | null
+    installedAt?: string | null
 }
 
-// ==================== Transaction Types ====================
-export interface Transaction {
-    id: string
-    invoiceId?: string | null
-    type: "INCOME" | "EXPENSE"
-    amount: number
+export interface InvoiceUpdate {
+    id?: string
+    status?: "PAID" | "PENDING" | "CANCELLED"
+    total?: string | number
+    balance?: string | number
+}
+
+export interface ProductUpdate {
+    id?: string
+    name?: string
     description?: string | null
-    category?: string | null
-    createdAt: Date
-    updatedAt: Date
+    price?: string | number
+    cost?: string | number
+    stock?: number
+    minStock?: number
+    sku?: string | null
+    category?: "MATERIAL" | "ARTICULO" | "SERVICIO"
+    unitType?: "UNIT" | "MEASURE"
+    isService?: boolean
+    hasVariants?: boolean
 }
 
-// ==================== Response Types ====================
-export interface ActionResponse<T = void> {
-    success: boolean
-    error?: string
-    data?: T
+export interface UserUpdate {
+    id?: string
+    name?: string
+    username?: string
+    phone?: string | null
+    role?: string
+    customPermissions?: Record<string, unknown>
 }
+

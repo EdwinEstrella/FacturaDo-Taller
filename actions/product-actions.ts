@@ -1,16 +1,12 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
+import type { ProductUpdate, ProductVariant } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { Database } from "@/lib/supabase/database.types"
 
-type Product = Database['public']['Tables']['Product']['Row']
-type ProductInsert = Database['public']['Tables']['Product']['Insert']
-type ProductUpdate = Database['public']['Tables']['Product']['Update']
-type ProductVariant = Database['public']['Tables']['ProductVariant']['Row']
-type ProductVariantInsert = Database['public']['Tables']['ProductVariant']['Insert']
+
 
 const ProductSchema = z.object({
     name: z.string().min(1),
@@ -25,7 +21,7 @@ const ProductSchema = z.object({
     unitType: z.enum(["UNIT", "MEASURE"]).default("UNIT"),
 })
 
-export async function createProduct(prevState: any, formData: FormData) {
+export async function createProduct(prevState: unknown, formData: FormData) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
         return { error: "No tienes permisos para crear productos" }
@@ -50,7 +46,7 @@ export async function createProduct(prevState: any, formData: FormData) {
         }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const { category, variants, unitType, ...rest } = validatedFields.data
@@ -58,7 +54,7 @@ export async function createProduct(prevState: any, formData: FormData) {
         const hasVariants = parsedVariants.length > 0
 
         const totalStock = hasVariants
-            ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
+            ? parsedVariants.reduce((acc: number, v: Record<string, unknown>) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
         const productData = {
@@ -70,7 +66,7 @@ export async function createProduct(prevState: any, formData: FormData) {
             hasVariants,
         }
 
-        const { data: product, error: productError } = await supabase
+        const { data: product, error: productError } = await insforge.database
             .from('Product')
             .insert(productData)
             .select()
@@ -82,7 +78,7 @@ export async function createProduct(prevState: any, formData: FormData) {
 
         // Create variants
         if (hasVariants) {
-            const variantData = parsedVariants.map((v: any) => ({
+            const variantData = parsedVariants.map((v: Record<string, unknown>) => ({
                 productId: product.id,
                 name: v.name,
                 price: v.price,
@@ -91,7 +87,7 @@ export async function createProduct(prevState: any, formData: FormData) {
                 sku: v.sku
             }))
 
-            const { error: variantsError } = await supabase
+            const { error: variantsError } = await insforge.database
                 .from('ProductVariant')
                 .insert(variantData)
 
@@ -109,14 +105,11 @@ export async function createProduct(prevState: any, formData: FormData) {
 }
 
 export async function getProducts() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: products, error } = await supabase
+    const { data: products, error } = await insforge.database
         .from('Product')
-        .select(`
-            *,
-            variants:ProductVariant(*)
-        `)
+        .select('*')
         .order('name', { ascending: true })
 
     if (error) {
@@ -124,19 +117,30 @@ export async function getProducts() {
         return []
     }
 
+    // Get variants separately for each product
+    const productIds = products?.map(p => p.id) || []
+    const { data: variants } = productIds.length > 0
+        ? await insforge.database
+            .from('ProductVariant')
+            .select('*')
+            .in('productId', productIds)
+        : { data: [] }
+
     return products.map(product => ({
         ...product,
         price: Number(product.price),
         cost: product.cost ? Number(product.cost) : 0,
-        variants: (product.variants || []).map((variant: ProductVariant) => ({
-            ...variant,
-            price: Number(variant.price),
-            cost: variant.cost ? Number(variant.cost) : 0
-        }))
+        variants: (variants || [])
+            .filter((v: ProductVariant) => v.productId === product.id)
+            .map((variant: ProductVariant) => ({
+                ...variant,
+                price: Number(variant.price),
+                cost: variant.cost ? Number(variant.cost) : 0
+            }))
     }))
 }
 
-export async function updateProduct(id: string, prevState: any, formData: FormData) {
+export async function updateProduct(id: string, prevState: unknown, formData: FormData) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
         return { error: "No tienes permisos para editar productos" }
@@ -159,7 +163,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         return { errors: validatedFields.error.flatten().fieldErrors }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const { category, variants, unitType, ...rest } = validatedFields.data
@@ -167,7 +171,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         const hasVariants = parsedVariants.length > 0
 
         const totalStock = hasVariants
-            ? parsedVariants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0)
+            ? parsedVariants.reduce((acc: number, v: Record<string, unknown>) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
 
         const updateData: ProductUpdate = {
@@ -180,7 +184,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
         }
 
         // Update main product
-        const { error: updateError } = await supabase
+        const { error: updateError } = await insforge.database
             .from('Product')
             .update(updateData)
             .eq('id', id)
@@ -191,13 +195,13 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
 
         if (hasVariants) {
             // Get existing variants
-            const { data: existingVariants } = await supabase
+            const { data: existingVariants } = await insforge.database
                 .from('ProductVariant')
                 .select('id')
                 .eq('productId', id)
 
             const newVariantIds = parsedVariants
-                .map((v: any) => v.id)
+                .map((v: Record<string, unknown>) => v.id)
                 .filter(Boolean)
 
             const existingVariantIds = existingVariants?.map(v => v.id) || []
@@ -205,7 +209,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
             // Delete variants that are not in the new list
             const variantsToDelete = existingVariantIds.filter(id => !newVariantIds.includes(id))
             if (variantsToDelete.length > 0) {
-                await supabase
+                await insforge.database
                     .from('ProductVariant')
                     .delete()
                     .in('id', variantsToDelete)
@@ -214,7 +218,7 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
             // Upsert variants
             for (const v of parsedVariants) {
                 if (v.id) {
-                    await supabase
+                    await insforge.database
                         .from('ProductVariant')
                         .update({
                             name: v.name,
@@ -225,21 +229,21 @@ export async function updateProduct(id: string, prevState: any, formData: FormDa
                         })
                         .eq('id', v.id)
                 } else {
-                    await supabase
+                    await insforge.database
                         .from('ProductVariant')
-                        .insert({
+                        .insert([{
                             productId: id,
                             name: v.name,
                             price: v.price,
                             cost: v.cost || 0,
                             stock: v.stock,
                             sku: v.sku
-                        })
+                        }])
                 }
             }
         } else {
             // Delete all variants if no variants in form
-            await supabase
+            await insforge.database
                 .from('ProductVariant')
                 .delete()
                 .eq('productId', id)
@@ -259,15 +263,15 @@ export async function deleteProduct(id: string) {
         return { success: false, error: "No tienes permisos para eliminar productos" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Check for usage in Invoices or Quotes
-    const { count: invoiceCount } = await supabase
+    const { count: invoiceCount } = await insforge.database
         .from('InvoiceItem')
         .select('*', { count: 'exact', head: true })
         .eq('productId', id)
 
-    const { count: quoteCount } = await supabase
+    const { count: quoteCount } = await insforge.database
         .from('QuoteItem')
         .select('*', { count: 'exact', head: true })
         .eq('productId', id)
@@ -278,13 +282,13 @@ export async function deleteProduct(id: string) {
 
     try {
         // Delete variants first
-        await supabase
+        await insforge.database
             .from('ProductVariant')
             .delete()
             .eq('productId', id)
 
         // Delete product
-        const { error } = await supabase
+        const { error } = await insforge.database
             .from('Product')
             .delete()
             .eq('id', id)
@@ -307,7 +311,7 @@ export async function quickCreateProduct(data: { name: string, price: number, sk
         return { success: false, error: "No tienes permisos para crear productos" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const productData = {
@@ -323,7 +327,7 @@ export async function quickCreateProduct(data: { name: string, price: number, sk
             minStock: 0,
         }
 
-        const { data: product, error } = await supabase
+        const { data: product, error } = await insforge.database
             .from('Product')
             .insert(productData)
             .select()

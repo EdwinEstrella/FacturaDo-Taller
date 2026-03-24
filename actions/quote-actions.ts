@@ -1,14 +1,11 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
+import type { QuoteItem } from "@/types"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
-import { Database } from "@/lib/supabase/database.types"
 
-type Quote = Database['public']['Tables']['Quote']['Row']
-type QuoteInsert = Database['public']['Tables']['Quote']['Insert']
-type QuoteItem = Database['public']['Tables']['QuoteItem']['Row']
-type QuoteItemInsert = Database['public']['Tables']['QuoteItem']['Insert']
+
 
 type QuoteFormData = {
     clientId: string;
@@ -17,6 +14,7 @@ type QuoteFormData = {
         productName: string;
         quantity: number;
         price: number;
+        variantId?: string;
     }>;
 };
 
@@ -24,7 +22,7 @@ export async function createQuote(data: QuoteFormData) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const total = data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
@@ -33,15 +31,15 @@ export async function createQuote(data: QuoteFormData) {
     validUntil.setDate(validUntil.getDate() + 15)
 
     try {
-        const { data: quote, error: quoteError } = await supabase
+        const { data: quote, error: quoteError } = await insforge.database
             .from('Quote')
-            .insert({
+            .insert([{
                 clientId: data.clientId,
                 total: total,
                 createdById: user.id,
                 status: "PENDING",
                 validUntil: validUntil.toISOString(),
-            })
+            }])
             .select()
             .single()
 
@@ -56,9 +54,10 @@ export async function createQuote(data: QuoteFormData) {
             productName: item.productName,
             quantity: item.quantity,
             price: item.price,
+            variantId: item.variantId || null
         }))
 
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await insforge.database
             .from('QuoteItem')
             .insert(quoteItems)
 
@@ -79,19 +78,19 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 export async function getQuotes() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // First, check and mark expired quotes
     const now = new Date().toISOString()
 
-    await supabase
+    await insforge.database
         .from('Quote')
         .update({ status: "EXPIRED" })
         .eq('status', "PENDING")
         .lte('validUntil', now)
 
     // Get all quotes with client and items
-    const { data: quotes, error } = await supabase
+    const { data: quotes, error } = await insforge.database
         .from('Quote')
         .select(`
             *,
@@ -116,9 +115,9 @@ export async function getQuotes() {
 }
 
 export async function getQuoteById(id: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: quote, error } = await supabase
+    const { data: quote, error } = await insforge.database
         .from('Quote')
         .select(`
             *,
@@ -148,12 +147,12 @@ export async function convertQuoteToInvoice(quoteId: string) {
 
     if (!quote) return { success: false, error: "Cotización no encontrada" }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: invoice, error: invoiceError } = await supabase
+        const { data: invoice, error: invoiceError } = await insforge.database
             .from('Invoice')
-            .insert({
+            .insert([{
                 clientId: quote.clientId,
                 clientName: quote.client?.name || "Desde Cotización",
                 total: quote.total,
@@ -166,7 +165,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
                 tax: 0,
                 hasNcf: false,
                 dispatched: false,
-            })
+            }])
             .select()
             .single()
 
@@ -183,7 +182,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
             price: item.price,
         }))
 
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await insforge.database
             .from('InvoiceItem')
             .insert(invoiceItems)
 
@@ -194,14 +193,14 @@ export async function convertQuoteToInvoice(quoteId: string) {
         // Deduct stock
         for (const item of quote.items) {
             if (item.productId) {
-                const { data: product } = await supabase
+                const { data: product } = await insforge.database
                     .from('Product')
                     .select('*')
                     .eq('id', item.productId)
                     .single()
 
                 if (product && !product.isService) {
-                    await supabase
+                    await insforge.database
                         .from('Product')
                         .update({ stock: Math.max(0, product.stock - item.quantity) })
                         .eq('id', item.productId)
@@ -209,7 +208,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
             }
         }
 
-        await supabase
+        await insforge.database
             .from('Quote')
             .update({ status: "ACCEPTED" })
             .eq('id', quoteId)
@@ -227,10 +226,10 @@ export async function deleteQuote(quoteId: string) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { error } = await supabase
+        const { error } = await insforge.database
             .from('Quote')
             .delete()
             .eq('id', quoteId)
@@ -251,12 +250,12 @@ export async function markExpiredQuotes() {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const now = new Date().toISOString()
 
-        const { data: expiredQuotes, error } = await supabase
+        const { data: expiredQuotes, error } = await insforge.database
             .from('Quote')
             .select('id')
             .eq('status', "PENDING")
@@ -266,7 +265,7 @@ export async function markExpiredQuotes() {
             throw error
         }
 
-        await supabase
+        await insforge.database
             .from('Quote')
             .update({ status: "EXPIRED" })
             .eq('status', "PENDING")
@@ -290,13 +289,13 @@ export async function cleanupExpiredQuotes() {
         return { success: false, error: "No tienes permisos para eliminar cotizaciones" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-        const { data: expiredQuotes, error } = await supabase
+        const { data: expiredQuotes, error } = await insforge.database
             .from('Quote')
             .select('id')
             .eq('status', "EXPIRED")
@@ -308,7 +307,7 @@ export async function cleanupExpiredQuotes() {
 
         if (expiredQuotes && expiredQuotes.length > 0) {
             const idsToDelete = expiredQuotes.map(q => q.id)
-            await supabase
+            await insforge.database
                 .from('Quote')
                 .delete()
                 .in('id', idsToDelete)

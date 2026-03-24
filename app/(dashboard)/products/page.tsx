@@ -12,9 +12,7 @@ import { formatCurrency } from "@/lib/utils"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
 import { Badge } from "@/components/ui/badge"
-import type { Database } from "@/lib/supabase/database.types"
-
-type Product = Database['public']['Tables']['Product']['Row']
+import type { Product } from "@/types"
 
 interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number

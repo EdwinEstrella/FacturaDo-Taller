@@ -8,11 +8,15 @@
       "mcp__supabase__execute_sql",
       "mcp__chrome-devtools__navigate_page",
       "mcp__chrome-devtools__fill_form",
-      "mcp__chrome-devtools__click"
+      "mcp__chrome-devtools__click",
+      "Bash(npm run:*)",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__insforge__run-raw-sql"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "supabase"
+    "supabase",
+    "insforge"
   ]
 }

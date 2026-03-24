@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
 
 export default async function AccountingPage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -13,7 +13,7 @@ export default async function AccountingPage() {
     tomorrow.setDate(tomorrow.getDate() + 1)
 
     // Get today's sales
-    const { data: invoices } = await supabase
+    const { data: invoices } = await insforge.database
         .from('Invoice')
         .select('total')
         .gte('createdAt', today.toISOString())
@@ -23,7 +23,7 @@ export default async function AccountingPage() {
     const salesTotal = (invoices || []).reduce((sum, inv) => sum + Number(inv.total), 0)
 
     // Get today's expenses
-    const { data: expenses } = await supabase
+    const { data: expenses } = await insforge.database
         .from('Transaction')
         .select('*')
         .gte('date', today.toISOString())

@@ -1,118 +1,129 @@
 "use server"
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createServerClient } from "@/lib/insforge/client"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 type User = {
-    id: string
-    name: string
-    username: string
-    phone: string | null
-    role: string
-    customPermissions: any
-    createdAt: string
-    updatedAt: string
+  id: string
+  name: string
+  username: string
+  password: string
+  phone: string | null
+  role: string
+  custom_permissions: Record<string, unknown>
+  created_at: string
+  updated_at: string
 }
 
 const SESSION_COOKIE_NAME = "facturado_session_id"
 
 export async function login(username: string, password: string) {
-    console.log("LOGIN START: ", username)
+  console.log("LOGIN START: ", username)
 
-    // Usar directamente el cliente de Supabase con SERVICE_ROLE_KEY
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const insforge = createServerClient()
 
-    const supabase = createSupabaseClient(
-        supabaseUrl,
-        supabaseServiceKey,
-        {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false,
-            },
-        }
-    )
+  try {
+    // Buscar usuario por username
+    const { data: users, error: selectError } = await insforge.database
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .limit(1)
 
-    try {
-        const { data, error } = await supabase
-            .rpc('authenticate_user', {
-                username_param: username,
-                password_param: password
-            })
-
-        if (error) {
-            console.error("LOGIN ERROR:", error)
-            return { success: false, error: "Error al autenticar" }
-        }
-
-        if (!data || data.length === 0) {
-            return { success: false, error: "Usuario o contraseña incorrectos" }
-        }
-
-        // La función retorna un array de objetos JSON
-        const user = Array.isArray(data) ? data[0] : data
-        const userId = typeof user === 'object' && 'authenticate_user' in user
-            ? user.authenticate_user.id
-            : (user as any).id
-
-        const cookieStore = await cookies()
-        cookieStore.set(SESSION_COOKIE_NAME, userId, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24 * 7, // 1 week
-            path: "/"
-        })
-
-        return { success: true }
-    } catch (error) {
-        console.error("LOGIN ERROR:", error)
-        return { success: false, error: "Error de servidor" }
+    if (selectError) {
+      console.error("LOGIN ERROR:", selectError)
+      return { success: false, error: "Error al buscar usuario" }
     }
+
+    if (!users || users.length === 0) {
+      return { success: false, error: "Usuario o contraseña incorrectos" }
+    }
+
+    const user = users[0] as User
+
+    // Verificar contraseña (en producción usar bcrypt/hashing)
+    // Por ahora comparación directa - TODO: Implementar hashing seguro
+    if (user.password !== password) {
+      return { success: false, error: "Usuario o contraseña incorrectos" }
+    }
+
+    // Guardar ID de usuario en cookie
+    const cookieStore = await cookies()
+    cookieStore.set(SESSION_COOKIE_NAME, user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: "/"
+    })
+
+    return { success: true, user: { id: user.id, name: user.name, username: user.username, role: user.role } }
+  } catch (error) {
+    console.error("LOGIN ERROR:", error)
+    return { success: false, error: "Error de servidor" }
+  }
 }
 
 export async function logout() {
-    const cookieStore = await cookies()
-    cookieStore.delete(SESSION_COOKIE_NAME)
-    redirect("/login")
+  const cookieStore = await cookies()
+  cookieStore.delete(SESSION_COOKIE_NAME)
+  redirect("/login")
 }
 
 export async function getCurrentUser() {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get(SESSION_COOKIE_NAME)?.value
+  const cookieStore = await cookies()
+  const userId = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
-    if (!userId) return null
+  if (!userId) return null
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const insforge = createServerClient()
 
-    const supabase = createSupabaseClient(
-        supabaseUrl,
-        supabaseServiceKey,
-        {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false,
-            },
-        }
-    )
+  try {
+    const { data: users, error } = await insforge.database
+      .from('users')
+      .select('id, name, username, role')
+      .eq('id', userId)
+      .limit(1)
 
-    try {
-        const { data: user, error } = await supabase
-            .from('User')
-            .select('id, name, username, role')
-            .eq('id', userId)
-            .single()
-
-        if (error || !user) {
-            return null
-        }
-
-        return user
-    } catch {
-        return null
+    if (error || !users || users.length === 0) {
+      return null
     }
+
+    return users[0]
+  } catch {
+    return null
+  }
+}
+
+export async function registerUser(data: {
+  username: string
+  password: string
+  name: string
+  phone?: string
+  role?: string
+}) {
+  const insforge = createServerClient()
+
+  try {
+    const { data: users, error } = await insforge.database
+      .from('users')
+      .insert([{
+        username: data.username,
+        password: data.password, // TODO: Implementar hashing seguro
+        name: data.name,
+        phone: data.phone || null,
+        role: data.role || 'user'
+      }])
+      .select()
+
+    if (error) {
+      console.error("REGISTER ERROR:", error)
+      return { success: false, error: "Error al registrar usuario" }
+    }
+
+    return { success: true, user: users?.[0] }
+  } catch (error) {
+    console.error("REGISTER ERROR:", error)
+    return { success: false, error: "Error de servidor" }
+  }
 }

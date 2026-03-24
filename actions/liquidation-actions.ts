@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { startOfDay, endOfDay } from "date-fns"
 
 interface LiquidationParams {
@@ -10,11 +10,11 @@ interface LiquidationParams {
 }
 
 export async function getLiquidationData({ userId, startDate, endDate }: LiquidationParams) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         // Fetch Invoices created by User in Range
-        const { data: invoices } = await supabase
+        const { data: invoices } = await insforge.database
             .from('Invoice')
             .select('*')
             .eq('createdById', userId)
@@ -23,7 +23,7 @@ export async function getLiquidationData({ userId, startDate, endDate }: Liquida
             .neq('status', "CANCELLED")
 
         // Fetch user details
-        const { data: user } = await supabase
+        const { data: user } = await insforge.database
             .from('User')
             .select('name, role')
             .eq('id', userId)
@@ -67,9 +67,9 @@ export async function getLiquidationData({ userId, startDate, endDate }: Liquida
 }
 
 export async function getUsersForLiquidation() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
         .from('User')
         .select('id, name, role')
         .in('role', ["SELLER", "TECHNICIAN", "MANAGER"])

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AnalyticsFilters } from "@/components/modules/analytics/analytics-filters"
@@ -16,10 +16,10 @@ import { es } from "date-fns/locale"
 export const dynamic = 'force-dynamic'
 
 async function getAnalyticsData(startDate: Date, endDate: Date) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Income (Payments)
-    const { data: payments } = await supabase
+    const { data: payments } = await insforge.database
         .from('Payment')
         .select('*')
         .gte('date', startDate.toISOString())
@@ -35,7 +35,7 @@ async function getAnalyticsData(startDate: Date, endDate: Date) {
     }, {} as Record<string, number>)
 
     // Expenses (Transactions)
-    const { data: expenses } = await supabase
+    const { data: expenses } = await insforge.database
         .from('Transaction')
         .select('*')
         .eq('type', 'EXPENSE')

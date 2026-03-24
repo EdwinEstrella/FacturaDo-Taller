@@ -1,11 +1,11 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import { Database } from "@/lib/supabase/database.types"
+import { createServerClient } from "@/lib/insforge/client"
+import type { Client, Invoice, InvoiceItem } from "@/types"
 
-interface InvoiceWithNumberTotal extends Omit<Database['public']['Tables']['Invoice']['Row'], 'total'> {
+interface InvoiceWithNumberTotal extends Omit<Invoice, 'total'> {
     total: number
-    items: Database['public']['Tables']['InvoiceItem']['Row'][]
+    items: InvoiceItem[]
 }
 
 interface ClientFilters {
@@ -24,10 +24,10 @@ interface InvoiceFilters {
     period?: 'today' | 'week' | 'month' | 'year'
 }
 
-export async function filterClients(filters: ClientFilters): Promise<Database['public']['Tables']['Client']['Row'][]> {
-    const supabase = await createClient()
+export async function filterClients(filters: ClientFilters): Promise<Client[]> {
+    const insforge = createServerClient()
 
-    let query = supabase
+    let query = insforge.database
         .from('Client')
         .select('*')
         .order('createdAt', { ascending: false })
@@ -53,7 +53,7 @@ export async function filterClients(filters: ClientFilters): Promise<Database['p
 
     // Search clients with specific invoice
     if (filters.invoiceId) {
-        const { data: invoice } = await supabase
+        const { data: invoice } = await insforge.database
             .from('Invoice')
             .select('clientId')
             .eq('id', filters.invoiceId)
@@ -75,9 +75,9 @@ export async function filterClients(filters: ClientFilters): Promise<Database['p
 }
 
 export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWithNumberTotal[]> {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    let query = supabase
+    let query = insforge.database
         .from('Invoice')
         .select(`
             *,
@@ -143,7 +143,7 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
     return (data || []).map(invoice => ({
         ...invoice,
         total: Number(invoice.total),
-        items: (invoice.items || []).map((item: Database['public']['Tables']['InvoiceItem']['Row']) => ({
+        items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
             price: Number(item.price)
         }))

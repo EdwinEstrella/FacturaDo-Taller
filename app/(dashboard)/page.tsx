@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, Users, CreditCard, Activity, TrendingUp, TrendingDown } from "lucide-react"
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { formatCurrency } from "@/lib/utils"
 import {
     getRevenueComparison,
@@ -11,7 +11,7 @@ import {
 import { Overview } from "@/components/dashboard/overview"
 
 export default async function DashboardPage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Obtener datos reales con comparativas
     const [
@@ -23,9 +23,9 @@ export default async function DashboardPage() {
         invoiceStats,
         financialHistory
     ] = await Promise.all([
-        supabase.from('Invoice').select('*', { count: 'exact', head: true }),
-        supabase.from('Client').select('*', { count: 'exact', head: true }),
-        supabase.from('Product').select('*', { count: 'exact', head: true }),
+        insforge.database.from('Invoice').select('*', { count: 'exact', head: true }),
+        insforge.database.from('Client').select('*', { count: 'exact', head: true }),
+        insforge.database.from('Product').select('*', { count: 'exact', head: true }),
         getRevenueComparison(),
         getClientComparison(),
         getInvoiceComparison(),

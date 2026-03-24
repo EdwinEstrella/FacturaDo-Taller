@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { DailyCloseContent } from "@/components/modules/daily-close/daily-close-content"
 
 export const dynamic = 'force-dynamic'
 
 export default async function DailyClosePage() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -12,7 +12,7 @@ export default async function DailyClosePage() {
     tomorrow.setDate(tomorrow.getDate() + 1)
 
     // 1. Fetch Invoices for Today
-    const { data: invoices } = await supabase
+    const { data: invoices } = await insforge.database
         .from('Invoice')
         .select('*')
         .gte('createdAt', today.toISOString())
@@ -20,7 +20,7 @@ export default async function DailyClosePage() {
         .eq('status', 'PAID')
 
     // 2. Fetch Transactions (Expenses) for Today
-    const { data: transactions } = await supabase
+    const { data: transactions } = await insforge.database
         .from('Transaction')
         .select('*')
         .gte('date', today.toISOString())
@@ -28,7 +28,7 @@ export default async function DailyClosePage() {
         .eq('type', 'EXPENSE')
 
     // 3. Fetch Payments (Actual Cash Flow)
-    const { data: payments } = await supabase
+    const { data: payments } = await insforge.database
         .from('Payment')
         .select('*, invoice:Invoice(sequenceNumber)')
         .gte('date', today.toISOString())

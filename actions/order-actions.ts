@@ -1,22 +1,28 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
-import { Database } from "@/lib/supabase/database.types"
 
-type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
+interface InvoiceItem {
+    id: string
+    invoiceId: string
+    productId: string | null
+    productName: string
+    quantity: number
+    price: string | number
+}
 
 export async function createWorkOrder(invoiceId: string, notes: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: order, error } = await supabase
+        const { data: order, error } = await insforge.database
             .from('WorkOrder')
-            .insert({
+            .insert([{
                 invoiceId,
                 notes,
                 status: "PRODUCTION"
-            })
+            }])
             .select()
             .single()
 
@@ -33,11 +39,11 @@ export async function createWorkOrder(invoiceId: string, notes: string) {
     }
 }
 
-export async function updateWorkOrderStatus(id: number, status: string) {
-    const supabase = await createClient()
+export async function updateWorkOrderStatus(id: string, status: string) {
+    const insforge = createServerClient()
 
     try {
-        const { error } = await supabase
+        const { error } = await insforge.database
             .from('WorkOrder')
             .update({ status })
             .eq('id', id)
@@ -55,18 +61,11 @@ export async function updateWorkOrderStatus(id: number, status: string) {
 }
 
 export async function getWorkOrders() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: workOrders, error } = await supabase
+    const { data: workOrders, error } = await insforge.database
         .from('WorkOrder')
-        .select(`
-            *,
-            invoice:Invoice(
-                *,
-                items:InvoiceItem(*),
-                client:Client(*)
-            )
-        `)
+        .select('*')
         .order('createdAt', { ascending: false })
 
     if (error) {
@@ -74,15 +73,54 @@ export async function getWorkOrders() {
         return []
     }
 
-    return (workOrders || []).map(order => ({
-        ...order,
-        invoice: order.invoice ? {
-            ...order.invoice,
-            total: Number(order.invoice.total),
-            items: (order.invoice.items || []).map((item: InvoiceItem) => ({
-                ...item,
-                price: Number(item.price)
-            }))
-        } : null
-    }))
+    if (!workOrders || workOrders.length === 0) {
+        return []
+    }
+
+    // Get invoice IDs
+    const invoiceIds = workOrders.map(order => order.invoiceId).filter(Boolean)
+
+    // Get invoices separately
+    const { data: invoices } = invoiceIds.length > 0
+        ? await insforge.database
+            .from('Invoice')
+            .select('*')
+            .in('id', invoiceIds)
+        : { data: [] }
+
+    // Get invoice items
+    const { data: invoiceItems } = invoiceIds.length > 0
+        ? await insforge.database
+            .from('InvoiceItem')
+            .select('*')
+            .in('invoiceId', invoiceIds)
+        : { data: [] }
+
+    // Get clients
+    const clientIds = (invoices || []).map(inv => inv.clientId).filter(Boolean)
+    const { data: clients } = clientIds.length > 0
+        ? await insforge.database
+            .from('Client')
+            .select('*')
+            .in('id', clientIds)
+        : { data: [] }
+
+    return workOrders.map(order => {
+        const invoice = (invoices || []).find(inv => inv.id === order.invoiceId)
+        const items = (invoiceItems || []).filter(item => item.invoiceId === order.invoiceId)
+        const client = invoice ? (clients || []).find(c => c.id === invoice.clientId) : null
+
+        return {
+            ...order,
+            invoice: invoice ? {
+                ...invoice,
+                total: Number(invoice.total),
+                items: items.map(item => ({
+                    ...item,
+                    price: Number(item.price)
+                })),
+                client
+            } : null
+        }
+    })
 }

@@ -1,18 +1,15 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
+import type { DispatchUpdate, InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
-import { Database } from "@/lib/supabase/database.types"
 
-type Dispatch = Database['public']['Tables']['Dispatch']['Row']
-type DispatchUpdate = Database['public']['Tables']['Dispatch']['Update']
-type DispatchPhoto = Database['public']['Tables']['DispatchPhoto']['Row']
-type InvoiceItem = Database['public']['Tables']['InvoiceItem']['Row']
+
 
 export async function getTechnicianDispatches(technicianId: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: dispatches, error } = await supabase
+    const { data: dispatches, error } = await insforge.database
         .from('Dispatch')
         .select(`
             *,
@@ -50,10 +47,10 @@ export async function updateDispatchStatus(
     notes?: string,
     photos?: string[]
 ) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const updateData: DispatchUpdate = {
-        status
+        status: status as DispatchUpdate['status']
     }
 
     if (notes) {
@@ -68,7 +65,7 @@ export async function updateDispatchStatus(
         updateData.installedAt = new Date().toISOString()
     }
 
-    const { data: dispatch, error } = await supabase
+    const { data: dispatch, error } = await insforge.database
         .from('Dispatch')
         .update(updateData)
         .eq('id', dispatchId)
@@ -87,7 +84,7 @@ export async function updateDispatchStatus(
             takenBy: dispatch.technicianId || undefined
         }))
 
-        await supabase
+        await insforge.database
             .from('DispatchPhoto')
             .insert(photosData)
     }
@@ -99,9 +96,9 @@ export async function updateDispatchStatus(
 }
 
 export async function getDispatchById(dispatchId: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: dispatch, error } = await supabase
+    const { data: dispatch, error } = await insforge.database
         .from('Dispatch')
         .select(`
             *,

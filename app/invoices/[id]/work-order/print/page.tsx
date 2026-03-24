@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { WorkOrderTemplate } from "@/components/modules/orders/work-order-template"
 
 export default async function PrintWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     // Fetch Invoice AND WorkOrder. id here is INVOICE ID based on route /invoices/[id]/...
-    const { data: invoice } = await supabase
+    const { data: invoice } = await insforge.database
         .from('Invoice')
         .select(`
             *,

@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
 
@@ -47,7 +47,7 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
         return { success: false, error: "No autorizado" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
         const closeDate = new Date(data.closeDate)
@@ -56,7 +56,7 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
         nextDay.setDate(nextDay.getDate() + 1)
 
         // Check if close exists for this day and user
-        const { data: existing } = await supabase
+        const { data: existing } = await insforge.database
             .from('DailyClose')
             .select('id')
             .gte('closeDate', closeDate.toISOString())
@@ -85,18 +85,18 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
         }
 
         if (existing) {
-            await supabase
+            await insforge.database
                 .from('DailyClose')
                 .update(closeData)
                 .eq('id', existing.id)
         } else {
-            await supabase
+            await insforge.database
                 .from('DailyClose')
-                .insert({
+                .insert([{
                     ...closeData,
                     closedBy: user.id,
                     closedByName: user.name,
-                })
+            }])
         }
 
         revalidatePath("/daily-close")
@@ -116,10 +116,10 @@ export async function getDailyCloseHistory() {
         return { success: false, error: "No autorizado" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: history, error } = await supabase
+        const { data: history, error } = await insforge.database
             .from('DailyClose')
             .select('*')
             .order('closeDate', { ascending: false })
@@ -143,10 +143,10 @@ export async function getDailyCloseById(id: string) {
         return { success: false, error: "No autorizado" }
     }
 
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: dailyClose, error } = await supabase
+        const { data: dailyClose, error } = await insforge.database
             .from('DailyClose')
             .select('*')
             .eq('id', id)

@@ -1,10 +1,10 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
-import { Database } from "@/lib/supabase/database.types"
+
 
 const CreditNoteItemSchema = z.object({
     productId: z.string(),
@@ -30,20 +30,20 @@ export async function createCreditNote(data: CreditNoteFormData) {
     if (!validated.success) return { success: false, error: validated.error.message }
 
     const { invoiceId, reason, items, restoreStock } = validated.data
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
     try {
         // Create Credit Note
-        const { data: creditNote, error: creditNoteError } = await supabase
+        const { data: creditNote, error: creditNoteError } = await insforge.database
             .from('CreditNote')
-            .insert({
+            .insert([{
                 invoiceId,
                 reason,
                 total,
-                items: items as any, // Stored as JSON
-            })
+                items: items as unknown, // Stored as JSON
+            }])
             .select()
             .single()
 
@@ -54,14 +54,14 @@ export async function createCreditNote(data: CreditNoteFormData) {
         // Restore Stock if requested
         if (restoreStock) {
             for (const item of items) {
-                const { data: product } = await supabase
+                const { data: product } = await insforge.database
                     .from('Product')
                     .select('stock')
                     .eq('id', item.productId)
                     .single()
 
                 if (product) {
-                    await supabase
+                    await insforge.database
                         .from('Product')
                         .update({ stock: product.stock + item.quantity })
                         .eq('id', item.productId)
@@ -80,10 +80,10 @@ export async function createCreditNote(data: CreditNoteFormData) {
 }
 
 export async function getCreditNoteById(id: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
     try {
-        const { data: creditNote, error } = await supabase
+        const { data: creditNote, error } = await insforge.database
             .from('CreditNote')
             .select(`
                 *,

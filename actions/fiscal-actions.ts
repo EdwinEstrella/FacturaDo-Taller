@@ -1,12 +1,12 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 
 export async function getFiscalSequences() {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
         .from('Setting')
         .select('*')
         .like('key', 'NCF_%')
@@ -20,33 +20,33 @@ export async function getFiscalSequences() {
 }
 
 export async function updateFiscalSequence(type: string, current: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
 
-    const { data: existing } = await supabase
+    const { data: existing } = await insforge.database
         .from('Setting')
         .select('key')
         .eq('key', `NCF_${type}`)
         .single()
 
     if (existing) {
-        await supabase
+        await insforge.database
             .from('Setting')
             .update({ value: current })
             .eq('key', `NCF_${type}`)
     } else {
-        await supabase
+        await insforge.database
             .from('Setting')
-            .insert({ key: `NCF_${type}`, value: current })
+            .insert([{ key: `NCF_${type}`, value: current }])
     }
 
     revalidatePath("/fiscal")
 }
 
 export async function generateNCF(type: string) {
-    const supabase = await createClient()
+    const insforge = createServerClient()
     const key = `NCF_${type}`
 
-    const { data: setting } = await supabase
+    const { data: setting } = await insforge.database
         .from('Setting')
         .select('*')
         .eq('key', key)
@@ -60,7 +60,7 @@ export async function generateNCF(type: string) {
     const nextNumber = (parseInt(numberPart) + 1).toString().padStart(8, '0')
     const nextNCF = `${prefix}${nextNumber}`
 
-    await supabase
+    await insforge.database
         .from('Setting')
         .update({ value: nextNCF })
         .eq('key', key)
