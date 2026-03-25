@@ -23,7 +23,8 @@ import {
     Box,
     Receipt,
     Catalog,
-    Logout
+    Logout,
+    Delivery
 } from "@carbon/icons-react";
 
 // Softer spring animation curve
@@ -169,6 +170,7 @@ function getSidebarContent(activeSection: string, role: string): SidebarContent 
                 title: "Servicios",
                 items: [
                     { icon: <Task size={16} className="text-neutral-900" />, label: "Pedidos / Producción", href: "/orders" },
+                    { icon: <Delivery size={16} className="text-neutral-900" />, label: "Pendientes de Instalación", href: "/pendientes" },
                     { icon: <Share size={16} className="text-neutral-900" />, label: "Despacho", href: "/dispatch" },
                     { icon: <UserIcon size={16} className="text-neutral-900" />, label: "Técnicos", href: "/technician" },
                 ].filter(item => checkRole(role, item.href!))
@@ -639,7 +641,7 @@ function MenuSection({
 function getSectionFromPath(pathname: string) {
     if (pathname.includes("/invoices") || pathname.includes("/clients") || pathname.includes("/credit-notes") || pathname.includes("/receivables") || pathname.includes("/quotes")) {
         return "billing";
-    } else if (pathname.includes("/products") || pathname.includes("/warehouse") || pathname.includes("/orders") || pathname.includes("/dispatch") || pathname.includes("/technician")) {
+    } else if (pathname.includes("/products") || pathname.includes("/warehouse") || pathname.includes("/orders") || pathname.includes("/dispatch") || pathname.includes("/technician") || pathname.includes("/pendientes")) {
         return "operations";
     } else if (pathname.includes("/accounting") || pathname.includes("/liquidations") || pathname.includes("/fiscal") || pathname.includes("/petty-cash") || pathname.includes("/daily-close") || pathname.includes("/cash-close-history")) {
         return "finance";

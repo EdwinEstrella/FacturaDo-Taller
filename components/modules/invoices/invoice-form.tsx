@@ -12,6 +12,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
@@ -27,6 +28,7 @@ import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
+import { createInstallationsForInvoice } from "@/actions/installation-actions"
 import type { Client, Product, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -59,6 +61,7 @@ interface InvoiceItemState {
     quantity: number
     variantId?: string
     variantName?: string
+    requiresInstallation?: boolean
 }
 
 export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
@@ -87,37 +90,70 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const [openProduct, setOpenProduct] = useState(false)
     const [openClient, setOpenClient] = useState(false)
 
-    const addItem = (product: SerializedProduct, variant?: { id: string; name: string; price: number }) => {
-        setItems(prev => {
-            // Si es variante, buscamos por variantId, si no, por productId
-            const existing = variant
-                ? prev.find(p => p.variantId === variant.id)
-                : prev.find(p => p.productId === product.id && !p.variantId)
+    // Installation Modal State
+    const [installationModal, setInstallationModal] = useState<{
+        open: boolean
+        product: SerializedProduct | null
+        variant?: { id: string; name: string; price: number }
+    }>({ open: false, product: null })
 
-            if (existing) {
-                return prev.map(p => {
-                    if (variant) {
-                        return p.variantId === variant.id ? { ...p, quantity: p.quantity + 1 } : p
-                    } else {
-                        return p.productId === product.id && !p.variantId ? { ...p, quantity: p.quantity + 1 } : p
-                    }
-                })
-            }
+    const addItem = (product: SerializedProduct, variant?: { id: string; name: string; price: number }, requiresInstallation?: boolean) => {
+        // Si requiresInstallation está definido, agregar directamente (caso de editar)
+        if (requiresInstallation !== undefined) {
+            setItems(prev => {
+                // Si es variante, buscamos por variantId, si no, por productId
+                const existing = variant
+                    ? prev.find(p => p.variantId === variant.id)
+                    : prev.find(p => p.productId === product.id && !p.variantId)
 
-            const newItem: InvoiceItemState = {
-                productId: product.id,
-                productName: variant ? `${product.name} - ${variant.name}` : product.name,
-                price: variant ? variant.price : Number(product.price),
-                quantity: 1
-            }
+                if (existing) {
+                    return prev.map(p => {
+                        if (variant) {
+                            return p.variantId === variant.id ? { ...p, quantity: p.quantity + 1 } : p
+                        } else {
+                            return p.productId === product.id && !p.variantId ? { ...p, quantity: p.quantity + 1 } : p
+                        }
+                    })
+                }
 
-            if (variant) {
-                newItem.variantId = variant.id
-                newItem.variantName = variant.name
-            }
+                const newItem: InvoiceItemState = {
+                    productId: product.id,
+                    productName: variant ? `${product.name} - ${variant.name}` : product.name,
+                    price: variant ? variant.price : Number(product.price),
+                    quantity: 1,
+                    requiresInstallation
+                }
 
-            return [...prev, newItem]
-        })
+                if (variant) {
+                    newItem.variantId = variant.id
+                    newItem.variantName = variant.name
+                }
+
+                return [...prev, newItem]
+            })
+            setOpenProduct(false)
+        } else {
+            // Mostrar modal preguntando si requiere instalación
+            setInstallationModal({ open: true, product, variant })
+        }
+    }
+
+    const handleInstallationYes = () => {
+        if (installationModal.product) {
+            addItem(installationModal.product, installationModal.variant, true)
+        }
+        setInstallationModal({ open: false, product: null })
+    }
+
+    const handleInstallationNo = () => {
+        if (installationModal.product) {
+            addItem(installationModal.product, installationModal.variant, false)
+        }
+        setInstallationModal({ open: false, product: null })
+    }
+
+    const handleInstallationCancel = () => {
+        setInstallationModal({ open: false, product: null })
         setOpenProduct(false)
     }
 
@@ -226,6 +262,30 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
             }
 
             if (res.success) {
+                // Crear instalaciones para items que las requieren (solo en facturas, no cotizaciones)
+                if (type === "INVOICE" && !isEdit) {
+                    const invoiceId = 'invoiceId' in res ? res.invoiceId as string : undefined
+
+                    if (invoiceId) {
+                        const installationItems = items
+                            .filter(item => item.requiresInstallation)
+                            .map(item => ({
+                                invoiceId,
+                                productId: item.productId,
+                                productName: item.productName,
+                                quantity: item.quantity,
+                                clientName: selectedClient.name,
+                                clientAddress: selectedClient.address,
+                                clientPhone: selectedClient.phone
+                            }))
+
+                        if (installationItems.length > 0) {
+                            await createInstallationsForInvoice(installationItems)
+                            toast.success(`${installationItems.length} producto(s) agregado(s) a Pendientes de Instalación`)
+                        }
+                    }
+                }
+
                 toast.success(isEdit ? "Factura Actualizada" : (type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!"))
                 if (!isEdit) {
                     setItems([])
@@ -658,6 +718,44 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Installation Modal */}
+            <Dialog open={installationModal.open} onOpenChange={(open) => {
+                if (!open) handleInstallationCancel()
+                setInstallationModal(prev => ({ ...prev, open }))
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Requiere Instalación?</DialogTitle>
+                        <DialogDescription>
+                            {installationModal.product && (
+                                <span>Producto: <strong>{installationModal.variant
+                                    ? `${installationModal.product.name} - ${installationModal.variant.name}`
+                                    : installationModal.product.name}</strong></span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground">
+                            ¿Este producto requiere instalación para el cliente?
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Si selecciona &quot;Sí&quot;, se creará una orden de producción en el módulo de Pendientes.
+                        </p>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={handleInstallationCancel}>
+                            Cancelar
+                        </Button>
+                        <Button variant="secondary" onClick={handleInstallationNo}>
+                            No
+                        </Button>
+                        <Button onClick={handleInstallationYes}>
+                            Sí, requiere instalación
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

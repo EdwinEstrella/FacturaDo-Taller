@@ -3,6 +3,7 @@
 import { createServerClient } from "@/lib/insforge/client"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import bcrypt from "bcryptjs"
 
 type User = {
   id: string
@@ -42,9 +43,9 @@ export async function login(username: string, password: string) {
 
     const user = users[0] as User
 
-    // Verificar contraseña (en producción usar bcrypt/hashing)
-    // Por ahora comparación directa - TODO: Implementar hashing seguro
-    if (user.password !== password) {
+    // Verificar contraseña usando bcrypt
+    const passwordMatch = await bcrypt.compare(password, user.password)
+    if (!passwordMatch) {
       return { success: false, error: "Usuario o contraseña incorrectos" }
     }
 
@@ -105,11 +106,14 @@ export async function registerUser(data: {
   const insforge = createServerClient()
 
   try {
+    // Hashear la contraseña antes de guardarla
+    const hashedPassword = await bcrypt.hash(data.password, 10)
+
     const { data: users, error } = await insforge.database
       .from('users')
       .insert([{
         username: data.username,
-        password: data.password, // TODO: Implementar hashing seguro
+        password: hashedPassword,
         name: data.name,
         phone: data.phone || null,
         role: data.role || 'user'

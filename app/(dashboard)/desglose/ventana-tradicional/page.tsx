@@ -32,6 +32,12 @@ interface ImportedWindowBreakdownItem {
     id: number
     ancho: number
     alto: number
+    resCabRiel?: number
+    resLateral?: number
+    resJambas?: number
+    resCabAlfDiv?: number
+    resVAnchoDiv?: number
+    resVAltura?: number
 }
 
 interface WindowBreakdown {
@@ -114,10 +120,10 @@ export default function VentanaTradicionalPage() {
     const [isClient, setIsClient] = useState<boolean>(false)
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
     const [guardando, setGuardando] = useState<boolean>(false)
-    const [historial, setHistorial] = useState<any[]>([])
+    const [historial, setHistorial] = useState<WindowBreakdown[]>([])
     const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
     const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
-    const [breakdownsPendientes, setBreakdownsPendientes] = useState<any[]>([])
+    const [breakdownsPendientes, setBreakdownsPendientes] = useState<WindowBreakdown[]>([])
     const [currentBreakdownId, setCurrentBreakdownId] = useState<string | null>(null)
 
     // Evitar error de hidratación - inicializar isClient
@@ -127,7 +133,7 @@ export default function VentanaTradicionalPage() {
 
     const cargarHistorial = async () => {
         const breakdowns = await getWindowBreakdowns("TRADICIONAL")
-        setHistorial(breakdowns as any[])
+        setHistorial(breakdowns)
     }
 
     useEffect(() => {
@@ -158,7 +164,18 @@ export default function VentanaTradicionalPage() {
         setGuardando(true)
 
         try {
-            // Crear breakdown inicial en la base de datos
+            // Primero verificar si hay breakdowns pendientes
+            const pendings = await getPendingBreakdowns(nombreCliente, nombreTecnico, "TRADICIONAL")
+
+            if (pendings.length > 0) {
+                // Mostrar diálogo de pendientes
+                setBreakdownsPendientes(pendings)
+                setMostrarReinicioDialog(true)
+                setGuardando(false)
+                return
+            }
+
+            // Si no hay pendientes, crear breakdown inicial en la base de datos
             const result = await createInitialBreakdown("TRADICIONAL", nombreCliente, nombreTecnico)
 
             if (result.success) {
@@ -353,12 +370,30 @@ export default function VentanaTradicionalPage() {
         }
     }
 
-    const eliminarFila = (id: number) => {
-        setResultados(resultados.filter(r => r.id !== id))
+    const eliminarFila = async (id: number) => {
+        const nuevosResultados = resultados.filter(r => r.id !== id)
+        setResultados(nuevosResultados)
         if (filaEditando === id) {
             setFilaEditando(null)
             setAlto("")
             setAncho("")
+        }
+
+        // Actualizar breakdown en la base de datos
+        if (currentBreakdownId) {
+            const items: WindowBreakdownItem[] = nuevosResultados.map(r => ({
+                id: r.id,
+                ancho: r.ancho,
+                alto: r.alto,
+                resCabRiel: r.resCabRiel,
+                resLateral: r.resLateral,
+                resJambas: r.resJambas,
+                resCabAlfDiv: r.resCabAlfDiv,
+                resVAnchoDiv: r.resVAnchoDiv,
+                resVAltura: r.resVAltura
+            }))
+
+            await updateBreakdownItems(currentBreakdownId, items)
         }
     }
 
@@ -397,7 +432,7 @@ export default function VentanaTradicionalPage() {
             const mostRecent = breakdownsPendientes[0]
 
             // Load items from the breakdown
-            setResultados(mostRecent.items.map((item: any) => ({
+            setResultados(mostRecent.items.map((item: ImportedWindowBreakdownItem) => ({
                 id: item.id,
                 ancho: item.ancho,
                 alto: item.alto,
@@ -410,6 +445,8 @@ export default function VentanaTradicionalPage() {
             })))
 
             setContador(mostRecent.items.length)
+            setDatosGuardados(true)
+            setCurrentBreakdownId(mostRecent.id)
             setMostrarReinicioDialog(false)
             setBreakdownsPendientes([])
         }
@@ -434,14 +471,6 @@ export default function VentanaTradicionalPage() {
             setMostrarReinicioDialog(false)
             setBreakdownsPendientes([])
         }
-    }
-
-    const handleImprimir = () => {
-        setMostrarImpresion(true)
-        // Pequeño delay para asegurar que el contenido se renderice antes de imprimir
-        setTimeout(() => {
-            window.print()
-        }, 100)
     }
 
     const handleGuardarEImprimir = async () => {
@@ -905,9 +934,13 @@ export default function VentanaTradicionalPage() {
                                             <p className="text-xs text-muted-foreground">
                                                 {breakdown.totalWindows} ventanas
                                             </p>
-                                            {breakdown.printedAt && (
+                                            {breakdown.printedAt ? (
                                                 <p className="text-xs text-green-600">
                                                     Impreso: {new Date(breakdown.printedAt).toLocaleDateString('es-DO')}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-yellow-600 font-medium">
+                                                    Pendiente de imprimir
                                                 </p>
                                             )}
                                         </div>
@@ -915,7 +948,7 @@ export default function VentanaTradicionalPage() {
                                     <div className="text-xs">
                                         <p className="font-medium mb-1">Ventanas:</p>
                                         <div className="flex flex-wrap gap-2">
-                                            {breakdown.items.slice(0, 5).map((item: any, idx: number) => (
+                                            {breakdown.items.slice(0, 5).map((item: ImportedWindowBreakdownItem, idx: number) => (
                                                 <span key={idx} className="bg-muted px-2 py-1 rounded">
                                                     #{item.id}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
                                                 </span>
@@ -927,6 +960,34 @@ export default function VentanaTradicionalPage() {
                                             )}
                                         </div>
                                     </div>
+                                    {!breakdown.printedAt && (
+                                        <div className="mt-3 pt-3 border-t">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => {
+                                                    setResultados(breakdown.items.map((item: ImportedWindowBreakdownItem) => ({
+                                                        id: item.id,
+                                                        ancho: item.ancho,
+                                                        alto: item.alto,
+                                                        resCabRiel: item.resCabRiel || 0,
+                                                        resLateral: item.resLateral || 0,
+                                                        resJambas: item.resJambas || 0,
+                                                        resCabAlfDiv: item.resCabAlfDiv || 0,
+                                                        resVAnchoDiv: item.resVAnchoDiv || 0,
+                                                        resVAltura: item.resVAltura || 0
+                                                    })))
+                                                    setContador(breakdown.items.length)
+                                                    setNombreCliente(breakdown.clientName || "")
+                                                    setNombreTecnico(breakdown.technicianName || "")
+                                                    setDatosGuardados(true)
+                                                    setCurrentBreakdownId(breakdown.id)
+                                                    setMostrarHistorial(false)
+                                                }}
+                                            >
+                                                Continuar Editando
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

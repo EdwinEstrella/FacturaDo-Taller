@@ -73,29 +73,31 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
 
             <div className="border-b border-dashed border-black mb-2"></div>
 
-            <table className="w-full mb-2 text-left">
-                <thead>
-                    <tr>
-                        <th className="w-1/2">Desc</th>
-                        <th className="w-1/4 text-right">Cant</th>
-                        <th className="w-1/4 text-right">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {invoice.items.map((item: any) => (
-                        <tr key={item.id}>
-                            <td colSpan={3} className="pt-1">
-                                {item.productName}
-                                <div className="flex justify-between text-xs">
-                                    <span>{formatCurrency(Number(item.price))} x {item.quantity}</span>
-                                    <span className="font-bold">{formatCurrency(Number(item.price) * item.quantity)}</span>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <div className="mb-2">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {invoice.items.map((item: any, index: number) => (
+                    <div key={item.id} className="mb-3 pb-2 border-b border-dashed border-gray-300">
+                        <div className="text-xs mb-1">ITEM #{index + 1}</div>
+                        <div className="font-semibold text-sm mb-1 leading-tight">
+                            {item.productName}
+                        </div>
+                        <div className="text-xs mt-1 space-y-1">
+                            <div className="flex justify-between">
+                                <span>Precio Unit:</span>
+                                <span className="font-medium">{formatCurrency(Number(item.price))}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Cantidad:</span>
+                                <span className="font-medium">x{item.quantity}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-base">
+                                <span>Subtotal:</span>
+                                <span>{formatCurrency(Number(item.price) * item.quantity)}</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             <div className="border-b border-dashed border-black mb-2"></div>
 

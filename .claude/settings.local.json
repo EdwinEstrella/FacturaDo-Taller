@@ -11,7 +11,9 @@
       "mcp__chrome-devtools__click",
       "Bash(npm run:*)",
       "mcp__chrome-devtools__list_console_messages",
-      "mcp__insforge__run-raw-sql"
+      "mcp__insforge__run-raw-sql",
+      "mcp__chrome-devtools__fill",
+      "mcp__insforge__get-backend-metadata"
     ]
   },
   "enableAllProjectMcpServers": true,

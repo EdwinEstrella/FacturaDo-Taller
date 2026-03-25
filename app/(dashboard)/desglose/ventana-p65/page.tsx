@@ -42,6 +42,12 @@ interface ImportedWindowBreakdownItem {
     id: number
     ancho: number
     alto: number
+    resCabRiel?: number
+    resLateral?: number
+    resJambas?: number
+    resCabAlfDiv?: number
+    resVAnchoDiv?: number
+    resVAltura?: number
 }
 
 const LOCAL_STORAGE_KEY = "ventana-p65-data"
@@ -114,7 +120,7 @@ export default function VentanaP65Page() {
     const [historial, setHistorial] = useState<WindowBreakdown[]>([])
     const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
     const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
-    const [breakdownsPendientes, setBreakdownsPendientes] = useState<any[]>([])
+    const [breakdownsPendientes, setBreakdownsPendientes] = useState<WindowBreakdown[]>([])
     const [guardando, setGuardando] = useState<boolean>(false)
     const [isClient, setIsClient] = useState<boolean>(false)
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
@@ -137,6 +143,11 @@ export default function VentanaP65Page() {
                 setContador(data.contador || 0)
                 setNombreCliente(data.nombreCliente || "")
                 setNombreTecnico(data.nombreTecnico || "")
+
+                // Verificar si hay breakdowns pendientes en la base de datos
+                if (data.nombreCliente && data.nombreTecnico) {
+                    checkPendingBreakdowns(data.nombreCliente, data.nombreTecnico)
+                }
             } catch (error) {
                 console.error("Error loading from localStorage:", error)
             }
@@ -145,6 +156,19 @@ export default function VentanaP65Page() {
         // Cargar historial desde base de datos
         cargarHistorial()
     }, [isClient])
+
+    // Verificar breakdowns pendientes
+    const checkPendingBreakdowns = async (clientName: string, technicianName: string) => {
+        try {
+            const pendings = await getPendingBreakdowns(clientName, technicianName, "P65")
+            if (pendings.length > 0) {
+                setBreakdownsPendientes(pendings)
+                setMostrarReinicioDialog(true)
+            }
+        } catch (error) {
+            console.error("Error checking pending breakdowns:", error)
+        }
+    }
 
     // Guardar en localStorage cada vez que cambien los datos
     useEffect(() => {
@@ -184,7 +208,18 @@ export default function VentanaP65Page() {
         setGuardando(true)
 
         try {
-            // Crear breakdown inicial en la base de datos
+            // Primero verificar si hay breakdowns pendientes
+            const pendings = await getPendingBreakdowns(nombreCliente, nombreTecnico, "P65")
+
+            if (pendings.length > 0) {
+                // Mostrar diálogo de pendientes
+                setBreakdownsPendientes(pendings)
+                setMostrarReinicioDialog(true)
+                setGuardando(false)
+                return
+            }
+
+            // Si no hay pendientes, crear breakdown inicial en la base de datos
             const result = await createInitialBreakdown("P65", nombreCliente, nombreTecnico)
 
             if (result.success) {
@@ -379,12 +414,30 @@ export default function VentanaP65Page() {
         }
     }
 
-    const eliminarFila = (id: number) => {
-        setResultados(resultados.filter(r => r.id !== id))
+    const eliminarFila = async (id: number) => {
+        const nuevosResultados = resultados.filter(r => r.id !== id)
+        setResultados(nuevosResultados)
         if (filaEditando === id) {
             setFilaEditando(null)
             setAlto("")
             setAncho("")
+        }
+
+        // Actualizar breakdown en la base de datos
+        if (currentBreakdownId) {
+            const items: WindowBreakdownItem[] = nuevosResultados.map(r => ({
+                id: r.id,
+                ancho: r.ancho,
+                alto: r.alto,
+                resCabRiel: r.resCabRiel,
+                resLateral: r.resLateral,
+                resJambas: r.resJambas,
+                resCabAlfDiv: r.resCabAlfDiv,
+                resVAnchoDiv: r.resVAnchoDiv,
+                resVAltura: r.resVAltura
+            }))
+
+            await updateBreakdownItems(currentBreakdownId, items)
         }
     }
 
@@ -423,7 +476,7 @@ export default function VentanaP65Page() {
             const mostRecent = breakdownsPendientes[0]
 
             // Load items from the breakdown
-            setResultados(mostRecent.items.map((item: any) => ({
+            setResultados(mostRecent.items.map((item: WindowBreakdownItem) => ({
                 id: item.id,
                 ancho: item.ancho,
                 alto: item.alto,
@@ -436,6 +489,8 @@ export default function VentanaP65Page() {
             })))
 
             setContador(mostRecent.items.length)
+            setDatosGuardados(true)
+            setCurrentBreakdownId(mostRecent.id)
             setMostrarReinicioDialog(false)
             setBreakdownsPendientes([])
         }
@@ -460,14 +515,6 @@ export default function VentanaP65Page() {
             setMostrarReinicioDialog(false)
             setBreakdownsPendientes([])
         }
-    }
-
-    const handleImprimir = () => {
-        setMostrarImpresion(true)
-        // Pequeño delay para asegurar que el contenido se renderice antes de imprimir
-        setTimeout(() => {
-            window.print()
-        }, 100)
     }
 
     const handleGuardarEImprimir = async () => {
@@ -932,9 +979,13 @@ export default function VentanaP65Page() {
                                             <p className="text-xs text-muted-foreground">
                                                 {breakdown.totalWindows} ventanas
                                             </p>
-                                            {breakdown.printedAt && (
+                                            {breakdown.printedAt ? (
                                                 <p className="text-xs text-green-600">
                                                     Impreso: {new Date(breakdown.printedAt).toLocaleDateString('es-DO')}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-yellow-600 font-medium">
+                                                    Pendiente de imprimir
                                                 </p>
                                             )}
                                         </div>
@@ -954,6 +1005,34 @@ export default function VentanaP65Page() {
                                             )}
                                         </div>
                                     </div>
+                                    {!breakdown.printedAt && (
+                                        <div className="mt-3 pt-3 border-t">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => {
+                                                    setResultados(breakdown.items.map((item: WindowBreakdownItem) => ({
+                                                        id: item.id,
+                                                        ancho: item.ancho,
+                                                        alto: item.alto,
+                                                        resCabRiel: item.resCabRiel || 0,
+                                                        resLateral: item.resLateral || 0,
+                                                        resJambas: item.resJambas || 0,
+                                                        resCabAlfDiv: item.resCabAlfDiv || 0,
+                                                        resVAnchoDiv: item.resVAnchoDiv || 0,
+                                                        resVAltura: item.resVAltura || 0
+                                                    })))
+                                                    setContador(breakdown.items.length)
+                                                    setNombreCliente(breakdown.clientName || "")
+                                                    setNombreTecnico(breakdown.technicianName || "")
+                                                    setDatosGuardados(true)
+                                                    setCurrentBreakdownId(breakdown.id)
+                                                    setMostrarHistorial(false)
+                                                }}
+                                            >
+                                                Continuar Editando
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

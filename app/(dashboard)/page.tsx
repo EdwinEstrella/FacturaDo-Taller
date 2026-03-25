@@ -15,8 +15,8 @@ export default async function DashboardPage() {
 
     // Obtener datos reales con comparativas
     const [
-        { count: invoiceCount },
-        { count: clientCount },
+        ,
+        ,
         { count: productCountVal },
         revenueStats,
         clientStats,

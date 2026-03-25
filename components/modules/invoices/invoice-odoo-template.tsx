@@ -160,34 +160,34 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
 
       {/* Detalle de líneas */}
       <section className="mb-6">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border px-2 py-1 text-left w-1/2">Descripción</th>
-              <th className="border px-2 py-1 text-right w-1/8">Cant.</th>
-              <th className="border px-2 py-1 text-right w-1/8">Precio</th>
-              <th className="border px-2 py-1 text-right w-1/8">Total</th>
+              <th className="border px-4 py-2 text-left w-1/2">Descripción</th>
+              <th className="border px-4 py-2 text-right w-1/8">Cant.</th>
+              <th className="border px-4 py-2 text-right w-1/8">Precio</th>
+              <th className="border px-4 py-2 text-right w-1/8">Total</th>
             </tr>
           </thead>
           <tbody>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {invoice.items.map((item: any) => (
-              <tr key={item.id}>
-                <td className="border px-2 py-1 align-top">
-                  <div className="font-medium">{item.productName}</div>
+              <tr key={item.id} className="border-b">
+                <td className="border px-4 py-3 align-top">
+                  <div className="font-semibold text-base">{item.productName}</div>
                   {item.description && (
-                    <div className="text-[10px] text-gray-600">
+                    <div className="text-xs text-gray-600 mt-1">
                       {item.description}
                     </div>
                   )}
                 </td>
-                <td className="border px-2 py-1 text-right align-top">
+                <td className="border px-4 py-3 text-right align-top font-medium text-base">
                   {item.quantity}
                 </td>
-                <td className="border px-2 py-1 text-right align-top">
+                <td className="border px-4 py-3 text-right align-top font-medium text-base">
                   {formatCurrency(Number(item.price))}
                 </td>
-                <td className="border px-2 py-1 text-right align-top font-semibold">
+                <td className="border px-4 py-3 text-right align-top font-bold text-lg">
                   {formatCurrency(Number(item.price) * item.quantity)}
                 </td>
               </tr>
@@ -198,28 +198,28 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
 
       {/* Totales */}
       <section className="flex justify-end mb-8">
-        <div className="w-64 text-xs space-y-1">
+        <div className="w-80 text-base space-y-2">
           <div className="flex justify-between">
             <span>Subtotal:</span>
-            <span>{formatCurrency(subtotal)}</span>
+            <span className="font-medium">{formatCurrency(subtotal)}</span>
           </div>
           <div className="flex justify-between">
             <span>ITBIS:</span>
-            <span>{formatCurrency(tax)}</span>
+            <span className="font-medium">{formatCurrency(tax)}</span>
           </div>
           {shipping > 0 && (
             <div className="flex justify-between">
               <span>Envío:</span>
-              <span>{formatCurrency(shipping)}</span>
+              <span className="font-medium">{formatCurrency(shipping)}</span>
             </div>
           )}
-          <div className="border-t mt-1 pt-2 flex justify-between text-sm font-bold">
-            <span>Total:</span>
+          <div className="border-t-2 mt-3 pt-3 flex justify-between text-xl font-bold">
+            <span>TOTAL:</span>
             <span>{formatCurrency(total)}</span>
           </div>
           {invoice.status === "PENDIENTE" && typeof invoice.balance !== "undefined" && (
-            <div className="mt-2 text-red-700 font-semibold flex justify-between">
-              <span>Pendiente:</span>
+            <div className="mt-3 text-red-700 font-bold text-lg flex justify-between">
+              <span>PENDIENTE:</span>
               <span>{formatCurrency(Number(invoice.balance))}</span>
             </div>
           )}

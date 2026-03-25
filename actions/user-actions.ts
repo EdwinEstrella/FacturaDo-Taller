@@ -4,28 +4,6 @@ import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 
-interface User {
-    id: string
-    name: string | null
-    username: string
-    phone: string | null
-    password: string
-    role: string
-    customPermissions: Record<string, boolean> | null
-    created_at: string
-    updated_at: string
-}
-
-interface UserInsert {
-    id?: string
-    name: string | null
-    username: string
-    phone: string | null
-    password: string
-    role: string
-    customPermissions?: Record<string, boolean> | null
-}
-
 interface UserUpdate {
     name?: string | null
     username?: string

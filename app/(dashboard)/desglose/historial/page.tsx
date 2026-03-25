@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getWindowBreakdowns } from "@/actions/window-breakdown-actions"
 
 interface FilterOptions {
@@ -99,6 +100,8 @@ export default function HistorialDesglosePage() {
     const [filteredDesgloses, setFilteredDesgloses] = useState<WindowBreakdown[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [isClient, setIsClient] = useState<boolean>(false)
+    const [selectedDesglose, setSelectedDesglose] = useState<WindowBreakdown | null>(null)
+    const [dialogOpen, setDialogOpen] = useState<boolean>(false)
 
     const [filters, setFilters] = useState<FilterOptions>({
         dateFrom: "",
@@ -196,22 +199,8 @@ export default function HistorialDesglosePage() {
     }
 
     const verDetalles = (desglose: WindowBreakdown) => {
-        const items = desglose.items
-
-        let detalle = "VENTANAS:\n\n"
-        items.forEach((item, idx: number) => {
-            detalle += `${idx + 1}. ${decimalToFraction(item.ancho)} x ${decimalToFraction(item.alto)}`
-            if (item.resCabRiel) detalle += ` | Cab/Riel: ${decimalToFraction(item.resCabRiel)}`
-            if (item.resLateral) detalle += ` | Lat: ${decimalToFraction(item.resLateral)}`
-            if (item.resJambas) detalle += ` | Jam: ${decimalToFraction(item.resJambas)}`
-            if (item.resCabAlfDiv) detalle += ` | C/A: ${decimalToFraction(item.resCabAlfDiv)}`
-            if (item.resVAnchoDiv) detalle += ` | V.A: ${decimalToFraction(item.resVAnchoDiv)}`
-            if (item.resVAltura) detalle += ` | V.Al: ${decimalToFraction(item.resVAltura)}`
-            if (item.notas) detalle += ` | Notas: ${item.notas}`
-            detalle += "\n"
-        })
-
-        alert(detalle)
+        setSelectedDesglose(desglose)
+        setDialogOpen(true)
     }
 
     return (
@@ -388,6 +377,83 @@ export default function HistorialDesglosePage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Dialog para ver detalles */}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Detalles del Desglose</DialogTitle>
+                        <DialogDescription>
+                            {selectedDesglose?.clientName && `Cliente: ${selectedDesglose.clientName}`}
+                            {selectedDesglose?.technicianName && ` | Técnico: ${selectedDesglose.technicianName}`}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedDesglose && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-semibold">Tipo:</span>{' '}
+                                    {selectedDesglose.windowType === 'P65' ? 'P65' : 'Tradicional'}
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Total Ventanas:</span>{' '}
+                                    {selectedDesglose.totalWindows}
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Fecha:</span>{' '}
+                                    {new Date(selectedDesglose.createdAt).toLocaleDateString('es-DO')}
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Estado:</span>{' '}
+                                    {selectedDesglose.printedAt ? (
+                                        <span className="text-green-600">Impreso</span>
+                                    ) : (
+                                        <span className="text-yellow-600">Pendiente</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="border-t pt-4">
+                                <h3 className="font-semibold mb-3">Ventanas:</h3>
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                    {selectedDesglose.items.map((item, idx) => (
+                                        <div key={idx} className="p-3 bg-muted rounded-lg">
+                                            <div className="font-semibold text-sm mb-2">
+                                                #{idx + 1}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                                {item.resCabRiel && (
+                                                    <div><span className="font-medium">Cab/Riel:</span> {decimalToFraction(item.resCabRiel)}</div>
+                                                )}
+                                                {item.resLateral && (
+                                                    <div><span className="font-medium">Lateral:</span> {decimalToFraction(item.resLateral)}</div>
+                                                )}
+                                                {item.resJambas && (
+                                                    <div><span className="font-medium">Jambas:</span> {decimalToFraction(item.resJambas)}</div>
+                                                )}
+                                                {item.resCabAlfDiv && (
+                                                    <div><span className="font-medium">Cab/Alf Div:</span> {decimalToFraction(item.resCabAlfDiv)}</div>
+                                                )}
+                                                {item.resVAnchoDiv && (
+                                                    <div><span className="font-medium">V. Ancho Div:</span> {decimalToFraction(item.resVAnchoDiv)}</div>
+                                                )}
+                                                {item.resVAltura && (
+                                                    <div><span className="font-medium">V. Altura:</span> {decimalToFraction(item.resVAltura)}</div>
+                                                )}
+                                                {item.notas && (
+                                                    <div className="col-span-2 mt-2 pt-2 border-t">
+                                                        <span className="font-medium">Notas:</span> {item.notas}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

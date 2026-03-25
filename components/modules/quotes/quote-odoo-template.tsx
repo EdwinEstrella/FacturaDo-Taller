@@ -152,28 +152,28 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
 
       {/* Detalle de líneas */}
       <section className="mb-6">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border px-2 py-1 text-left w-1/2">Descripción</th>
-              <th className="border px-2 py-1 text-right w-1/8">Cant.</th>
-              <th className="border px-2 py-1 text-right w-1/8">Precio</th>
-              <th className="border px-2 py-1 text-right w-1/8">Total</th>
+              <th className="border px-4 py-2 text-left w-1/2">Descripción</th>
+              <th className="border px-4 py-2 text-right w-1/8">Cant.</th>
+              <th className="border px-4 py-2 text-right w-1/8">Precio</th>
+              <th className="border px-4 py-2 text-right w-1/8">Total</th>
             </tr>
           </thead>
           <tbody>
             {quote.items.map((item: QuoteItem) => (
-              <tr key={item.id}>
-                <td className="border px-2 py-1 align-top">
-                  <div className="font-medium">{item.productName}</div>
+              <tr key={item.id} className="border-b">
+                <td className="border px-4 py-3 align-top">
+                  <div className="font-semibold text-base">{item.productName}</div>
                 </td>
-                <td className="border px-2 py-1 text-right align-top">
+                <td className="border px-4 py-3 text-right align-top font-medium text-base">
                   {item.quantity}
                 </td>
-                <td className="border px-2 py-1 text-right align-top">
+                <td className="border px-4 py-3 text-right align-top font-medium text-base">
                   {formatCurrency(Number(item.price))}
                 </td>
-                <td className="border px-2 py-1 text-right align-top font-semibold">
+                <td className="border px-4 py-3 text-right align-top font-bold text-lg">
                   {formatCurrency(Number(item.price) * item.quantity)}
                 </td>
               </tr>
@@ -184,9 +184,9 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
 
       {/* Totales */}
       <section className="flex justify-end mb-8">
-        <div className="w-64 text-xs space-y-1">
-          <div className="border-t mt-1 pt-2 flex justify-between text-sm font-bold">
-            <span>Total:</span>
+        <div className="w-80 text-base space-y-2">
+          <div className="border-t-2 mt-3 pt-3 flex justify-between text-xl font-bold">
+            <span>TOTAL:</span>
             <span>{formatCurrency(Number(quote.total))}</span>
           </div>
         </div>
