@@ -27,7 +27,7 @@ export function Navbar({ user }: NavbarProps) {
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => router.push("/desglose")}
+                        onClick={() => router.push("/desglose/historial")}
                     >
                         Historial
                     </Button>

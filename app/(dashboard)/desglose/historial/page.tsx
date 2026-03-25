@@ -6,8 +6,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { getWindowBreakdowns } from "@/actions/window-breakdown-actions"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
+import { getWindowBreakdowns, deleteWindowBreakdown, markAsProduction } from "@/actions/window-breakdown-actions"
+import { useRouter } from "next/navigation"
 
 interface FilterOptions {
     dateFrom: string
@@ -27,6 +35,7 @@ interface WindowBreakdown {
     totalWindows: number
     createdAt: string
     printedAt: string | null
+    sentToProductionAt: string | null
     items: WindowBreakdownItem[]
 }
 
@@ -96,12 +105,15 @@ function decimalToFraction(dec: number): string {
 }
 
 export default function HistorialDesglosePage() {
+    const router = useRouter()
     const [desgloses, setDesgloses] = useState<WindowBreakdown[]>([])
     const [filteredDesgloses, setFilteredDesgloses] = useState<WindowBreakdown[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [isClient, setIsClient] = useState<boolean>(false)
-    const [selectedDesglose, setSelectedDesglose] = useState<WindowBreakdown | null>(null)
-    const [dialogOpen, setDialogOpen] = useState<boolean>(false)
+    const [mostrarConfirmarEliminar, setMostrarConfirmarEliminar] = useState<boolean>(false)
+    const [desgloseAEliminar, setDesgloseAEliminar] = useState<WindowBreakdown | null>(null)
+    const [mostrarConfirmarProduccion, setMostrarConfirmarProduccion] = useState<boolean>(false)
+    const [desgloseAProduccion, setDesgloseAProduccion] = useState<WindowBreakdown | null>(null)
 
     const [filters, setFilters] = useState<FilterOptions>({
         dateFrom: "",
@@ -198,9 +210,58 @@ export default function HistorialDesglosePage() {
         })
     }
 
-    const verDetalles = (desglose: WindowBreakdown) => {
-        setSelectedDesglose(desglose)
-        setDialogOpen(true)
+    const handleEditar = (desglose: WindowBreakdown) => {
+        // Redirigir a la página correspondiente con el ID del desglose
+        const ruta = desglose.windowType === 'P65'
+            ? `/desglose/ventana-p65?edit=${desglose.id}`
+            : `/desglose/ventana-tradicional?edit=${desglose.id}`
+        router.push(ruta)
+    }
+
+    const handleMandarProduccion = (desglose: WindowBreakdown) => {
+        setDesgloseAProduccion(desglose)
+        setMostrarConfirmarProduccion(true)
+    }
+
+    const confirmarProduccion = async () => {
+        if (!desgloseAProduccion) return
+
+        try {
+            await markAsProduction(desgloseAProduccion.id)
+            await cargarDesgloses()
+            setMostrarConfirmarProduccion(false)
+            setDesgloseAProduccion(null)
+        } catch (error) {
+            console.error("Error al mandar a producción:", error)
+        }
+    }
+
+    const cancelarProduccion = () => {
+        setMostrarConfirmarProduccion(false)
+        setDesgloseAProduccion(null)
+    }
+
+    const handleEliminar = (desglose: WindowBreakdown) => {
+        setDesgloseAEliminar(desglose)
+        setMostrarConfirmarEliminar(true)
+    }
+
+    const confirmarEliminar = async () => {
+        if (!desgloseAEliminar) return
+
+        try {
+            await deleteWindowBreakdown(desgloseAEliminar.id)
+            await cargarDesgloses()
+            setMostrarConfirmarEliminar(false)
+            setDesgloseAEliminar(null)
+        } catch (error) {
+            console.error("Error al eliminar desglose:", error)
+        }
+    }
+
+    const cancelarEliminar = () => {
+        setMostrarConfirmarEliminar(false)
+        setDesgloseAEliminar(null)
     }
 
     return (
@@ -361,13 +422,31 @@ export default function HistorialDesglosePage() {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => verDetalles(desglose)}
-                                                >
-                                                    Ver Detalles
-                                                </Button>
+                                                <div className="flex gap-1 flex-wrap">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="default"
+                                                        onClick={() => handleEditar(desglose)}
+                                                    >
+                                                        Editar
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="border-green-600 text-green-600 hover:bg-green-50"
+                                                        disabled={desglose.sentToProductionAt !== null}
+                                                        onClick={() => handleMandarProduccion(desglose)}
+                                                    >
+                                                        {desglose.sentToProductionAt ? "En Producción" : "Producción"}
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => handleEliminar(desglose)}
+                                                    >
+                                                        Eliminar
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -378,80 +457,43 @@ export default function HistorialDesglosePage() {
                 </CardContent>
             </Card>
 
-            {/* Dialog para ver detalles */}
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            {/* Modal de confirmación para eliminar */}
+            <Dialog open={mostrarConfirmarEliminar} onOpenChange={setMostrarConfirmarEliminar}>
+                <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Detalles del Desglose</DialogTitle>
+                        <DialogTitle>¿Eliminar desglose?</DialogTitle>
                         <DialogDescription>
-                            {selectedDesglose?.clientName && `Cliente: ${selectedDesglose.clientName}`}
-                            {selectedDesglose?.technicianName && ` | Técnico: ${selectedDesglose.technicianName}`}
+                            ¿Estás seguro de eliminar el desglose de {desgloseAEliminar?.clientName || 'este cliente'}? Esta acción no se puede deshacer.
                         </DialogDescription>
                     </DialogHeader>
-                    {selectedDesglose && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="font-semibold">Tipo:</span>{' '}
-                                    {selectedDesglose.windowType === 'P65' ? 'P65' : 'Tradicional'}
-                                </div>
-                                <div>
-                                    <span className="font-semibold">Total Ventanas:</span>{' '}
-                                    {selectedDesglose.totalWindows}
-                                </div>
-                                <div>
-                                    <span className="font-semibold">Fecha:</span>{' '}
-                                    {new Date(selectedDesglose.createdAt).toLocaleDateString('es-DO')}
-                                </div>
-                                <div>
-                                    <span className="font-semibold">Estado:</span>{' '}
-                                    {selectedDesglose.printedAt ? (
-                                        <span className="text-green-600">Impreso</span>
-                                    ) : (
-                                        <span className="text-yellow-600">Pendiente</span>
-                                    )}
-                                </div>
-                            </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={cancelarEliminar}>
+                            Cancelar
+                        </Button>
+                        <Button variant="destructive" onClick={confirmarEliminar}>
+                            Eliminar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-                            <div className="border-t pt-4">
-                                <h3 className="font-semibold mb-3">Ventanas:</h3>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                    {selectedDesglose.items.map((item, idx) => (
-                                        <div key={idx} className="p-3 bg-muted rounded-lg">
-                                            <div className="font-semibold text-sm mb-2">
-                                                #{idx + 1}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                                                {item.resCabRiel && (
-                                                    <div><span className="font-medium">Cab/Riel:</span> {decimalToFraction(item.resCabRiel)}</div>
-                                                )}
-                                                {item.resLateral && (
-                                                    <div><span className="font-medium">Lateral:</span> {decimalToFraction(item.resLateral)}</div>
-                                                )}
-                                                {item.resJambas && (
-                                                    <div><span className="font-medium">Jambas:</span> {decimalToFraction(item.resJambas)}</div>
-                                                )}
-                                                {item.resCabAlfDiv && (
-                                                    <div><span className="font-medium">Cab/Alf Div:</span> {decimalToFraction(item.resCabAlfDiv)}</div>
-                                                )}
-                                                {item.resVAnchoDiv && (
-                                                    <div><span className="font-medium">V. Ancho Div:</span> {decimalToFraction(item.resVAnchoDiv)}</div>
-                                                )}
-                                                {item.resVAltura && (
-                                                    <div><span className="font-medium">V. Altura:</span> {decimalToFraction(item.resVAltura)}</div>
-                                                )}
-                                                {item.notas && (
-                                                    <div className="col-span-2 mt-2 pt-2 border-t">
-                                                        <span className="font-medium">Notas:</span> {item.notas}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
+            {/* Modal de confirmación para mandar a producción */}
+            <Dialog open={mostrarConfirmarProduccion} onOpenChange={setMostrarConfirmarProduccion}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Enviar a producción?</DialogTitle>
+                        <DialogDescription>
+                            ¿Estás seguro de mandar a producción el desglose de {desgloseAProduccion?.clientName || 'este cliente'}?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={cancelarProduccion}>
+                            Cancelar
+                        </Button>
+                        <Button className="bg-green-600 hover:bg-green-700" onClick={confirmarProduccion}>
+                            Enviar a Producción
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

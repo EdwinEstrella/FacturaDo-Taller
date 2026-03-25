@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, deleteWindowBreakdown, markAsProduction, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, deleteWindowBreakdown, markAsProduction, getWindowBreakdownById, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
 
 interface CalculationResults {
     id: number
@@ -110,6 +113,7 @@ function decimalToFraction(dec: number): string {
 }
 
 export default function VentanaP65Page() {
+    const searchParams = useSearchParams()
     const [alto, setAlto] = useState<string>("")
     const [ancho, setAncho] = useState<string>("")
     const [resultados, setResultados] = useState<CalculationResults[]>([])
@@ -118,8 +122,6 @@ export default function VentanaP65Page() {
     const [filaEditando, setFilaEditando] = useState<number | null>(null)
     const [nombreCliente, setNombreCliente] = useState<string>("")
     const [nombreTecnico, setNombreTecnico] = useState<string>("")
-    const [historial, setHistorial] = useState<WindowBreakdown[]>([])
-    const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
     const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
     const [breakdownsPendientes, setBreakdownsPendientes] = useState<WindowBreakdown[]>([])
     const [todosPendientes, setTodosPendientes] = useState<WindowBreakdown[]>([])
@@ -130,11 +132,54 @@ export default function VentanaP65Page() {
     const [currentBreakdownId, setCurrentBreakdownId] = useState<string | null>(null)
     const [mostrarModalGuardado, setMostrarModalGuardado] = useState<boolean>(false)
     const [breakdownGuardado, setBreakdownGuardado] = useState<WindowBreakdown | null>(null)
+    const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
+    const [mostrarConfirmarEliminarP65, setMostrarConfirmarEliminarP65] = useState<boolean>(false)
+    const [breakdownIdAEliminarP65, setBreakdownIdAEliminarP65] = useState<string | null>(null)
 
     // Evitar error de hidratación
     useEffect(() => {
         setIsClient(true)
+
+        // Cargar configuración de la empresa
+        const loadSettings = async () => {
+            const settings = await getCompanySettings()
+            setCompanySettings(settings)
+        }
+        loadSettings()
     }, [])
+
+    // Cargar desglose para editar si viene el parámetro edit
+    useEffect(() => {
+        if (!isClient) return
+
+        const editId = searchParams.get('edit')
+
+        if (editId) {
+            const loadBreakdownForEdit = async () => {
+                const breakdown = await getWindowBreakdownById(editId)
+                if (breakdown) {
+                    // Cargar datos del desglose
+                    setResultados(breakdown.items.map((item: WindowBreakdownItem) => ({
+                        id: item.id,
+                        ancho: item.ancho,
+                        alto: item.alto,
+                        resCabRiel: item.resCabRiel || 0,
+                        resLateral: item.resLateral || 0,
+                        resJambas: item.resJambas || 0,
+                        resCabAlfDiv: item.resCabAlfDiv || 0,
+                        resVAnchoDiv: item.resVAnchoDiv || 0,
+                        resVAltura: item.resVAltura || 0
+                    })))
+                    setContador(breakdown.items.length)
+                    setNombreCliente(breakdown.clientName || "")
+                    setNombreTecnico(breakdown.technicianName || "")
+                    setDatosGuardados(true)
+                    setCurrentBreakdownId(breakdown.id)
+                }
+            }
+            loadBreakdownForEdit()
+        }
+    }, [isClient, searchParams])
 
     // Cargar datos desde localStorage al iniciar
     useEffect(() => {
@@ -159,7 +204,7 @@ export default function VentanaP65Page() {
         }
 
         // Cargar historial desde base de datos
-        cargarHistorial()
+        cargarPendientes()
     }, [isClient])
 
     // Verificar breakdowns pendientes
@@ -186,11 +231,9 @@ export default function VentanaP65Page() {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data))
     }, [resultados, contador, nombreCliente, nombreTecnico])
 
-    const cargarHistorial = async () => {
+    const cargarPendientes = async () => {
+        // Cargar desgloses pendientes (sin imprimir)
         const breakdowns = await getWindowBreakdowns("P65")
-        setHistorial(breakdowns as WindowBreakdown[])
-
-        // Cargar todos los pendientes (sin imprimir)
         const pendientes = breakdowns.filter((b: WindowBreakdown) => !b.printedAt)
         setTodosPendientes(pendientes as WindowBreakdown[])
 
@@ -516,7 +559,7 @@ export default function VentanaP65Page() {
             await deletePendingBreakdowns(nombreCliente, nombreTecnico, "P65")
 
             // Reload historial
-            await cargarHistorial()
+            await cargarPendientes()
 
             // Clear form
             setAlto("")
@@ -593,7 +636,7 @@ export default function VentanaP65Page() {
             }
 
             // Recargar historial
-            await cargarHistorial()
+            await cargarPendientes()
 
             // Crear objeto breakdown para el modal
             const breakdownObj: WindowBreakdown = {
@@ -640,7 +683,7 @@ export default function VentanaP65Page() {
             await markAsPrinted(currentBreakdownId)
 
             // Recargar historial y pendientes
-            await cargarHistorial()
+            await cargarPendientes()
 
             // Mostrar impresión
             setMostrarImpresion(true)
@@ -672,7 +715,7 @@ export default function VentanaP65Page() {
             await markAsProduction(currentBreakdownId)
 
             // Recargar historial
-            await cargarHistorial()
+            await cargarPendientes()
 
             alert("Desglose enviado a producción exitosamente")
         } catch (error) {
@@ -683,22 +726,27 @@ export default function VentanaP65Page() {
         }
     }
 
-    const handleEliminarBreakdown = async (breakdownId: string) => {
-        if (!confirm("¿Estás seguro de que deseas eliminar este desglose? Esta acción no se puede deshacer.")) {
-            return
-        }
+    const handleEliminarBreakdown = (breakdownId: string) => {
+        setBreakdownIdAEliminarP65(breakdownId)
+        setMostrarConfirmarEliminarP65(true)
+    }
+
+    const confirmarEliminarP65 = async () => {
+        if (!breakdownIdAEliminarP65) return
 
         try {
-            await deleteWindowBreakdown(breakdownId)
-
-            // Recargar historial
-            await cargarHistorial()
-
-            alert("Desglose eliminado exitosamente")
+            await deleteWindowBreakdown(breakdownIdAEliminarP65)
+            await cargarPendientes()
+            setMostrarConfirmarEliminarP65(false)
+            setBreakdownIdAEliminarP65(null)
         } catch (error) {
             console.error("Error al eliminar desglose:", error)
-            alert("Error al eliminar desglose")
         }
+    }
+
+    const cancelarEliminarP65 = () => {
+        setMostrarConfirmarEliminarP65(false)
+        setBreakdownIdAEliminarP65(null)
     }
 
     const handleModalMandarProduccion = async () => {
@@ -708,7 +756,7 @@ export default function VentanaP65Page() {
 
         try {
             await markAsProduction(breakdownGuardado.id)
-            await cargarHistorial()
+            await cargarPendientes()
 
             alert("Desglose enviado a producción exitosamente")
             setMostrarModalGuardado(false)
@@ -730,7 +778,7 @@ export default function VentanaP65Page() {
             await markAsPrinted(breakdownGuardado.id)
 
             // Recargar historial y pendientes
-            await cargarHistorial()
+            await cargarPendientes()
 
             // Cerrar modal
             setMostrarModalGuardado(false)
@@ -1006,17 +1054,6 @@ export default function VentanaP65Page() {
                                 </Button>
                             </div>
 
-                            {historial.length > 0 && (
-                                <div className="mt-4">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setMostrarHistorial(!mostrarHistorial)}
-                                        className="w-full"
-                                    >
-                                        {mostrarHistorial ? "Ocultar" : "Ver"} Historial ({historial.length})
-                                    </Button>
-                                </div>
-                            )}
                         </CardContent>
                     </Card>
                 )}
@@ -1148,8 +1185,19 @@ export default function VentanaP65Page() {
                     <div id="printable-area" className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">
                         {/* Header */}
                         <div className="text-center mb-3">
-                            <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
-                            <p className="text-xs">Ventana P65</p>
+                            <Image
+                                src={companySettings?.companyLogo && companySettings.companyLogo.length > 0 ? companySettings.companyLogo : "/logo.png"}
+                                alt="Logo"
+                                width={44}
+                                height={44}
+                                className="h-11 mx-auto mb-2"
+                                unoptimized
+                            />
+                            <h1 className="font-bold text-lg uppercase">{companySettings?.companyName || "FacturaDO"}</h1>
+                            {companySettings?.companyRnc && <p className="text-xs">RNC: {companySettings.companyRnc}</p>}
+                            {companySettings?.companyAddress && <p className="text-xs">{companySettings.companyAddress}</p>}
+                            {companySettings?.companyPhone && <p className="text-xs">Tel: {companySettings.companyPhone}</p>}
+                            <p className="text-xs font-bold">Desglose Ventana P65</p>
                             <p className="text-xs">Fecha: {isClient && new Date().toLocaleDateString('es-DO')}</p>
                             <p className="text-xs">Hora: {isClient && new Date().toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
@@ -1158,13 +1206,15 @@ export default function VentanaP65Page() {
 
                         {/* Información del pedido */}
                         <div className="mb-2 text-xs">
+                            {currentBreakdownId && <p><strong>Desglose #:</strong> {currentBreakdownId.slice(0, 8)}</p>}
                             {nombreCliente && (
                                 <p><strong>Cliente:</strong> {nombreCliente}</p>
                             )}
                             {nombreTecnico && (
                                 <p><strong>Técnico:</strong> {nombreTecnico}</p>
                             )}
-                            <p><strong>Digitado:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                            <p><strong>Fecha:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                            <p><strong>Total Ventanas:</strong> {resultados.length}</p>
                         </div>
 
                         <div className="border-b border-dashed border-black mb-2"></div>
@@ -1216,111 +1266,10 @@ export default function VentanaP65Page() {
 
                         {/* Footer */}
                         <div className="border-t border-dashed border-black mt-3 pt-2 text-center">
-                            <p className="text-[10px] italic">Generado por FacturaDO - Desglose P65</p>
+                            <p className="text-[10px] italic">Generado por {companySettings?.companyName || "FacturaDO"} - Desglose P65</p>
                         </div>
                     </div>
                 </>
-            )}
-
-            {/* Historial de desgloses */}
-            {mostrarHistorial && historial.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Historial de Desgloses Guardados</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            {historial.map((breakdown) => (
-                                <div key={breakdown.id} className="border rounded-lg p-4">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <p className="font-semibold">{breakdown.clientName || "Sin cliente"}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {breakdown.technicianName && `Técnico: ${breakdown.technicianName} | `}
-                                                {new Date(breakdown.createdAt).toLocaleDateString('es-DO')}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-muted-foreground">
-                                                {breakdown.totalWindows} ventanas
-                                            </p>
-                                            {breakdown.printedAt ? (
-                                                <p className="text-xs text-green-600">
-                                                    Impreso: {new Date(breakdown.printedAt).toLocaleDateString('es-DO')}
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs text-yellow-600 font-medium">
-                                                    Pendiente de imprimir
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="text-xs">
-                                        <p className="font-medium mb-1">Ventanas:</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {breakdown.items.slice(0, 5).map((item: ImportedWindowBreakdownItem, idx: number) => (
-                                                <span key={idx} className="bg-muted px-2 py-1 rounded">
-                                                    #{item.id}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
-                                                </span>
-                                            ))}
-                                            {breakdown.items.length > 5 && (
-                                                <span className="text-muted-foreground">
-                                                    +{breakdown.items.length - 5} más
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 pt-3 border-t flex gap-2 flex-wrap">
-                                        <Button
-                                            size="sm"
-                                            onClick={() => {
-                                                setResultados(breakdown.items.map((item: ImportedWindowBreakdownItem) => ({
-                                                    id: item.id,
-                                                    ancho: item.ancho,
-                                                    alto: item.alto,
-                                                    resCabRiel: item.resCabRiel || 0,
-                                                    resLateral: item.resLateral || 0,
-                                                    resJambas: item.resJambas || 0,
-                                                    resCabAlfDiv: item.resCabAlfDiv || 0,
-                                                    resVAnchoDiv: item.resVAnchoDiv || 0,
-                                                    resVAltura: item.resVAltura || 0
-                                                })))
-                                                setContador(breakdown.items.length)
-                                                setNombreCliente(breakdown.clientName || "")
-                                                setNombreTecnico(breakdown.technicianName || "")
-                                                setDatosGuardados(true)
-                                                setCurrentBreakdownId(breakdown.id)
-                                                setMostrarHistorial(false)
-                                            }}
-                                        >
-                                            {breakdown.printedAt ? "Editar Copia" : "Continuar Editando"}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="border-green-600 text-green-600 hover:bg-green-50"
-                                            disabled={breakdown.sentToProductionAt !== null}
-                                            onClick={async () => {
-                                                await markAsProduction(breakdown.id)
-                                                await cargarHistorial()
-                                                alert("Enviado a producción")
-                                            }}
-                                        >
-                                            {breakdown.sentToProductionAt ? "En Producción" : "Mandar a Producción"}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            onClick={() => handleEliminarBreakdown(breakdown.id)}
-                                        >
-                                            Eliminar
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
             )}
 
             {/* Dialogo de reinicio con ventanas pendientes */}
@@ -1386,8 +1335,19 @@ export default function VentanaP65Page() {
                                 <div className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">
                                     {/* Header */}
                                     <div className="text-center mb-3">
-                                        <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
-                                        <p className="text-xs">Ventana P65</p>
+                                        <Image
+                                            src={companySettings?.companyLogo && companySettings.companyLogo.length > 0 ? companySettings.companyLogo : "/logo.png"}
+                                            alt="Logo"
+                                            width={44}
+                                            height={44}
+                                            className="h-11 mx-auto mb-2"
+                                            unoptimized
+                                        />
+                                        <h1 className="font-bold text-lg uppercase">{companySettings?.companyName || "FacturaDO"}</h1>
+                                        {companySettings?.companyRnc && <p className="text-xs">RNC: {companySettings.companyRnc}</p>}
+                                        {companySettings?.companyAddress && <p className="text-xs">{companySettings.companyAddress}</p>}
+                                        {companySettings?.companyPhone && <p className="text-xs">Tel: {companySettings.companyPhone}</p>}
+                                        <p className="text-xs font-bold">Desglose Ventana P65</p>
                                         <p className="text-xs">Fecha: {new Date().toLocaleDateString('es-DO')}</p>
                                         <p className="text-xs">Hora: {new Date().toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}</p>
                                     </div>
@@ -1396,13 +1356,15 @@ export default function VentanaP65Page() {
 
                                     {/* Información del pedido */}
                                     <div className="mb-2 text-xs">
+                                        {breakdownGuardado.id && <p><strong>Desglose #:</strong> {breakdownGuardado.id.slice(0, 8)}</p>}
                                         {breakdownGuardado.clientName && (
                                             <p><strong>Cliente:</strong> {breakdownGuardado.clientName}</p>
                                         )}
                                         {breakdownGuardado.technicianName && (
                                             <p><strong>Técnico:</strong> {breakdownGuardado.technicianName}</p>
                                         )}
-                                        <p><strong>Digitado:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                                        <p><strong>Fecha:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                                        <p><strong>Total Ventanas:</strong> {breakdownGuardado.totalWindows}</p>
                                     </div>
 
                                     <div className="border-b border-dashed border-black mb-2"></div>
@@ -1452,7 +1414,7 @@ export default function VentanaP65Page() {
 
                                     {/* Footer */}
                                     <div className="border-t border-dashed border-black mt-3 pt-2 text-center">
-                                        <p className="text-[10px] italic">Generado por FacturaDO - Desglose P65</p>
+                                        <p className="text-[10px] italic">Generado por {companySettings?.companyName || "FacturaDO"} - Desglose P65</p>
                                     </div>
                                 </div>
                             </div>
@@ -1482,6 +1444,26 @@ export default function VentanaP65Page() {
                             </DialogFooter>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de confirmación para eliminar */}
+            <Dialog open={mostrarConfirmarEliminarP65} onOpenChange={setMostrarConfirmarEliminarP65}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar desglose?</DialogTitle>
+                        <DialogDescription>
+                            ¿Estás seguro de que deseas eliminar este desglose? Esta acción no se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={cancelarEliminarP65}>
+                            Cancelar
+                        </Button>
+                        <Button variant="destructive" onClick={confirmarEliminarP65}>
+                            Eliminar
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

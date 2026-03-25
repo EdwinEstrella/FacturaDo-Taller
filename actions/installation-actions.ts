@@ -43,7 +43,6 @@ export async function createInstallationsForInvoice(items: InstallationItem[]) {
         revalidatePath('/pendientes')
         return { success: true, count: installations.length }
     } catch (error) {
-        console.error("Error creating installations:", error)
         return { success: false, error: "Error al crear instalaciones" }
     }
 }
@@ -71,11 +70,14 @@ export async function getInstallations(filters?: {
 
         const { data, error } = await query
 
-        if (error) throw error
+        if (error) {
+            // Si la tabla no existe o hay un error, retornar array vacío silenciosamente
+            return []
+        }
 
         return data || []
     } catch (error) {
-        console.error("Error getting installations:", error)
+        // Silenciar errores de conexión o tablas faltantes
         return []
     }
 }
@@ -89,11 +91,14 @@ export async function getPendingInstallationsCount() {
             .select('id', { count: 'exact', head: false })
             .in('estado', ['Pendiente', 'EnProduccion', 'ListaDespacho', 'PendienteInstalacion'])
 
-        if (error) throw error
+        if (error) {
+            // Si la tabla no existe o hay un error, retornar 0 silenciosamente
+            return 0
+        }
 
         return data?.length || 0
     } catch (error) {
-        console.error("Error getting pending installations count:", error)
+        // Silenciar errores de conexión o tablas faltantes
         return 0
     }
 }
@@ -140,7 +145,6 @@ export async function updateInstallationState(
         revalidatePath('/pendientes')
         return { success: true }
     } catch (error) {
-        console.error("Error updating installation state:", error)
         return { success: false, error: "Error al actualizar estado" }
     }
 }
@@ -166,7 +170,6 @@ export async function updateInstallationPhotos(installationId: string, fotos: st
         revalidatePath('/pendientes')
         return { success: true }
     } catch (error) {
-        console.error("Error updating installation photos:", error)
         return { success: false, error: "Error al actualizar fotos" }
     }
 }
@@ -181,11 +184,12 @@ export async function getInstallationById(installationId: string) {
             .eq('id', installationId)
             .single()
 
-        if (error) throw error
+        if (error) {
+            return null
+        }
 
         return data
     } catch (error) {
-        console.error("Error getting installation:", error)
         return null
     }
 }
@@ -209,7 +213,6 @@ export async function assignTechnician(installationId: string, tecnicoId: string
         revalidatePath('/pendientes')
         return { success: true }
     } catch (error) {
-        console.error("Error assigning technician:", error)
         return { success: false, error: "Error al asignar técnico" }
     }
 }

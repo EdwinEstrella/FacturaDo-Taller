@@ -149,6 +149,29 @@ export async function getWindowBreakdowns(windowType?: "P65" | "TRADICIONAL") {
     }
 }
 
+export async function getWindowBreakdownById(breakdownId: string) {
+    const insforge = createServerClient()
+
+    try {
+        const { data, error } = await insforge.database
+            .from('WindowBreakdown')
+            .select('*')
+            .eq('id', breakdownId)
+            .single()
+
+        if (error) throw error
+        if (!data) return null
+
+        return {
+            ...data,
+            items: typeof data.items === 'string' ? JSON.parse(data.items) : data.items
+        }
+    } catch (error) {
+        console.error("Error getting window breakdown by ID:", error)
+        return null
+    }
+}
+
 export async function markAsPrinted(breakdownId: string) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")

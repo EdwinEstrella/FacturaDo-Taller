@@ -72,6 +72,8 @@ interface Product {
 interface PurchaseItem {
     productId: string
     productName: string
+    variantId?: string
+    variantName?: string
     quantity: number
     quantityType: "UNIT" | "BOX" | "MEASURE"
     unitCost: number
@@ -103,12 +105,12 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     const [products, setProducts] = useState(initialProducts)
     const [isNewProductOpen, setIsNewProductOpen] = useState(false)
     const [newProductName, setNewProductName] = useState("")
-    const [newProductPrice, setNewProductPrice] = useState(0) // Selling Price
-    const [newProductCategory, setNewProductCategory] = useState<"ARTICULO" | "MATERIAL" | "SERVICIO">("ARTICULO")
+    const [newProductCategory, setNewProductCategory] = useState<"ARTICULO" | "MATERIAL">("ARTICULO")
     const [newProductPending, startProductTransition] = useTransition()
 
     // Item Addition State
     const [selectedProductId, setSelectedProductId] = useState("")
+    const [selectedVariantId, setSelectedVariantId] = useState("")
     const [quantity, setQuantity] = useState(1)
     const [quantityType, setQuantityType] = useState<"UNIT" | "BOX" | "MEASURE">("UNIT")
     const [unitCost, setUnitCost] = useState(0)
@@ -125,22 +127,17 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
 
     // Calculations
     const selectedProduct = products.find(p => p.id === selectedProductId)
-
-    // Effect: Calculate Weighted Average Cost when inputs change
-    // Using a simple effect or just memoized values. Effect is better if we want to allow manual override without fighting calculations.
-    // However, for simplicity in React, let's use an effect that updates ONLY when base inputs change, guarding against loops.
-    // Or just simple function called during render or handler? 
-    // Let's use effects to update "Suggested" values when quantity/cost changes, but allow user override.
-
-    // Better approach: Calculate on changes, but only if user hasn't manually overridden? 
-    // Simplest: Calculate on change of [quantity, unitCost, selectedProductId].
+    const selectedVariant = selectedProduct?.variants?.find(v => v.id === selectedVariantId)
 
     // Effect for Avg Cost & Selling Price
     useEffect(() => {
         if (!selectedProduct) return
 
-        const currentStock = selectedProduct.stock || 0
-        const currentCost = Number(selectedProduct.cost) || 0
+        // Use variant cost if variant is selected, otherwise use product cost
+        const currentStock = selectedVariant ? selectedVariant.stock || 0 : selectedProduct.stock || 0
+        const currentCost = selectedVariant
+            ? Number(selectedVariant.cost) || 0
+            : Number(selectedProduct.cost) || 0
         const newQty = quantity
         const newUnitCost = unitCost
 
@@ -168,7 +165,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
             setNewSellingPrice(parseFloat(fixedPrice.toFixed(2)))
         }
 
-    }, [quantity, unitCost, selectedProduct, margin, pricingMode, fixedPrice])
+    }, [quantity, unitCost, selectedProduct, selectedVariant, margin, pricingMode, fixedPrice])
 
 
     // Handlers
@@ -196,7 +193,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         startProductTransition(async () => {
             const res = await quickCreateProduct({
                 name: newProductName,
-                price: newProductPrice,
+                price: 0, // Precio se calculará basado en el costo y margen
                 category: newProductCategory
             })
 
@@ -207,7 +204,6 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                 setUnitCost(0) // New product has 0 cost initially, user sets it in purchase
                 setIsNewProductOpen(false)
                 setNewProductName("")
-                setNewProductPrice(0)
             } else {
                 toast.error(res.error || "Error al crear producto")
             }
@@ -218,9 +214,28 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const product = products.find(p => p.id === productId)
         if (product) {
             setSelectedProductId(productId)
-            setUnitCost(Number(product.cost) || 0) // Default to current cost
-            // Price/Margin will auto-calc via effects
+            setSelectedVariantId("") // Reset variant selection
+
+            // If product has variants, select the first one by default
+            if (product.variants && product.variants.length > 0) {
+                setSelectedVariantId(product.variants[0].id)
+                setUnitCost(Number(product.variants[0].cost) || 0)
+            } else {
+                setUnitCost(Number(product.cost) || 0)
+            }
+
             setOpenCombobox(false)
+        }
+    }
+
+    const handleVariantSelect = (variantId: string) => {
+        const product = products.find(p => p.id === selectedProductId)
+        if (product && product.variants) {
+            const variant = product.variants.find(v => v.id === variantId)
+            if (variant) {
+                setSelectedVariantId(variantId)
+                setUnitCost(Number(variant.cost) || 0)
+            }
         }
     }
 
@@ -232,9 +247,18 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const product = products.find(p => p.id === selectedProductId)
         if (!product) return
 
+        // Check if product has variants and one is selected
+        if (product.variants && product.variants.length > 0 && !selectedVariantId) {
+            return toast.error("Seleccione una variante del producto")
+        }
+
+        const variant = product.variants?.find(v => v.id === selectedVariantId)
+
         const newItem: PurchaseItem & { newCost?: number, newPrice?: number } = {
             productId: selectedProductId,
             productName: product.name,
+            variantId: selectedVariantId,
+            variantName: variant?.name,
             quantity,
             quantityType,
             unitCost,
@@ -246,6 +270,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         setItems([...items, newItem])
         // Reset item inputs
         setSelectedProductId("")
+        setSelectedVariantId("")
         setQuantity(1)
         setQuantityType("UNIT")
         setUnitCost(0)
@@ -394,28 +419,23 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Nuevo Producto</DialogTitle>
-                                    <DialogDescription>Cree un producto rápidamente para agregarlo a la compra.</DialogDescription>
+                                    <DialogTitle>Nuevo Producto para Compra</DialogTitle>
+                                    <DialogDescription>Cree un producto rápidamente. El precio de venta se calculará automáticamente basado en el costo de compra.</DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
                                         <Label>Nombre</Label>
-                                        <Input value={newProductName} onChange={e => setNewProductName(e.target.value)} placeholder="Ej. Martillo" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Precio Venta (Público)</Label>
-                                        <Input type="number" min="0" value={newProductPrice} onChange={e => setNewProductPrice(Number(e.target.value))} />
+                                        <Input value={newProductName} onChange={e => setNewProductName(e.target.value)} placeholder="Ej. Vidrio 6mm" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Categoría</Label>
-                                        <Select value={newProductCategory} onValueChange={(v: "ARTICULO" | "MATERIAL" | "SERVICIO") => setNewProductCategory(v)}>
+                                        <Select value={newProductCategory} onValueChange={(v: "ARTICULO" | "MATERIAL") => setNewProductCategory(v)}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Seleccione categoría" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="ARTICULO">Artículo</SelectItem>
                                                 <SelectItem value="MATERIAL">Material</SelectItem>
-                                                <SelectItem value="SERVICIO">Servicio</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -497,9 +517,14 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {selectedProduct && (
+                                {selectedProduct && !selectedVariant && (
                                     <p className="text-xs text-muted-foreground">
                                         Stock actual: {selectedProduct.stock} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
+                                    </p>
+                                )}
+                                {selectedVariant && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Variante: {selectedVariant.name} | Stock: {selectedVariant.stock} | Costo: {formatCurrency(Number(selectedVariant.cost))}
                                     </p>
                                 )}
                             </div>
@@ -514,6 +539,25 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 />
                             </div>
                         </div>
+
+                        {/* Variant Selector */}
+                        {selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                            <div className="space-y-2">
+                                <Label>Variante</Label>
+                                <Select value={selectedVariantId} onValueChange={handleVariantSelect}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccione variante" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {selectedProduct.variants.map((variant) => (
+                                            <SelectItem key={variant.id} value={variant.id}>
+                                                {variant.name} - {formatCurrency(Number(variant.cost))} (Stock: {variant.stock})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         {selectedProduct && (
                             <div className="space-y-4">
