@@ -245,3 +245,28 @@ export async function deletePendingBreakdowns(clientName: string, technicianName
         return { success: false, error: "Error al eliminar desgloses pendientes" }
     }
 }
+
+export async function markAsProduction(breakdownId: string) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const insforge = createServerClient()
+
+    try {
+        const { error } = await insforge.database
+            .from('WindowBreakdown')
+            .update({
+                sentToProductionAt: new Date().toISOString(),
+                sentToProductionBy: user.name || user.username
+            })
+            .eq('id', breakdownId)
+
+        if (error) throw error
+
+        revalidatePath('/desglose')
+        return { success: true }
+    } catch (error) {
+        console.error("Error marking as production:", error)
+        return { success: false, error: "Error al marcar como enviado a producción" }
+    }
+}

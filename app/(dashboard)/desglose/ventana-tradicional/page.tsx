@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
+import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, deleteWindowBreakdown, markAsProduction, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 
 interface CalculationResults {
     id: number
@@ -47,6 +47,7 @@ interface WindowBreakdown {
     totalWindows: number
     createdAt: string
     printedAt: string | null
+    sentToProductionAt: string | null
     items: ImportedWindowBreakdownItem[]
 }
 
@@ -124,7 +125,11 @@ export default function VentanaTradicionalPage() {
     const [mostrarHistorial, setMostrarHistorial] = useState<boolean>(false)
     const [mostrarReinicioDialog, setMostrarReinicioDialog] = useState<boolean>(false)
     const [breakdownsPendientes, setBreakdownsPendientes] = useState<WindowBreakdown[]>([])
+    const [todosPendientes, setTodosPendientes] = useState<WindowBreakdown[]>([])
+    const [mostrarPendientes, setMostrarPendientes] = useState<boolean>(true)
     const [currentBreakdownId, setCurrentBreakdownId] = useState<string | null>(null)
+    const [mostrarModalGuardado, setMostrarModalGuardado] = useState<boolean>(false)
+    const [breakdownGuardado, setBreakdownGuardado] = useState<WindowBreakdown | null>(null)
 
     // Evitar error de hidratación - inicializar isClient
     useState(() => {
@@ -134,6 +139,15 @@ export default function VentanaTradicionalPage() {
     const cargarHistorial = async () => {
         const breakdowns = await getWindowBreakdowns("TRADICIONAL")
         setHistorial(breakdowns)
+
+        // Cargar todos los pendientes (sin imprimir)
+        const pendientes = breakdowns.filter((b: WindowBreakdown) => !b.printedAt)
+        setTodosPendientes(pendientes)
+
+        // Mostrar automáticamente si hay pendientes
+        if (pendientes.length > 0) {
+            setMostrarPendientes(true)
+        }
     }
 
     useEffect(() => {
@@ -473,7 +487,7 @@ export default function VentanaTradicionalPage() {
         }
     }
 
-    const handleGuardarEImprimir = async () => {
+    const handleGuardar = async () => {
         if (!nombreCliente || !nombreTecnico) {
             alert("Por favor completa todos los campos requeridos")
             return
@@ -516,6 +530,7 @@ export default function VentanaTradicionalPage() {
                 }
 
                 breakdownId = result.id!
+                setCurrentBreakdownId(breakdownId)
             } else {
                 // Actualizar el breakdown existente
                 const items: WindowBreakdownItem[] = resultados.map(r => ({
@@ -533,23 +548,166 @@ export default function VentanaTradicionalPage() {
                 await updateBreakdownItems(breakdownId, items)
             }
 
-            // Marcar como impreso
-            await markAsPrinted(breakdownId)
-
             // Recargar historial
+            await cargarHistorial()
+
+            // Crear objeto breakdown para el modal
+            const breakdownObj: WindowBreakdown = {
+                id: breakdownId,
+                clientName: nombreCliente,
+                technicianName: nombreTecnico,
+                totalWindows: resultados.length,
+                createdAt: new Date().toISOString(),
+                printedAt: null,
+                sentToProductionAt: null,
+                items: resultados.map(r => ({
+                    id: r.id,
+                    ancho: r.ancho,
+                    alto: r.alto,
+                    resCabRiel: r.resCabRiel,
+                    resLateral: r.resLateral,
+                    resJambas: r.resJambas,
+                    resCabAlfDiv: r.resCabAlfDiv,
+                    resVAnchoDiv: r.resVAnchoDiv,
+                    resVAltura: r.resVAltura
+                }))
+            }
+
+            setBreakdownGuardado(breakdownObj)
+            setMostrarModalGuardado(true)
+        } catch (error) {
+            console.error("Error al guardar:", error)
+            alert("Error al guardar el desglose")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    const handleImprimir = async () => {
+        if (!currentBreakdownId) {
+            alert("Primero debes guardar el desglose antes de imprimir")
+            return
+        }
+
+        setGuardando(true)
+
+        try {
+            // Marcar como impreso
+            await markAsPrinted(currentBreakdownId)
+
+            // Recargar historial y pendientes
             await cargarHistorial()
 
             // Mostrar impresión
             setMostrarImpresion(true)
 
-            // Mostrar mensaje de éxito
-            alert("Desglose guardado exitosamente en el historial")
+            // Abrir diálogo de impresión después de un pequeño delay
+            setTimeout(() => {
+                window.print()
+            }, 500)
+
+            alert("Preparando impresión...")
         } catch (error) {
-            console.error("Error al guardar e imprimir:", error)
-            alert("Error al guardar el desglose")
+            console.error("Error al imprimir:", error)
+            alert("Error al imprimir")
         } finally {
             setGuardando(false)
         }
+    }
+
+    const handleMandarProduccion = async () => {
+        if (!currentBreakdownId) {
+            alert("Primero debes guardar el desglose antes de mandar a producción")
+            return
+        }
+
+        setGuardando(true)
+
+        try {
+            await markAsProduction(currentBreakdownId)
+
+            // Recargar historial
+            await cargarHistorial()
+
+            alert("Desglose enviado a producción exitosamente")
+        } catch (error) {
+            console.error("Error al mandar a producción:", error)
+            alert("Error al mandar a producción")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    const handleEliminarBreakdown = async (breakdownId: string) => {
+        if (!confirm("¿Estás seguro de que deseas eliminar este desglose? Esta acción no se puede deshacer.")) {
+            return
+        }
+
+        try {
+            await deleteWindowBreakdown(breakdownId)
+
+            // Recargar historial
+            await cargarHistorial()
+
+            alert("Desglose eliminado exitosamente")
+        } catch (error) {
+            console.error("Error al eliminar desglose:", error)
+            alert("Error al eliminar desglose")
+        }
+    }
+
+    const handleModalMandarProduccion = async () => {
+        if (!breakdownGuardado) return
+
+        setGuardando(true)
+
+        try {
+            await markAsProduction(breakdownGuardado.id)
+            await cargarHistorial()
+
+            alert("Desglose enviado a producción exitosamente")
+            setMostrarModalGuardado(false)
+        } catch (error) {
+            console.error("Error al mandar a producción:", error)
+            alert("Error al mandar a producción")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    const handleModalImprimir = async () => {
+        if (!breakdownGuardado) return
+
+        setGuardando(true)
+
+        try {
+            // Marcar como impreso
+            await markAsPrinted(breakdownGuardado.id)
+
+            // Recargar historial y pendientes
+            await cargarHistorial()
+
+            // Cerrar modal
+            setMostrarModalGuardado(false)
+
+            // Mostrar impresión
+            setMostrarImpresion(true)
+
+            // Abrir diálogo de impresión después de un pequeño delay
+            setTimeout(() => {
+                window.print()
+            }, 500)
+        } catch (error) {
+            console.error("Error al imprimir:", error)
+            alert("Error al imprimir")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    const handleModalCerrar = () => {
+        setMostrarModalGuardado(false)
+        setBreakdownGuardado(null)
     }
 
     return (
@@ -785,11 +943,19 @@ export default function VentanaTradicionalPage() {
                             </div>
                             <div className="mt-4 flex gap-2">
                                 <Button
-                                    onClick={handleGuardarEImprimir}
+                                    onClick={handleGuardar}
                                     disabled={guardando || !nombreCliente}
                                     className="flex-1"
                                 >
-                                    {guardando ? "Guardando..." : "Guardar e Imprimir"}
+                                    {guardando ? "Guardando..." : "Guardar"}
+                                </Button>
+                                <Button
+                                    onClick={handleImprimir}
+                                    disabled={guardando || !currentBreakdownId}
+                                    variant="default"
+                                    className="flex-1"
+                                >
+                                    {guardando ? "Imprimiendo..." : "Imprimir"}
                                 </Button>
                                 <Button variant="outline" onClick={limpiar}>
                                     Limpiar
@@ -811,6 +977,104 @@ export default function VentanaTradicionalPage() {
                     </Card>
                 )}
             </div>
+
+            {/* Historial global de pendientes - siempre visible si hay pendientes */}
+            {mostrarPendientes && todosPendientes.length > 0 && (
+                <Card className="border-yellow-500 bg-yellow-50">
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-yellow-800">
+                                ⚠️ Desgloses Pendientes de Imprimir ({todosPendientes.length})
+                            </CardTitle>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMostrarPendientes(false)}
+                            >
+                                Ocultar
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-yellow-700 mb-4">
+                            Estos desgloses están guardados pero aún no han sido impresos. Haz clic para continuar editándolos.
+                        </p>
+                        <div className="space-y-3">
+                            {todosPendientes.map((breakdown) => (
+                                <div
+                                    key={breakdown.id}
+                                    className="border-l-4 border-yellow-500 bg-white p-4 rounded-r-lg cursor-pointer hover:bg-yellow-100 transition-colors"
+                                    onClick={() => {
+                                        setResultados(breakdown.items.map((item: ImportedWindowBreakdownItem) => ({
+                                            id: item.id,
+                                            ancho: item.ancho,
+                                            alto: item.alto,
+                                            resCabRiel: item.resCabRiel || 0,
+                                            resLateral: item.resLateral || 0,
+                                            resJambas: item.resJambas || 0,
+                                            resCabAlfDiv: item.resCabAlfDiv || 0,
+                                            resVAnchoDiv: item.resVAnchoDiv || 0,
+                                            resVAltura: item.resVAltura || 0
+                                        })))
+                                        setContador(breakdown.items.length)
+                                        setNombreCliente(breakdown.clientName || "")
+                                        setNombreTecnico(breakdown.technicianName || "")
+                                        setDatosGuardados(true)
+                                        setCurrentBreakdownId(breakdown.id)
+                                        setMostrarPendientes(false)
+                                    }}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-lg">
+                                                {breakdown.clientName || "Sin cliente"}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {breakdown.technicianName && `Técnico: ${breakdown.technicianName} | `}
+                                                Creado: {new Date(breakdown.createdAt).toLocaleString('es-DO')}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-2xl font-bold text-yellow-600">
+                                                {breakdown.totalWindows}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">ventana(s)</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <p className="text-xs font-medium mb-1">Vista previa:</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {breakdown.items.slice(0, 4).map((item: ImportedWindowBreakdownItem, idx: number) => (
+                                                <span key={idx} className="bg-yellow-100 px-2 py-1 rounded text-xs">
+                                                    #{item.id}: {decimalToFraction(item.ancho)} x {decimalToFraction(item.alto)}
+                                                </span>
+                                            ))}
+                                            {breakdown.items.length > 4 && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    +{breakdown.items.length - 4} más
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Botón flotante para mostrar pendientes si está oculto */}
+            {!mostrarPendientes && todosPendientes.length > 0 && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <Button
+                        onClick={() => setMostrarPendientes(true)}
+                        className="bg-yellow-500 hover:bg-yellow-600"
+                        size="lg"
+                    >
+                        ⚠️ {todosPendientes.length} Pendiente{todosPendientes.length !== 1 ? 's' : ''}
+                    </Button>
+                </div>
+            )}
 
             {/* Previsualización de impresión */}
             {mostrarImpresion && resultados.length > 0 && (
@@ -960,34 +1224,52 @@ export default function VentanaTradicionalPage() {
                                             )}
                                         </div>
                                     </div>
-                                    {!breakdown.printedAt && (
-                                        <div className="mt-3 pt-3 border-t">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => {
-                                                    setResultados(breakdown.items.map((item: ImportedWindowBreakdownItem) => ({
-                                                        id: item.id,
-                                                        ancho: item.ancho,
-                                                        alto: item.alto,
-                                                        resCabRiel: item.resCabRiel || 0,
-                                                        resLateral: item.resLateral || 0,
-                                                        resJambas: item.resJambas || 0,
-                                                        resCabAlfDiv: item.resCabAlfDiv || 0,
-                                                        resVAnchoDiv: item.resVAnchoDiv || 0,
-                                                        resVAltura: item.resVAltura || 0
-                                                    })))
-                                                    setContador(breakdown.items.length)
-                                                    setNombreCliente(breakdown.clientName || "")
-                                                    setNombreTecnico(breakdown.technicianName || "")
-                                                    setDatosGuardados(true)
-                                                    setCurrentBreakdownId(breakdown.id)
-                                                    setMostrarHistorial(false)
-                                                }}
-                                            >
-                                                Continuar Editando
-                                            </Button>
-                                        </div>
-                                    )}
+                                    <div className="mt-3 pt-3 border-t flex gap-2 flex-wrap">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setResultados(breakdown.items.map((item: ImportedWindowBreakdownItem) => ({
+                                                    id: item.id,
+                                                    ancho: item.ancho,
+                                                    alto: item.alto,
+                                                    resCabRiel: item.resCabRiel || 0,
+                                                    resLateral: item.resLateral || 0,
+                                                    resJambas: item.resJambas || 0,
+                                                    resCabAlfDiv: item.resCabAlfDiv || 0,
+                                                    resVAnchoDiv: item.resVAnchoDiv || 0,
+                                                    resVAltura: item.resVAltura || 0
+                                                })))
+                                                setContador(breakdown.items.length)
+                                                setNombreCliente(breakdown.clientName || "")
+                                                setNombreTecnico(breakdown.technicianName || "")
+                                                setDatosGuardados(true)
+                                                setCurrentBreakdownId(breakdown.id)
+                                                setMostrarHistorial(false)
+                                            }}
+                                        >
+                                            {breakdown.printedAt ? "Editar Copia" : "Continuar Editando"}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-green-600 text-green-600 hover:bg-green-50"
+                                            disabled={breakdown.sentToProductionAt !== null}
+                                            onClick={async () => {
+                                                await markAsProduction(breakdown.id)
+                                                await cargarHistorial()
+                                                alert("Enviado a producción")
+                                            }}
+                                        >
+                                            {breakdown.sentToProductionAt ? "En Producción" : "Mandar a Producción"}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={() => handleEliminarBreakdown(breakdown.id)}
+                                        >
+                                            Eliminar
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1038,6 +1320,120 @@ export default function VentanaTradicionalPage() {
                             Seguir Editando
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de vista previa después de guardar */}
+            <Dialog open={mostrarModalGuardado} onOpenChange={setMostrarModalGuardado}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Desglose Guardado - Vista Previa</DialogTitle>
+                        <DialogDescription>
+                            Revisa la vista previa del desglose antes de imprimir o mandar a producción
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {breakdownGuardado && (
+                        <div className="space-y-4">
+                            {/* Vista previa de impresión */}
+                            <div className="border rounded-lg p-4 bg-gray-50">
+                                <div className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">
+                                    {/* Header */}
+                                    <div className="text-center mb-3">
+                                        <h1 className="font-bold text-lg uppercase">FacturaDO</h1>
+                                        <p className="text-xs">Ventana Tradicional</p>
+                                    </div>
+
+                                    <div className="border-b border-dashed border-black mb-2"></div>
+
+                                    {/* Información del pedido */}
+                                    <div className="mb-2 text-xs">
+                                        {breakdownGuardado.clientName && (
+                                            <p><strong>Cliente:</strong> {breakdownGuardado.clientName}</p>
+                                        )}
+                                        {breakdownGuardado.technicianName && (
+                                            <p><strong>Técnico:</strong> {breakdownGuardado.technicianName}</p>
+                                        )}
+                                        <p><strong>Digitado:</strong> {new Date().toLocaleDateString('es-DO')}</p>
+                                    </div>
+
+                                    <div className="border-b border-dashed border-black mb-2"></div>
+
+                                    {/* Tabla de resultados */}
+                                    <table className="w-full mb-2 text-xs">
+                                        <thead>
+                                            <tr className="border-b border-black">
+                                                <th className="text-left py-1 w-6">Fab</th>
+                                                <th className="text-center py-1 w-8">No</th>
+                                                <th className="text-center py-1 w-12 bg-blue-100">Ancho</th>
+                                                <th className="text-center py-1 w-12 bg-green-100">Alto</th>
+                                                <th className="text-center py-1">Cab/R</th>
+                                                <th className="text-center py-1">Lat</th>
+                                                <th className="text-center py-1">Jam</th>
+                                                <th className="text-center py-1">C/A</th>
+                                                <th className="text-center py-1">V.A</th>
+                                                <th className="text-center py-1">V.Al</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {breakdownGuardado.items.map((item) => (
+                                                <tr key={item.id} className="border-b border-dashed border-gray-300">
+                                                    <td className="py-1 text-center">
+                                                        <input type="checkbox" className="w-3 h-3" />
+                                                    </td>
+                                                    <td className="py-1 text-center">{item.id}</td>
+                                                    <td className="py-1 text-center bg-blue-50">{decimalToFraction(item.ancho)}</td>
+                                                    <td className="py-1 text-center bg-green-50">{decimalToFraction(item.alto)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resCabRiel || 0)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resLateral || 0)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resJambas || 0)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resCabAlfDiv || 0)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resVAnchoDiv || 0)}</td>
+                                                    <td className="py-1 text-center">{decimalToFraction(item.resVAltura || 0)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+
+                                    <div className="border-b border-dashed border-black mb-2"></div>
+
+                                    {/* Resumen */}
+                                    <div className="text-xs">
+                                        <p className="font-bold">Total Ventanas: {breakdownGuardado.totalWindows}</p>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="border-t border-dashed border-black mt-3 pt-2 text-center">
+                                        <p className="text-[10px] italic">Generado por FacturaDO - Desglose Ventana Tradicional</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botones de acción */}
+                            <DialogFooter className="flex gap-2">
+                                <Button
+                                    onClick={handleModalMandarProduccion}
+                                    disabled={guardando}
+                                    className="bg-green-600 hover:bg-green-700"
+                                >
+                                    {guardando ? "Enviando..." : "Mandar a Producción"}
+                                </Button>
+                                <Button
+                                    onClick={handleModalImprimir}
+                                    disabled={guardando}
+                                    variant="default"
+                                >
+                                    {guardando ? "Imprimiendo..." : "Imprimir"}
+                                </Button>
+                                <Button
+                                    onClick={handleModalCerrar}
+                                    variant="outline"
+                                >
+                                    Cancelar
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

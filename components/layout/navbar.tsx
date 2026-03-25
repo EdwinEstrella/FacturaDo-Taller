@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { MobileSidebar } from "@/components/layout/mobile-sidebar"
+import { useRouter } from "next/navigation"
 
 interface UserProps {
     id: string
@@ -15,12 +16,21 @@ interface NavbarProps {
 }
 
 export function Navbar({ user }: NavbarProps) {
+    const router = useRouter()
+
     return (
         <div className="flex items-center p-4">
             <MobileSidebar user={user} />
             <div className="flex w-full justify-end">
-                {/* User Button or identifying info */}
+                {/* Botones de acción */}
                 <div className="flex items-center gap-x-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push("/desglose")}
+                    >
+                        Historial
+                    </Button>
                     <Button size="sm" variant="outline">
                         {user?.name || "Usuario"}
                     </Button>
