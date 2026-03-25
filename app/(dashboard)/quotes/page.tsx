@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import TetrisLoading from "@/components/ui/tetris-loader"
+import { PageLoading } from "@/components/ui/loading"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type QuoteAny = any
@@ -63,9 +63,7 @@ export default function QuotesPage() {
             </form>
 
             {loading ? (
-                <div className="flex w-full justify-center p-8">
-                    <TetrisLoading size="md" speed="normal" loadingText="Cargando cotizaciones..." />
-                </div>
+                <PageLoading message="Cargando cotizaciones..." />
             ) : (
                 <QuoteList quotes={quotes} />
             )}

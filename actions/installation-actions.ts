@@ -42,7 +42,7 @@ export async function createInstallationsForInvoice(items: InstallationItem[]) {
 
         revalidatePath('/pendientes')
         return { success: true, count: installations.length }
-    } catch (error) {
+    } catch (_error) {
         return { success: false, error: "Error al crear instalaciones" }
     }
 }
@@ -76,7 +76,7 @@ export async function getInstallations(filters?: {
         }
 
         return data || []
-    } catch (error) {
+    } catch (_error) {
         // Silenciar errores de conexión o tablas faltantes
         return []
     }
@@ -97,7 +97,7 @@ export async function getPendingInstallationsCount() {
         }
 
         return data?.length || 0
-    } catch (error) {
+    } catch (_error) {
         // Silenciar errores de conexión o tablas faltantes
         return 0
     }
@@ -144,7 +144,7 @@ export async function updateInstallationState(
 
         revalidatePath('/pendientes')
         return { success: true }
-    } catch (error) {
+    } catch (_error) {
         return { success: false, error: "Error al actualizar estado" }
     }
 }
@@ -169,7 +169,7 @@ export async function updateInstallationPhotos(installationId: string, fotos: st
 
         revalidatePath('/pendientes')
         return { success: true }
-    } catch (error) {
+    } catch (_error) {
         return { success: false, error: "Error al actualizar fotos" }
     }
 }
@@ -189,7 +189,7 @@ export async function getInstallationById(installationId: string) {
         }
 
         return data
-    } catch (error) {
+    } catch (_error) {
         return null
     }
 }
@@ -212,7 +212,7 @@ export async function assignTechnician(installationId: string, tecnicoId: string
 
         revalidatePath('/pendientes')
         return { success: true }
-    } catch (error) {
+    } catch (_error) {
         return { success: false, error: "Error al asignar técnico" }
     }
 }

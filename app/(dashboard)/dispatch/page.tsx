@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table"
 import { Truck, Printer } from "lucide-react"
 import { DispatchReportPrint } from "@/components/modules/reports/dispatch-report-print"
-import TetrisLoading from "@/components/ui/tetris-loader"
+import { PageLoading } from "@/components/ui/loading"
 
 interface Invoice {
     id: string
@@ -74,11 +74,7 @@ export default function DispatchPage() {
     }
 
     if (loading) {
-        return (
-            <div className="flex h-full w-full items-center justify-center min-h-[50vh]">
-                <TetrisLoading size="md" speed="normal" loadingText="Cargando..." />
-            </div>
-        )
+        return <PageLoading message="Cargando despachos..." />
     }
 
     const allDispatches: (Dispatch | (Invoice & { status: string, technician?: undefined, invoice: Invoice }))[] = [

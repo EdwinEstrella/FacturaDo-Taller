@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/actions/auth-actions"
 import { DispatchCard } from "@/components/modules/technicians/dispatch-card"
 import { Card, CardContent } from "@/components/ui/card"
 import { Clock, CheckCircle } from "lucide-react"
-import TetrisLoading from "@/components/ui/tetris-loader"
+import { PageLoading } from "@/components/ui/loading"
 
 interface DispatchWithInvoice {
     id: string
@@ -53,11 +53,7 @@ export default function TechnicianPage() {
     }
 
     if (loading) {
-        return (
-            <div className="flex h-full w-full items-center justify-center min-h-[50vh]">
-                <TetrisLoading size="md" speed="normal" loadingText="Cargando asignaciones..." />
-            </div>
-        )
+        return <PageLoading message="Cargando asignaciones..." />
     }
 
     const pendingCount = dispatches.filter((d) => d.status === 'PENDING').length

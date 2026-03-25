@@ -1,7 +1,6 @@
 "use server"
 
 import { createServerClient } from "@/lib/insforge/client"
-import type { Product } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
@@ -9,6 +8,8 @@ import { getCurrentUser } from "./auth-actions"
 
 const PurchaseItemSchema = z.object({
     productId: z.string(),
+    variantId: z.string().optional(),
+    variantName: z.string().optional(),
     quantity: z.number().min(1),
     quantityType: z.enum(["UNIT", "BOX", "MEASURE"]).default("UNIT"),
     unitCost: z.number().min(0),
@@ -82,22 +83,25 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
     const validated = PurchaseSchema.safeParse(data)
     if (!validated.success) return { success: false, error: validated.error.message }
 
-    const { supplierId, supplierName, date, items, notes } = validated.data
+    const { supplierName, date, items, notes } = validated.data
     const insforge = createServerClient()
 
     const total = items.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0)
 
     try {
+        // Get products to fetch names
+        const { data: products } = await insforge.database
+            .from('Product')
+            .select('id, name')
+            .in('id', items.map(item => item.productId))
+
         // Create Purchase Record
         const { data: purchase, error: purchaseError } = await insforge.database
             .from('Purchase')
             .insert([{
-                supplierId,
-                supplierName,
-                date: date.toISOString(),
-                total,
+                supplierName: supplierName || "Proveedor",
+                total: total.toString(),
                 notes,
-                status: "COMPLETED",
             }])
             .select()
             .single()
@@ -107,14 +111,23 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
         }
 
         // Create Purchase Items
-        const purchaseItems = items.map(item => ({
-            purchaseId: purchase.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            quantityType: item.quantityType,
-            unitCost: item.unitCost,
-            total: item.quantity * item.unitCost
-        }))
+        const purchaseItems = items.map(item => {
+            const product = products?.find(p => p.id === item.productId)
+
+            // If there's a variant, include its name in the product name
+            let productName = product?.name || "Producto"
+            if (item.variantName) {
+                productName = `${productName} - ${item.variantName}`
+            }
+
+            return {
+                purchaseId: purchase.id,
+                productId: item.productId,
+                productName: productName,
+                quantity: item.quantity,
+                price: item.unitCost.toString()
+            }
+        })
 
         const { error: itemsError } = await insforge.database
             .from('PurchaseItem')
@@ -134,18 +147,18 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
 
             if (!product) continue
 
-            const updateData: Partial<Product> = {
+            const updateData: Record<string, string | number> = {
                 stock: product.stock + item.quantity
             }
 
             if (item.newCost !== undefined) {
-                updateData.cost = item.newCost
+                updateData.cost = item.newCost.toString()
             } else {
-                updateData.cost = item.unitCost
+                updateData.cost = item.unitCost.toString()
             }
 
             if (item.newPrice !== undefined) {
-                updateData.price = item.newPrice
+                updateData.price = item.newPrice.toString()
             }
 
             await insforge.database
@@ -161,9 +174,9 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
                 type: "EXPENSE",
                 category: "PURCHASE",
                 amount: total,
-                description: `Compra de Mercancía #${purchase.sequenceNumber} - ${supplierName || 'Proveedor'}`,
+                description: `Compra de Mercancía - ${supplierName || 'Proveedor'}`,
                 date: date.toISOString(),
-                referenceId: purchase.id
+                reference_id: purchase.id
             }])
 
         revalidatePath("/liquidations")

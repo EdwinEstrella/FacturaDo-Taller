@@ -17,7 +17,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import type { Client } from "@/types"
-import TetrisLoading from "@/components/ui/tetris-loader"
+import { CardLoading } from "@/components/ui/loading"
 
 interface ClientsClientProps {
     initialClients: Client[]
@@ -59,11 +59,7 @@ export function ClientsClient({ initialClients }: ClientsClientProps) {
     }
 
     if (loading) {
-        return (
-            <div className="flex h-full w-full items-center justify-center min-h-[50vh]">
-                <TetrisLoading size="md" speed="normal" loadingText="Cargando..." />
-            </div>
-        )
+        return <CardLoading />
     }
 
     return (
