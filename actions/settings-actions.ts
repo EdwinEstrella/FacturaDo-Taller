@@ -11,6 +11,7 @@ export type CompanySettings = {
     companyAddress: string
     invoiceTemplate?: "ticket" | "a4"
     companyLogo?: string
+    companyLogoKey?: string
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
@@ -26,7 +27,8 @@ export async function getCompanySettings(): Promise<CompanySettings> {
                 "COMPANY_RNC",
                 "COMPANY_ADDRESS",
                 "INVOICE_TEMPLATE",
-                "COMPANY_LOGO"
+                "COMPANY_LOGO",
+                "COMPANY_LOGO_KEY"
             ])
 
         if (error) {
@@ -40,6 +42,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             companyAddress: "",
             invoiceTemplate: "ticket",
             companyLogo: "",
+            companyLogoKey: "",
         }
 
         if (!allSettings || allSettings.length === 0) {
@@ -53,6 +56,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             if (current.key === "COMPANY_ADDRESS") acc.companyAddress = current.value
             if (current.key === "INVOICE_TEMPLATE") acc.invoiceTemplate = (current.value === "a4" ? "a4" : "ticket")
             if (current.key === "COMPANY_LOGO") acc.companyLogo = current.value
+            if (current.key === "COMPANY_LOGO_KEY") acc.companyLogoKey = current.value
             return acc
         }, defaults)
 
@@ -66,6 +70,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             companyAddress: "",
             invoiceTemplate: "ticket",
             companyLogo: "",
+            companyLogoKey: "",
         }
     }
 }
@@ -81,7 +86,46 @@ export async function updateCompanySettings(data: CompanySettings) {
 
     try {
         const invoiceTemplate = data.invoiceTemplate === "a4" ? "a4" : "ticket"
-        const companyLogo = data.companyLogo ?? ""
+
+        // Handle logo upload to bucket
+        let companyLogoUrl = data.companyLogo ?? ""
+        let companyLogoKey = ""
+
+        // If companyLogo is a base64 string, upload it to the bucket using SDK
+        if (companyLogoUrl && companyLogoUrl.startsWith("data:image/")) {
+            try {
+                // Extract the base64 data
+                const matches = companyLogoUrl.match(/^data:image\/(\w+);base64,(.+)$/)
+                if (matches && matches[2]) {
+                    const extension = matches[1] // png, jpeg, etc.
+                    const mimeType = `image/${extension}`
+                    const base64Data = matches[2]
+                    const buffer = Buffer.from(base64Data, "base64")
+
+                    // Create a File object from the buffer
+                    const fileName = `company-logo-${Date.now()}.${extension}`
+                    const file = new File([buffer], fileName, { type: mimeType })
+
+                    // Upload using InsForge SDK
+                    const { data: uploadData, error: uploadError } = await insforge.storage
+                        .from('company-logos')
+                        .upload(fileName, file)
+
+                    if (uploadError) {
+                        console.error("Failed to upload logo to bucket:", uploadError)
+                        companyLogoUrl = "" // Clear logo if upload failed
+                    } else {
+                        // IMPORTANT: Save both url and key
+                        companyLogoUrl = uploadData.url
+                        companyLogoKey = uploadData.key
+                        console.log("Logo uploaded successfully:", companyLogoUrl)
+                    }
+                }
+            } catch (uploadError) {
+                console.error("Error uploading logo:", uploadError)
+                companyLogoUrl = "" // Clear logo if upload fails
+            }
+        }
 
         // Helper function to upsert a setting
         const upsertSetting = async (key: string, value: string) => {
@@ -110,7 +154,8 @@ export async function updateCompanySettings(data: CompanySettings) {
         await upsertSetting("COMPANY_RNC", data.companyRnc)
         await upsertSetting("COMPANY_ADDRESS", data.companyAddress)
         await upsertSetting("INVOICE_TEMPLATE", invoiceTemplate)
-        await upsertSetting("COMPANY_LOGO", companyLogo)
+        await upsertSetting("COMPANY_LOGO", companyLogoUrl)
+        await upsertSetting("COMPANY_LOGO_KEY", companyLogoKey)
 
         revalidatePath("/settings/general")
         revalidatePath("/invoices")
