@@ -44,3 +44,15 @@ next-env.d.ts
 *.rpm
 *.zip
 
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.augment
+.cline
+.github/copilot*
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

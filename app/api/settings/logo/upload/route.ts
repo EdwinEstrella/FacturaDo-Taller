@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/actions/auth-actions"
+import { getStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 export async function POST(request: NextRequest) {
     try {
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Obtener URL pública
-        const publicUrl = `${baseUrl}/storage/buckets/company-logos/objects/${filename}?download=true`
+        const publicUrl = getStorageObjectUrl("company-logos", filename)
 
         return NextResponse.json({
             success: true,

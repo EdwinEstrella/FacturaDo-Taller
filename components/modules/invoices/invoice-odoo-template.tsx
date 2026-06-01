@@ -1,7 +1,7 @@
-import Image from "next/image"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency } from "@/lib/utils"
+import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 interface InvoiceOdooTemplateProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,8 +20,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
   const companyRnc = settings?.companyRnc || "101-00000-0"
   const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
   const companyPhone = settings?.companyPhone || "809-555-0101"
-  const logoSrc = settings?.companyLogo && settings.companyLogo.length > 0 ? settings.companyLogo : "/logo.png"
-
+  const logoSrc = normalizeStorageObjectUrl(settings?.companyLogo) || "/logo.png"
   const issueDate = new Date(invoice.createdAt)
 
   const subtotal = invoice.items.reduce(
@@ -29,208 +28,199 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
     (acc: number, item: any) => acc + Number(item.price) * item.quantity,
     0
   )
-
   const tax = Number(invoice.tax ?? 0)
   const shipping = Number(invoice.shippingCost ?? 0)
   const total = Number(invoice.total ?? subtotal + tax + shipping)
+  const balance = Number(invoice.balance ?? 0)
+  const isPending = invoice.status === "PENDING" || balance > 0
+  const documentNumber = `#${String(invoice.sequenceNumber ?? "").padStart(6, "0")}`
+  const clientName = invoice.clientName || invoice.client?.name || "Consumidor Final"
+  const clientIdentifier = invoice.client?.rnc || invoice.clientRnc || invoice.client?.cedula
+  const clientAddress = invoice.client?.address
+  const clientPhone = invoice.client?.phone
 
   return (
-    <div className="font-sans text-sm w-[210mm] p-8 bg-white text-black mx-auto">
+    <div className="mx-auto min-h-[297mm] w-[210mm] bg-[#f2f3f5] p-[10mm] font-sans text-[#121820]">
       <style>{`
         @media print {
-          @page { margin: 10mm; size: A4 portrait; }
-          body { width: 210mm; }
+          @page { margin: 0; size: A4 portrait; }
+          body { background: white; }
+          .invoice-page { box-shadow: none !important; }
         }
       `}</style>
 
-      {/* Header */}
-      <header className="flex items-start justify-between border-b pb-4 mb-6">
-        <div className="flex items-start gap-4">
-          <Image
-            src={logoSrc}
-            alt="Logo"
-            width={60}
-            height={60}
-            className="h-14 w-14 object-contain"
-            unoptimized
-          />
+      <div className="invoice-page min-h-[277mm] bg-white px-[12mm] py-[11mm] shadow-[0_10px_25px_rgba(15,23,42,0.22)]">
+        <header className="mb-4">
+          <div className="flex items-start justify-between gap-8">
+            <div className="flex max-w-[105mm] items-start gap-3">
+              <div className="flex h-[21mm] w-[21mm] shrink-0 items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoSrc} alt="Logo" className="max-h-full max-w-full object-contain" />
+              </div>
+              <div className="pt-1">
+                <h1 className="text-[22px] font-black uppercase leading-none tracking-tight text-[#18212b]">
+                  {companyName}
+                </h1>
+                <p className="mt-1 text-[10px] leading-[13px] text-black">
+                  {companyAddress}
+                  <br />
+                  {companyPhone && <>Tel: {companyPhone}</>}
+                  {companyRnc && (
+                    <>
+                      <br />
+                      RNC: {companyRnc}
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 text-right">
+              <h2 className="text-[42px] font-black uppercase leading-none tracking-tight text-[#315f8a]">
+                FACTURA
+              </h2>
+            </div>
+          </div>
+
+          <div className="mt-4 h-[3px] w-full bg-[#5a9bc0]" />
+        </header>
+
+        <section className="mb-4 grid grid-cols-2 gap-10 text-[12px] leading-[16px]">
           <div>
-            <h1 className="text-xl font-bold uppercase">{companyName}</h1>
-            <p className="text-xs">
-              {companyAddress}
-              <br />
-              Tel: {companyPhone}
+            <h3 className="mb-1 text-[14px] font-black uppercase">Factura a:</h3>
+            <p>
+              <span className="font-black">Cliente:</span> {clientName}
             </p>
-            {companyRnc && (
-              <p className="text-xs mt-1">
-                RNC: <span className="font-medium">{companyRnc}</span>
+            {clientIdentifier && (
+              <p>
+                <span className="font-black">RNC/Cédula:</span> {clientIdentifier}
+              </p>
+            )}
+            {clientAddress && <p>{clientAddress}</p>}
+            {clientPhone && <p>{clientPhone}</p>}
+          </div>
+
+          <div>
+            <h3 className="mb-1 text-[14px] font-black uppercase">Detalles de factura</h3>
+            <p>
+              <span className="font-black">Factura #:</span> {documentNumber}
+            </p>
+            <p>
+              <span className="font-black">Fecha:</span>{" "}
+              {format(issueDate, "dd MMMM yyyy", { locale: es })}
+            </p>
+            {invoice.deliveryDate && (
+              <p>
+                <span className="font-black">Entrega:</span>{" "}
+                {format(new Date(invoice.deliveryDate), "dd MMMM yyyy", { locale: es })}
+              </p>
+            )}
+            <p>
+              <span className="font-black">Términos:</span> {isPending ? "Crédito" : "Contado"}
+            </p>
+            {invoice.ncf && (
+              <p>
+                <span className="font-black">NCF:</span> {invoice.ncf}
               </p>
             )}
           </div>
-        </div>
+        </section>
 
-        <div className="text-right text-xs space-y-1">
-          <p className="text-lg font-bold uppercase">FACTURA</p>
-          <p>
-            <span className="font-semibold">No. interno:</span>{" "}
-            {invoice.sequenceNumber}
-          </p>
-          {invoice.ncf && (
-            <p>
-              <span className="font-semibold">NCF:</span> {invoice.ncf}
-            </p>
-          )}
-          {invoice.ncfType && (
-            <p>
-              <span className="font-semibold">Tipo NCF:</span> {invoice.ncfType}
-            </p>
-          )}
-          <p>
-            <span className="font-semibold">Fecha:</span>{" "}
-            {format(issueDate, "dd/MM/yyyy HH:mm", { locale: es })}
-          </p>
-          {invoice.createdBy?.name && (
-            <p className="italic">
-              Atendido por: <span className="font-medium">{invoice.createdBy.name}</span>
-            </p>
-          )}
-          {invoice.dispatchInfo?.technician && (
-            <p className="italic">
-              Despachado por: <span className="font-medium">{invoice.dispatchInfo.technician.name}</span>
-            </p>
-          )}
-        </div>
-      </header>
-
-      {/* Datos del cliente */}
-      <section className="mb-6 grid grid-cols-2 gap-6 text-xs">
-        <div className="border rounded p-3 space-y-1">
-          <h2 className="text-sm font-semibold mb-1">Cliente</h2>
-          <p>
-            <span className="font-semibold">Nombre:</span>{" "}
-            {invoice.clientName || invoice.client?.name || "Consumidor Final"}
-          </p>
-          {(invoice.client?.rnc || invoice.clientRnc) && (
-            <p>
-              <span className="font-semibold">RNC/Cédula:</span>{" "}
-              {invoice.client?.rnc || invoice.clientRnc}
-            </p>
-          )}
-          {invoice.client?.address && (
-            <p>
-              <span className="font-semibold">Dirección:</span>{" "}
-              {invoice.client.address}
-            </p>
-          )}
-          {invoice.client?.phone && (
-            <p>
-              <span className="font-semibold">Teléfono:</span>{" "}
-              {invoice.client.phone}
-            </p>
-          )}
-        </div>
-
-        <div className="border rounded p-3 space-y-1">
-          <h2 className="text-sm font-semibold mb-1">Detalles de Facturación</h2>
-          {invoice.paymentMethod && (
-            <p>
-              <span className="font-semibold">Forma de pago:</span>{" "}
-              {invoice.paymentMethod}
-            </p>
-          )}
-          {invoice.deliveryDate && (
-            <p>
-              <span className="font-semibold">Fecha de entrega:</span>{" "}
-              {format(new Date(invoice.deliveryDate), "dd/MM/yyyy", { locale: es })}
-            </p>
-          )}
-          {invoice.status && (
-            <p>
-              <span className="font-semibold">Estado:</span>{" "}
-              {invoice.status === "PAID" ? "PAGADA" : invoice.status}
-            </p>
-          )}
-          {invoice.notes && (
-            <p>
-              <span className="font-semibold">Notas:</span> {invoice.notes}
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Detalle de líneas */}
-      <section className="mb-6">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border px-4 py-2 text-left w-1/2">Descripción</th>
-              <th className="border px-4 py-2 text-right w-1/8">Cant.</th>
-              <th className="border px-4 py-2 text-right w-1/8">Precio</th>
-              <th className="border px-4 py-2 text-right w-1/8">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {invoice.items.map((item: any) => (
-              <tr key={item.id} className="border-b">
-                <td className="border px-4 py-3 align-top">
-                  <div className="font-semibold text-base">{item.productName}</div>
-                  {item.description && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      {item.description}
-                    </div>
-                  )}
-                </td>
-                <td className="border px-4 py-3 text-right align-top font-medium text-base">
-                  {item.quantity}
-                </td>
-                <td className="border px-4 py-3 text-right align-top font-medium text-base">
-                  {formatCurrency(Number(item.price))}
-                </td>
-                <td className="border px-4 py-3 text-right align-top font-bold text-lg">
-                  {formatCurrency(Number(item.price) * item.quantity)}
-                </td>
+        <section className="mb-3">
+          <table className="w-full border-collapse text-[12px]">
+            <thead>
+              <tr className="bg-[#2f6f9f] text-white">
+                <th className="w-[10mm] border border-[#9fb0bd] px-2 py-[7px] text-left font-bold">Sr.</th>
+                <th className="border border-[#9fb0bd] px-2 py-[7px] text-left font-bold">Descripción</th>
+                <th className="w-[26mm] border border-[#9fb0bd] px-2 py-[7px] text-center font-bold">Cantidad</th>
+                <th className="w-[30mm] border border-[#9fb0bd] px-2 py-[7px] text-right font-bold">Precio</th>
+                <th className="w-[32mm] border border-[#9fb0bd] px-2 py-[7px] text-right font-bold">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {invoice.items.map((item: any, index: number) => (
+                <tr key={item.id} className="odd:bg-[#f7f7f7] even:bg-white">
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{index + 1}.</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] align-top font-semibold">
+                    {item.productName}
+                    {item.description && <div className="mt-1 text-[10px] font-normal">{item.description}</div>}
+                  </td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{item.quantity}</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">
+                    {formatCurrency(Number(item.price))}
+                  </td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">
+                    {formatCurrency(Number(item.price) * item.quantity)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
 
-      {/* Totales */}
-      <section className="flex justify-end mb-8">
-        <div className="w-80 text-base space-y-2">
-          <div className="flex justify-between">
-            <span>Subtotal:</span>
-            <span className="font-medium">{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>ITBIS:</span>
-            <span className="font-medium">{formatCurrency(tax)}</span>
-          </div>
-          {shipping > 0 && (
-            <div className="flex justify-between">
-              <span>Envío:</span>
-              <span className="font-medium">{formatCurrency(shipping)}</span>
+        <section className="mb-7 flex justify-end">
+          <div className="w-[72mm] text-[12px]">
+            <div className="flex justify-between py-[5px]">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
-          )}
-          <div className="border-t-2 mt-3 pt-3 flex justify-between text-xl font-bold">
-            <span>TOTAL:</span>
-            <span>{formatCurrency(total)}</span>
-          </div>
-          {invoice.status === "PENDIENTE" && typeof invoice.balance !== "undefined" && (
-            <div className="mt-3 text-red-700 font-bold text-lg flex justify-between">
-              <span>PENDIENTE:</span>
-              <span>{formatCurrency(Number(invoice.balance))}</span>
+            <div className="flex justify-between py-[5px]">
+              <span>ITBIS</span>
+              <span>{formatCurrency(tax)}</span>
             </div>
-          )}
-        </div>
-      </section>
+            {shipping > 0 && (
+              <div className="flex justify-between py-[5px]">
+                <span>Envío</span>
+                <span>{formatCurrency(shipping)}</span>
+              </div>
+            )}
+            <div className="mt-1 border-t-2 border-[#5a9bc0] pt-[7px]">
+              <div className="flex justify-between text-[15px] font-black text-[#315f8a]">
+                <span>Total</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+            {isPending && (
+              <div className="mt-2 flex justify-between text-[12px] font-black">
+                <span>Pendiente</span>
+                <span>{formatCurrency(balance)}</span>
+              </div>
+            )}
+          </div>
+        </section>
 
-      {/* Pie de página */}
-      <footer className="text-center text-[10px] text-gray-500 border-t pt-4">
-        <p>Gracias por su preferencia.</p>
-        <p>Factura generada por FacturaDO.</p>
-      </footer>
+        <section className="grid grid-cols-2 gap-12 text-[12px] leading-[16px]">
+          <div>
+            <h3 className="mb-2 text-[14px] font-black uppercase">Métodos de pago</h3>
+            <p>
+              <span className="font-black">Efectivo / Transferencia</span>
+              <br />
+              Cliente: {companyName}
+              <br />
+              Tel: {companyPhone}
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-[14px] font-black uppercase">Notas:</h3>
+            <p>
+              {invoice.notes ||
+                "Gracias por su compra. Favor realizar el pago antes de la fecha acordada e incluir el número de factura como referencia."}
+            </p>
+          </div>
+        </section>
+
+        <footer className="mt-8 border-t border-[#5a9bc0] pt-3 text-[11px]">
+          <div className="flex items-center justify-between gap-4">
+            <p className="font-semibold">{companyName}</p>
+            <p className="text-right">
+              {companyPhone}
+              {companyAddress && ` | ${companyAddress}`}
+            </p>
+          </div>
+        </footer>
+      </div>
     </div>
   )
 }

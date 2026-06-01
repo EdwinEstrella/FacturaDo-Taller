@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { updateCompanySettings, type CompanySettings } from "@/actions/settings-actions"
 import { toast } from "sonner"
 import { InvoiceOdooTemplate } from "@/components/modules/invoices/invoice-odoo-template"
@@ -14,7 +21,7 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<CompanySettings>(initialSettings)
-    const [showA4Preview, setShowA4Preview] = useState(initialSettings.invoiceTemplate === "a4")
+    const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
@@ -53,7 +60,8 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
 
     const handleChooseA4Template = () => {
         setTemplate("a4")
-        setShowA4Preview(true)
+        setTemplateDialogOpen(false)
+        toast.success("Plantilla A4 seleccionada")
     }
 
     // Datos de ejemplo para previsualización A4 (no se guardan ni afectan facturas reales)
@@ -162,23 +170,58 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
                                 Por ahora hay un solo diseño disponible. En futuras versiones podrás escoger entre varios templates.
                             </p>
                         </div>
-                        <button
+                        <Button
                             type="button"
-                            onClick={handleChooseA4Template}
-                            className={`border rounded-lg px-4 py-2 text-sm font-medium transition ${formData.invoiceTemplate === "a4" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}
+                            variant="outline"
+                            onClick={() => setTemplateDialogOpen(true)}
+                            className={formData.invoiceTemplate === "a4" ? "border-blue-500 bg-blue-50" : ""}
                         >
-                            Elegir template de diseño de impresión A4
-                        </button>
+                            Ver plantillas disponibles
+                        </Button>
                     </div>
 
-                    {showA4Preview && (
-                        <div className="border rounded-lg p-4 bg-white">
-                            <p className="text-sm font-semibold mb-2">Previsualización de factura A4</p>
-                            <div className="border bg-gray-50 max-h-[540px] overflow-auto">
-                                <InvoiceOdooTemplate invoice={exampleInvoice} settings={formData} />
+                    <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+                        <DialogContent className="max-w-[520px] max-h-[85vh] overflow-hidden">
+                            <DialogHeader>
+                                <DialogTitle>Plantillas disponibles</DialogTitle>
+                                <DialogDescription>
+                                    Haz click en una plantilla para seleccionarla como diseño de impresión A4.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="overflow-x-auto pb-2">
+                                <div className="flex min-w-max gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={handleChooseA4Template}
+                                        className={`w-[190px] shrink-0 rounded-xl border bg-white p-2 text-left shadow-sm transition hover:border-blue-500 hover:shadow-md ${formData.invoiceTemplate === "a4" ? "border-blue-600 ring-2 ring-blue-200" : "border-gray-200"}`}
+                                    >
+                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-semibold">Clásica azul A4</p>
+                                                <p className="text-[11px] text-gray-500">Tabla azul corporativa.</p>
+                                            </div>
+                                            {formData.invoiceTemplate === "a4" && (
+                                                <span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
+                                                    Activa
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Preview: 810×1160 scaled 0.48 → visual ~389×557px, clipped at 320px height */}
+                                        <div className="mx-auto overflow-hidden rounded-lg border bg-gray-50" style={{ width: "160px", height: "220px" }}>
+                                            <div
+                                                className="w-[810px] origin-top-left"
+                                                style={{ transform: "scale(0.19)", transformOrigin: "top left" }}
+                                            >
+                                                <InvoiceOdooTemplate invoice={exampleInvoice} settings={formData} />
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        </DialogContent>
+                    </Dialog>
 
                     <div className="grid md:grid-cols-[auto,1fr] gap-4 items-center">
                         <div className="w-24 h-24 border rounded flex items-center justify-center bg-white overflow-hidden">

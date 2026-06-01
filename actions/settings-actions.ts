@@ -1,6 +1,7 @@
 "use server"
 
 import { createServerClient } from "@/lib/insforge/client"
+import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 
@@ -60,6 +61,8 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             return acc
         }, defaults)
 
+        result.companyLogo = normalizeStorageObjectUrl(result.companyLogo, result.companyLogoKey)
+
         return result
     } catch (error) {
         console.error("Error fetching settings:", error)
@@ -89,7 +92,7 @@ export async function updateCompanySettings(data: CompanySettings) {
 
         // Handle logo upload to bucket
         let companyLogoUrl = data.companyLogo ?? ""
-        let companyLogoKey = ""
+        let companyLogoKey = data.companyLogoKey ?? ""
 
         // If companyLogo is a base64 string, upload it to the bucket using SDK
         if (companyLogoUrl && companyLogoUrl.startsWith("data:image/")) {
@@ -116,7 +119,7 @@ export async function updateCompanySettings(data: CompanySettings) {
                         companyLogoUrl = "" // Clear logo if upload failed
                     } else {
                         // IMPORTANT: Save both url and key
-                        companyLogoUrl = uploadData.url
+                        companyLogoUrl = normalizeStorageObjectUrl(uploadData.url, uploadData.key)
                         companyLogoKey = uploadData.key
                         console.log("Logo uploaded successfully:", companyLogoUrl)
                     }
@@ -154,7 +157,7 @@ export async function updateCompanySettings(data: CompanySettings) {
         await upsertSetting("COMPANY_RNC", data.companyRnc)
         await upsertSetting("COMPANY_ADDRESS", data.companyAddress)
         await upsertSetting("INVOICE_TEMPLATE", invoiceTemplate)
-        await upsertSetting("COMPANY_LOGO", companyLogoUrl)
+        await upsertSetting("COMPANY_LOGO", normalizeStorageObjectUrl(companyLogoUrl, companyLogoKey))
         await upsertSetting("COMPANY_LOGO_KEY", companyLogoKey)
 
         revalidatePath("/settings/general")
