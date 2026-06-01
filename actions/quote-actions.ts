@@ -1,7 +1,7 @@
 "use server"
 
 import { createServerClient } from "@/lib/insforge/client"
-import type { QuoteItem } from "@/types"
+import type { QuoteItem, Client } from "@/types"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 
@@ -163,7 +163,7 @@ export async function getQuotes() {
 
     // Fetch client data for each unique clientId
     const clientIds = [...new Set((quotes || []).map(q => q.clientId).filter(Boolean))]
-    let clientsMap: Record<string, any> = {}
+    let clientsMap: Record<string, Client> = {}
 
     if (clientIds.length > 0) {
         const { data: clients } = await insforge.database
@@ -172,13 +172,13 @@ export async function getQuotes() {
             .in('id', clientIds)
 
         if (clients) {
-            clientsMap = Object.fromEntries(clients.map(c => [c.id, c]))
+            clientsMap = Object.fromEntries((clients as Client[]).map(c => [c.id, c]))
         }
     }
 
     // Fetch associated QuoteItems for all retrieved quotes
     const quoteIds = (quotes || []).map(q => q.id)
-    let itemsMap: Record<string, any[]> = {}
+    let itemsMap: Record<string, QuoteItem[]> = {}
 
     if (quoteIds.length > 0) {
         const { data: items } = await insforge.database
@@ -187,7 +187,7 @@ export async function getQuotes() {
             .in('quoteId', quoteIds)
 
         if (items) {
-            itemsMap = items.reduce((acc: Record<string, any[]>, item: any) => {
+            itemsMap = (items as QuoteItem[]).reduce((acc: Record<string, QuoteItem[]>, item: QuoteItem) => {
                 if (!acc[item.quoteId]) {
                     acc[item.quoteId] = []
                 }

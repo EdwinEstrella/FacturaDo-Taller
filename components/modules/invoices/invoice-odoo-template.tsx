@@ -40,12 +40,32 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
   const clientPhone = invoice.client?.phone
 
   return (
-    <div className="mx-auto min-h-[297mm] w-[210mm] bg-[#f2f3f5] p-[10mm] font-sans text-[#121820]">
+    <div className="print-container-wrapper mx-auto min-h-[297mm] w-[210mm] bg-[#f2f3f5] p-[10mm] font-sans text-[#121820]">
       <style>{`
         @media print {
-          @page { margin: 0; size: A4 portrait; }
-          body { background: white; }
-          .invoice-page { box-shadow: none !important; }
+          @page { 
+            margin: 8mm; 
+            size: A4 portrait; 
+          }
+          html, body { 
+            background: white !important; 
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print-container-wrapper {
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
+          .invoice-page { 
+            box-shadow: none !important; 
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
         }
       `}</style>
 
