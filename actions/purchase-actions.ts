@@ -50,7 +50,9 @@ export async function getSuppliers() {
 
 export async function createSupplier(data: z.infer<typeof SupplierSchema>) {
     const user = await getCurrentUser()
-    if (!user) throw new Error("Unauthorized")
+    if (!user || (user.role !== "ADMIN" && user.role !== "ACCOUNTANT" && user.role !== "MANAGER")) {
+        return { success: false, error: "No tienes permisos para crear proveedores" }
+    }
 
     const validated = SupplierSchema.safeParse(data)
     if (!validated.success) return { success: false, error: validated.error.message }
@@ -78,7 +80,9 @@ export async function createSupplier(data: z.infer<typeof SupplierSchema>) {
 
 export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
     const user = await getCurrentUser()
-    if (!user) throw new Error("Unauthorized")
+    if (!user || (user.role !== "ADMIN" && user.role !== "ACCOUNTANT" && user.role !== "MANAGER")) {
+        return { success: false, error: "No tienes permisos para registrar compras" }
+    }
 
     const validated = PurchaseSchema.safeParse(data)
     if (!validated.success) return { success: false, error: validated.error.message }
@@ -89,95 +93,26 @@ export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
     const total = items.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0)
 
     try {
-        // Get products to fetch names
-        const { data: products } = await insforge.database
-            .from('Product')
-            .select('id, name')
-            .in('id', items.map(item => item.productId))
-
-        // Create Purchase Record
-        const { data: purchase, error: purchaseError } = await insforge.database
-            .from('Purchase')
-            .insert([{
-                supplierName: supplierName || "Proveedor",
-                total: total.toString(),
-                notes,
-            }])
-            .select()
-            .single()
-
-        if (purchaseError || !purchase) {
-            throw purchaseError
-        }
-
-        // Create Purchase Items
-        const purchaseItems = items.map(item => {
-            const product = products?.find(p => p.id === item.productId)
-
-            // If there's a variant, include its name in the product name
-            let productName = product?.name || "Producto"
-            if (item.variantName) {
-                productName = `${productName} - ${item.variantName}`
-            }
-
-            return {
-                purchaseId: purchase.id,
+        const { error } = await insforge.database.rpc("record_purchase_atomic", {
+            p_supplier_name: supplierName || "Proveedor",
+            p_total: total,
+            p_notes: notes || null,
+            p_date: date.toISOString(),
+            p_items: items.map(item => ({
                 productId: item.productId,
-                productName: productName,
+                variantId: item.variantId || null,
+                variantName: item.variantName || null,
                 quantity: item.quantity,
-                price: item.unitCost.toString()
-            }
+                quantityType: item.quantityType,
+                unitCost: item.unitCost,
+                newCost: item.newCost ?? null,
+                newPrice: item.newPrice ?? null,
+            })),
         })
 
-        const { error: itemsError } = await insforge.database
-            .from('PurchaseItem')
-            .insert(purchaseItems)
-
-        if (itemsError) {
-            throw itemsError
+        if (error) {
+            throw new Error(error.message)
         }
-
-        // Update Inventory & Cost for each product
-        for (const item of items) {
-            const { data: product } = await insforge.database
-                .from('Product')
-                .select('*')
-                .eq('id', item.productId)
-                .single()
-
-            if (!product) continue
-
-            const updateData: Record<string, string | number> = {
-                stock: product.stock + item.quantity
-            }
-
-            if (item.newCost !== undefined) {
-                updateData.cost = item.newCost.toString()
-            } else {
-                updateData.cost = item.unitCost.toString()
-            }
-
-            if (item.newPrice !== undefined) {
-                updateData.price = item.newPrice.toString()
-            }
-
-            await insforge.database
-                .from('Product')
-                .update(updateData)
-                .eq('id', item.productId)
-        }
-
-        // Create Expense Transaction
-        await insforge.database
-            .from('Transaction')
-            .insert([{
-                type: "EXPENSE",
-                category: "PURCHASE",
-                amount: total,
-                description: `Compra de Mercancía - ${supplierName || 'Proveedor'}`,
-                date: date.toISOString(),
-                reference_id: purchase.id
-            }])
 
         revalidatePath("/liquidations")
         revalidatePath("/products")

@@ -11,6 +11,7 @@ const CreditNoteItemSchema = z.object({
     productName: z.string(),
     quantity: z.number().min(1),
     price: z.number(),
+    variantId: z.string().optional(),
 })
 
 const CreditNoteSchema = z.object({
@@ -21,6 +22,47 @@ const CreditNoteSchema = z.object({
 })
 
 type CreditNoteFormData = z.infer<typeof CreditNoteSchema>
+
+type DatabaseClient = ReturnType<typeof createServerClient>
+
+type CreditNoteInventoryItem = z.infer<typeof CreditNoteItemSchema>
+
+async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
+    await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
+}
+
+async function restoreCreditNoteStock(insforge: DatabaseClient, item: CreditNoteInventoryItem) {
+    if (item.variantId) {
+        const { data: variant } = await insforge.database
+            .from('ProductVariant')
+            .select('stock')
+            .eq('id', item.variantId)
+            .single()
+
+        if (!variant) return
+
+        await insforge.database
+            .from('ProductVariant')
+            .update({ stock: Number(variant.stock || 0) + item.quantity })
+            .eq('id', item.variantId)
+
+        await syncProductStockFromVariants(insforge, item.productId)
+        return
+    }
+
+    const { data: product } = await insforge.database
+        .from('Product')
+        .select('stock')
+        .eq('id', item.productId)
+        .single()
+
+    if (product) {
+        await insforge.database
+            .from('Product')
+            .update({ stock: Number(product.stock || 0) + item.quantity })
+            .eq('id', item.productId)
+    }
+}
 
 export async function createCreditNote(data: CreditNoteFormData) {
     const user = await getCurrentUser()
@@ -54,18 +96,7 @@ export async function createCreditNote(data: CreditNoteFormData) {
         // Restore Stock if requested
         if (restoreStock) {
             for (const item of items) {
-                const { data: product } = await insforge.database
-                    .from('Product')
-                    .select('stock')
-                    .eq('id', item.productId)
-                    .single()
-
-                if (product) {
-                    await insforge.database
-                        .from('Product')
-                        .update({ stock: product.stock + item.quantity })
-                        .eq('id', item.productId)
-                }
+                await restoreCreditNoteStock(insforge, item)
             }
         }
 

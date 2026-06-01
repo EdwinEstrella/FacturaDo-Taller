@@ -36,13 +36,13 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
 
     // 1. Fetch Users for Filter
     const { data: users } = await insforge.database
-        .from('User')
+        .from('users')
         .select('id, name')
 
     // 2. Build Query Filters
     let invoicesQuery = insforge.database
         .from('Invoice')
-        .select('*, createdBy:User(id, name)')
+        .select('*')
         .gte('createdAt', start.toISOString())
         .lt('createdAt', end.toISOString())
 
@@ -53,18 +53,32 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
     const { data: invoices } = await invoicesQuery.order('createdAt', { ascending: false })
 
     // B. Payments (Received in period)
-    let paymentsQuery = insforge.database
+    const paymentsQuery = insforge.database
         .from('Payment')
-        .select('*, invoice:Invoice(sequenceNumber)')
+        .select('*')
         .gte('date', start.toISOString())
         .lt('date', end.toISOString())
 
-    if (userIdParam && userIdParam !== "ALL") {
-        // Filter by invoice createdById
-        paymentsQuery = paymentsQuery.filter('invoice', 'eq', { createdById: userIdParam })
-    }
+    const { data: rawPayments } = await paymentsQuery.order('date', { ascending: false })
+    const paymentInvoiceIds = Array.from(new Set((rawPayments || []).map((p) => p.invoiceId).filter(Boolean)))
 
-    const { data: payments } = await paymentsQuery.order('date', { ascending: false })
+    const { data: paymentInvoices } = paymentInvoiceIds.length > 0
+        ? await insforge.database
+            .from('Invoice')
+            .select('id, sequenceNumber, createdById')
+            .in('id', paymentInvoiceIds)
+        : { data: [] }
+
+    const invoiceById = new Map((paymentInvoices || []).map((invoice) => [invoice.id, invoice]))
+    const payments = (rawPayments || [])
+        .map((payment) => ({
+            ...payment,
+            invoice: invoiceById.get(payment.invoiceId) || null,
+        }))
+        .filter((payment) => {
+            if (!userIdParam || userIdParam === "ALL") return true
+            return payment.invoice?.createdById === userIdParam
+        })
 
     // C. Expenses
     const { data: transactions } = await insforge.database
@@ -164,7 +178,7 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                                 {(payments || []).map((p) => (
                                     <TableRow key={p.id}>
                                         <TableCell>{format(p.date, "HH:mm", { locale: es })}</TableCell>
-                                        <TableCell className="font-mono">{String(p.invoice.sequenceNumber).padStart(6, '0')}</TableCell>
+                                        <TableCell className="font-mono">{String(p.invoice?.sequenceNumber || '-').padStart(6, '0')}</TableCell>
                                         <TableCell className="text-xs font-semibold">{p.method || 'CASH'}</TableCell>
                                         <TableCell className="text-right text-green-700 font-medium">+{formatCurrency(Number(p.amount))}</TableCell>
                                     </TableRow>

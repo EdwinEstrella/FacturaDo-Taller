@@ -46,6 +46,7 @@ interface InvoiceItem {
     productName: string
     quantity: number
     price: number
+    variantId?: string | null
 }
 
 interface Invoice {
@@ -66,32 +67,32 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
     const [selectedInvoiceId, setSelectedInvoiceId] = useState("")
     const [reason, setReason] = useState("")
     const [restoreStock, setRestoreStock] = useState(true)
-    const [selectedItems, setSelectedItems] = useState<Record<string, number>>({}) // productId -> quantity to return
+    const [selectedItems, setSelectedItems] = useState<Record<string, number>>({}) // invoice item id -> quantity to return
 
     const [isPending, startTransition] = useTransition()
     const router = useRouter()
 
     const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
 
-    const toggleItem = (productId: string, maxQty: number) => {
+    const toggleItem = (itemId: string, maxQty: number) => {
         setSelectedItems(prev => {
-            if (prev[productId]) {
+            if (prev[itemId]) {
                 const copy = { ...prev }
-                delete copy[productId]
+                delete copy[itemId]
                 return copy
             }
-            return { ...prev, [productId]: maxQty } // Default to full quantity
+            return { ...prev, [itemId]: maxQty } // Default to full quantity
         })
     }
 
-    const updateItemQuantity = (productId: string, qty: number, maxQty: number) => {
+    const updateItemQuantity = (itemId: string, qty: number, maxQty: number) => {
         if (qty < 1) return
         if (qty > maxQty) qty = maxQty
-        setSelectedItems(prev => ({ ...prev, [productId]: qty }))
+        setSelectedItems(prev => ({ ...prev, [itemId]: qty }))
     }
 
     const selectedTotal = selectedInvoice ? selectedInvoice.items.reduce((acc, item) => {
-        const qty = selectedItems[item.productId] || 0
+        const qty = selectedItems[item.id] || 0
         return acc + (item.price * qty)
     }, 0) : 0
 
@@ -100,12 +101,13 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
         if (!reason) return toast.error("Ingrese una razón")
 
         const itemsToReturn = selectedInvoice.items
-            .filter(item => selectedItems[item.productId])
+            .filter(item => selectedItems[item.id])
             .map(item => ({
                 productId: item.productId,
                 productName: item.productName,
-                quantity: selectedItems[item.productId], // Verified not undefined by filter
-                price: item.price
+                quantity: selectedItems[item.id], // Verified not undefined by filter
+                price: item.price,
+                variantId: item.variantId || undefined
             }))
 
         if (itemsToReturn.length === 0) return toast.error("Seleccione al menos un producto")
@@ -232,19 +234,19 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                                     <TableRow key={item.id}>
                                         <TableCell>
                                             <Checkbox
-                                                checked={!!selectedItems[item.productId]}
-                                                onCheckedChange={() => toggleItem(item.productId, item.quantity)}
+                                                checked={!!selectedItems[item.id]}
+                                                onCheckedChange={() => toggleItem(item.id, item.quantity)}
                                             />
                                         </TableCell>
                                         <TableCell>{item.productName}</TableCell>
                                         <TableCell className="text-right">{item.quantity}</TableCell>
                                         <TableCell className="text-right">
-                                            {selectedItems[item.productId] ? (
+                                            {selectedItems[item.id] ? (
                                                 <Input
                                                     type="number"
                                                     className="w-20 ml-auto h-8"
-                                                    value={selectedItems[item.productId]}
-                                                    onChange={(e) => updateItemQuantity(item.productId, parseInt(e.target.value), item.quantity)}
+                                                    value={selectedItems[item.id]}
+                                                    onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value), item.quantity)}
                                                     min={1}
                                                     max={item.quantity}
                                                 />
@@ -254,8 +256,8 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                                         </TableCell>
                                         <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
                                         <TableCell className="text-right font-medium">
-                                            {selectedItems[item.productId]
-                                                ? formatCurrency(item.price * selectedItems[item.productId])
+                                            {selectedItems[item.id]
+                                                ? formatCurrency(item.price * selectedItems[item.id])
                                                 : "-"}
                                         </TableCell>
                                     </TableRow>

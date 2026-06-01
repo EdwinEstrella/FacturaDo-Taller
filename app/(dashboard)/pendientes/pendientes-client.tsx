@@ -19,17 +19,17 @@ interface Installation {
     productName: string
     quantity: number
     clientName: string
-    clientAddress?: string
-    clientPhone?: string
+    clientAddress?: string | null
+    clientPhone?: string | null
     estado: string
-    tecnicoAsignado?: string
+    tecnicoAsignado?: string | null
     fechaCreacion: string
-    fechaEnProduccion?: string
-    fechaListaDespacho?: string
-    fechaPendienteInstalacion?: string
-    fechaInstalada?: string
-    fotos?: string
-    notas?: string
+    fechaEnProduccion?: string | null
+    fechaListaDespacho?: string | null
+    fechaPendienteInstalacion?: string | null
+    fechaInstalada?: string | null
+    fotos?: string | null
+    notas?: string | null
 }
 
 const ESTADOS = {

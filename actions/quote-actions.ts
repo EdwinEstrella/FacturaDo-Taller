@@ -18,6 +18,66 @@ type QuoteFormData = {
     }>;
 };
 
+type DatabaseClient = ReturnType<typeof createServerClient>
+
+type QuoteInventoryItem = {
+    productId: string | null
+    productName: string
+    quantity: number
+    variantId?: string | null
+}
+
+async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
+    await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
+}
+
+async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInventoryItem) {
+    if (!item.productId) return
+
+    if (item.variantId) {
+        const { data: variant } = await insforge.database
+            .from('ProductVariant')
+            .select('*')
+            .eq('id', item.variantId)
+            .single()
+
+        if (!variant) {
+            throw new Error(`Variante no encontrada: ${item.productName}`)
+        }
+
+        const nextStock = Number(variant.stock || 0) - item.quantity
+        if (nextStock < 0) {
+            throw new Error(`Stock insuficiente para ${item.productName}`)
+        }
+
+        await insforge.database
+            .from('ProductVariant')
+            .update({ stock: nextStock })
+            .eq('id', item.variantId)
+
+        await syncProductStockFromVariants(insforge, item.productId)
+        return
+    }
+
+    const { data: product } = await insforge.database
+        .from('Product')
+        .select('*')
+        .eq('id', item.productId)
+        .single()
+
+    if (product && !product.isService) {
+        const nextStock = Number(product.stock || 0) - item.quantity
+        if (nextStock < 0) {
+            throw new Error(`Stock insuficiente para ${product.name}`)
+        }
+
+        await insforge.database
+            .from('Product')
+            .update({ stock: nextStock })
+            .eq('id', item.productId)
+    }
+}
+
 export async function createQuote(data: QuoteFormData) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
@@ -122,7 +182,7 @@ export async function getQuoteById(id: string) {
         .select(`
             *,
             client:Client(*),
-            createdBy:User(*),
+            createdBy:users(*),
             items:QuoteItem(*)
         `)
         .eq('id', id)
@@ -180,6 +240,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
             productName: item.productName,
             quantity: item.quantity,
             price: item.price,
+            variantId: item.variantId || null,
         }))
 
         const { error: itemsError } = await insforge.database
@@ -192,20 +253,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
 
         // Deduct stock
         for (const item of quote.items) {
-            if (item.productId) {
-                const { data: product } = await insforge.database
-                    .from('Product')
-                    .select('*')
-                    .eq('id', item.productId)
-                    .single()
-
-                if (product && !product.isService) {
-                    await insforge.database
-                        .from('Product')
-                        .update({ stock: Math.max(0, product.stock - item.quantity) })
-                        .eq('id', item.productId)
-                }
-            }
+            await deductQuoteItemStock(insforge, item)
         }
 
         await insforge.database

@@ -34,6 +34,108 @@ const InvoiceSchema = z.object({
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
 
+type InventoryItem = {
+    productId: string | null
+    variantId?: string | null
+    quantity: number
+    productName?: string
+}
+
+type DatabaseClient = ReturnType<typeof createServerClient>
+
+async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
+    await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
+}
+
+async function adjustInventoryStock(insforge: DatabaseClient, item: InventoryItem, delta: number) {
+    if (!item.productId) return
+
+    if (item.variantId) {
+        const { data: variant } = await insforge.database
+            .from('ProductVariant')
+            .select('*')
+            .eq('id', item.variantId)
+            .single()
+
+        if (!variant) {
+            throw new Error(`Variant with ID ${item.variantId} not found.`)
+        }
+
+        const nextStock = Number(variant.stock || 0) + delta
+        if (nextStock < 0) {
+            throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${Math.abs(delta)}`)
+        }
+
+        await insforge.database
+            .from('ProductVariant')
+            .update({ stock: nextStock })
+            .eq('id', item.variantId)
+
+        await syncProductStockFromVariants(insforge, item.productId)
+        return
+    }
+
+    const { data: product } = await insforge.database
+        .from('Product')
+        .select('*')
+        .eq('id', item.productId)
+        .single()
+
+    if (!product) {
+        throw new Error(`Product with ID ${item.productId} not found.`)
+    }
+
+    if (product.isService) return
+
+    const nextStock = Number(product.stock || 0) + delta
+    if (nextStock < 0) {
+        throw new Error(`Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${Math.abs(delta)}`)
+    }
+
+    await insforge.database
+        .from('Product')
+        .update({ stock: nextStock })
+        .eq('id', item.productId)
+}
+
+async function validateInventoryAvailability(insforge: DatabaseClient, items: InventoryItem[]) {
+    for (const item of items) {
+        if (!item.productId) continue
+
+        if (item.variantId) {
+            const { data: variant } = await insforge.database
+                .from('ProductVariant')
+                .select('*')
+                .eq('id', item.variantId)
+                .single()
+
+            if (!variant) {
+                throw new Error(`Variant with ID ${item.variantId} not found.`)
+            }
+
+            if (Number(variant.stock || 0) < item.quantity) {
+                throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${item.quantity}`)
+            }
+
+            continue
+        }
+
+        const { data: product } = await insforge.database
+            .from('Product')
+            .select('*')
+            .eq('id', item.productId)
+            .single()
+
+        if (!product) {
+            throw new Error(`Product with ID ${item.productId} not found.`)
+        }
+
+        if (!product.isService && Number(product.stock || 0) < item.quantity) {
+            throw new Error(`Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`)
+        }
+    }
+}
+
 export async function createInvoice(data: InvoiceFormData) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
@@ -46,44 +148,10 @@ export async function createInvoice(data: InvoiceFormData) {
 
     const insforge = createServerClient()
 
-    // Validate stock
-    for (const item of data.items) {
-        // Si tiene variantId, validar stock de la variante
-        if (item.variantId) {
-            const { data: variant } = await insforge.database
-                .from('ProductVariant')
-                .select('*')
-                .eq('id', item.variantId)
-                .single()
-
-            if (!variant) {
-                return { success: false, error: `Variant with ID ${item.variantId} not found.` }
-            }
-
-            const { data: product } = await insforge.database
-                .from('Product')
-                .select('isService')
-                .eq('id', item.productId)
-                .single()
-
-            if (product && !product.isService && Number(variant.stock) < item.quantity) {
-                return { success: false, error: `Insufficient stock for variant ${item.productName}. Available: ${variant.stock}, Requested: ${item.quantity}` }
-            }
-        } else {
-            // Validar stock del producto principal
-            const { data: product } = await insforge.database
-                .from('Product')
-                .select('*')
-                .eq('id', item.productId)
-                .single()
-
-            if (!product) {
-                return { success: false, error: `Product with ID ${item.productId} not found.` }
-            }
-            if (!product.isService && product.stock < item.quantity) {
-                return { success: false, error: `Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}` }
-            }
-        }
+    try {
+        await validateInventoryAvailability(insforge, data.items)
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : "Stock validation failed" }
     }
 
     const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes, amountPaid } = validated.data
@@ -153,40 +221,12 @@ export async function createInvoice(data: InvoiceFormData) {
                 date: new Date().toISOString(),
                 notes: "Pago Inicial / Abono"
             }
-            await insforge.database.from('Payment').insert(paymentData)
+            await insforge.database.from('Payment').insert([paymentData])
         }
 
         // Update Stock
         for (const item of items) {
-            // Si es variante, actualizar stock de la variante
-            if (item.variantId) {
-                const { data: variant } = await insforge.database
-                    .from('ProductVariant')
-                    .select('*')
-                    .eq('id', item.variantId)
-                    .single()
-
-                if (variant) {
-                    await insforge.database
-                        .from('ProductVariant')
-                        .update({ stock: Number(variant.stock) - item.quantity })
-                        .eq('id', item.variantId)
-                }
-            } else {
-                // Actualizar stock del producto principal
-                const { data: product } = await insforge.database
-                    .from('Product')
-                    .select('*')
-                    .eq('id', item.productId)
-                    .single()
-
-                if (product && !product.isService) {
-                    await insforge.database
-                        .from('Product')
-                        .update({ stock: product.stock - item.quantity })
-                        .eq('id', item.productId)
-                }
-            }
+            await adjustInventoryStock(insforge, item, -item.quantity)
         }
 
         // Add to client history
@@ -248,10 +288,10 @@ export async function getInvoiceById(id: string) {
             *,
             client:Client(*),
             items:InvoiceItem(*),
-            createdBy:User(*),
+            createdBy:users(*),
             dispatchInfo:Dispatch(
                 *,
-                technician:User(*)
+                technician:users(*)
             )
         `)
         .eq('id', id)
@@ -337,7 +377,7 @@ export async function deleteInvoice(id: string, password?: string) {
     }
 
     const { data: dbUser } = await insforge.database
-        .from('User')
+        .from('users')
         .select('*')
         .eq('id', user.id)
         .single()
@@ -350,17 +390,12 @@ export async function deleteInvoice(id: string, password?: string) {
         // Get items to revert stock
         const { data: items } = await insforge.database
             .from('InvoiceItem')
-            .select('*, product:Product(*)')
+            .select('*')
             .eq('invoiceId', id)
 
         if (items) {
             for (const item of items) {
-                if (item.productId && item.product && !item.product.isService) {
-                    await insforge.database
-                        .from('Product')
-                        .update({ stock: item.product.stock + item.quantity })
-                        .eq('id', item.productId)
-                }
+                await adjustInventoryStock(insforge, item, item.quantity)
             }
         }
 
@@ -412,18 +447,13 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
         // Get old items
         const { data: oldItems } = await insforge.database
             .from('InvoiceItem')
-            .select('*, product:Product(*)')
+            .select('*')
             .eq('invoiceId', id)
 
         // Revert old stock
         if (oldItems) {
             for (const item of oldItems) {
-                if (item.productId && item.product && !item.product.isService) {
-                    await insforge.database
-                        .from('Product')
-                        .update({ stock: item.product.stock + item.quantity })
-                        .eq('id', item.productId)
-                }
+                await adjustInventoryStock(insforge, item, item.quantity)
             }
         }
 
@@ -450,28 +480,8 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
 
         // Create new items and deduct stock
         for (const item of items) {
-            // Check product
-            const { data: product } = await insforge.database
-                .from('Product')
-                .select('*')
-                .eq('id', item.productId)
-                .single()
+            await adjustInventoryStock(insforge, item, -item.quantity)
 
-            if (!product) {
-                throw new Error(`Product ${item.productId} not found`)
-            }
-
-            if (!product.isService) {
-                if (product.stock < item.quantity) {
-                    throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`)
-                }
-                await insforge.database
-                    .from('Product')
-                    .update({ stock: product.stock - item.quantity })
-                    .eq('id', item.productId)
-            }
-
-            // Create item
             await insforge.database
                 .from('InvoiceItem')
                 .insert([{
@@ -479,7 +489,8 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                     productId: item.productId,
                     productName: item.productName,
                     quantity: item.quantity,
-                    price: item.price
+                    price: item.price,
+                    variantId: item.variantId || null
                 }])
         }
 

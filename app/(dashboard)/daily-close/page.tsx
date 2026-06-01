@@ -30,7 +30,7 @@ export default async function DailyClosePage() {
     // 3. Fetch Payments (Actual Cash Flow)
     const { data: payments } = await insforge.database
         .from('Payment')
-        .select('*, invoice:Invoice(sequenceNumber)')
+        .select('*')
         .gte('date', today.toISOString())
         .lt('date', tomorrow.toISOString())
 

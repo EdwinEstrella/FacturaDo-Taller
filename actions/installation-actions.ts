@@ -14,6 +14,33 @@ export interface InstallationItem {
     clientPhone?: string | null
 }
 
+type InstallationRow = Record<string, unknown>
+
+function mapInstallationFromDb(row: InstallationRow) {
+    return {
+        id: String(row.id),
+        invoiceId: row.invoiceid as string | null,
+        productId: row.productid as string | null,
+        productName: String(row.productname || ""),
+        quantity: Number(row.quantity || 0),
+        clientName: String(row.clientname || ""),
+        clientAddress: row.clientaddress as string | null,
+        clientPhone: row.clientphone as string | null,
+        estado: String(row.estado || "Pendiente"),
+        tecnicoAsignado: row.tecnicoasignado as string | null,
+        fechaCreacion: String(row.fechacreacion || new Date().toISOString()),
+        fechaEnProduccion: row.fechaenproduccion as string | null,
+        fechaListaDespacho: row.fechalistadespacho as string | null,
+        fechaPendienteInstalacion: row.fechapendienteinstalacion as string | null,
+        fechaInstalada: row.fechainstalada as string | null,
+        instaladoPor: row.instaladopor as string | null,
+        fotos: row.fotos as string | null,
+        notas: row.notas as string | null,
+        createdById: row.createdbyid as string | null,
+        windowBreakdownId: row.windowbreakdownid as string | null,
+    }
+}
+
 export async function createInstallationsForInvoice(items: InstallationItem[]) {
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
@@ -23,19 +50,19 @@ export async function createInstallationsForInvoice(items: InstallationItem[]) {
     try {
         const installations = items.map(item => ({
             id: crypto.randomUUID(),
-            invoiceId: item.invoiceId,
-            productId: item.productId,
-            productName: item.productName,
+            invoiceid: item.invoiceId,
+            productid: item.productId,
+            productname: item.productName,
             quantity: item.quantity,
-            clientName: item.clientName,
-            clientAddress: item.clientAddress || null,
-            clientPhone: item.clientPhone || null,
+            clientname: item.clientName,
+            clientaddress: item.clientAddress || null,
+            clientphone: item.clientPhone || null,
             estado: 'Pendiente',
-            createdById: user.id
+            createdbyid: user.id
         }))
 
         const { error } = await insforge.database
-            .from('Installations')
+            .from('installations')
             .insert(installations)
 
         if (error) throw error
@@ -56,16 +83,16 @@ export async function getInstallations(filters?: {
 
     try {
         let query = insforge.database
-            .from('Installations')
+            .from('installations')
             .select('*')
-            .order('fechaCreacion', { ascending: false })
+            .order('fechacreacion', { ascending: false })
 
         if (filters?.estado) {
             query = query.eq('estado', filters.estado)
         }
 
         if (filters?.tecnicoAsignado) {
-            query = query.eq('tecnicoAsignado', filters.tecnicoAsignado)
+            query = query.eq('tecnicoasignado', filters.tecnicoAsignado)
         }
 
         const { data, error } = await query
@@ -75,7 +102,7 @@ export async function getInstallations(filters?: {
             return []
         }
 
-        return data || []
+        return (data || []).map((row) => mapInstallationFromDb(row))
     } catch (_error) {
         // Silenciar errores de conexión o tablas faltantes
         return []
@@ -87,7 +114,7 @@ export async function getPendingInstallationsCount() {
 
     try {
         const { data, error } = await insforge.database
-            .from('Installations')
+            .from('installations')
             .select('id', { count: 'exact', head: false })
             .in('estado', ['Pendiente', 'EnProduccion', 'ListaDespacho', 'PendienteInstalacion'])
 
@@ -120,23 +147,23 @@ export async function updateInstallationState(
         // Add timestamp based on state
         switch (newState) {
             case 'EnProduccion':
-                updates.fechaEnProduccion = timestamp
-                if (userId) updates.tecnicoAsignado = userId
+                updates.fechaenproduccion = timestamp
+                if (userId) updates.tecnicoasignado = userId
                 break
             case 'ListaDespacho':
-                updates.fechaListaDespacho = timestamp
+                updates.fechalistadespacho = timestamp
                 break
             case 'PendienteInstalacion':
-                updates.fechaPendienteInstalacion = timestamp
+                updates.fechapendienteinstalacion = timestamp
                 break
             case 'Instalada':
-                updates.fechaInstalada = timestamp
-                if (userId) updates.instaladoPor = userId
+                updates.fechainstalada = timestamp
+                if (userId) updates.instaladopor = userId
                 break
         }
 
         const { error } = await insforge.database
-            .from('Installations')
+            .from('installations')
             .update(updates)
             .eq('id', installationId)
 
@@ -161,7 +188,7 @@ export async function updateInstallationPhotos(installationId: string, fotos: st
 
     try {
         const { error } = await insforge.database
-            .from('Installations')
+            .from('installations')
             .update({ fotos: JSON.stringify(fotos) })
             .eq('id', installationId)
 
@@ -179,7 +206,7 @@ export async function getInstallationById(installationId: string) {
 
     try {
         const { data, error } = await insforge.database
-            .from('Installations')
+            .from('installations')
             .select('*')
             .eq('id', installationId)
             .single()
@@ -188,7 +215,7 @@ export async function getInstallationById(installationId: string) {
             return null
         }
 
-        return data
+        return mapInstallationFromDb(data)
     } catch (_error) {
         return null
     }
@@ -204,8 +231,8 @@ export async function assignTechnician(installationId: string, tecnicoId: string
 
     try {
         const { error } = await insforge.database
-            .from('Installations')
-            .update({ tecnicoAsignado: tecnicoId })
+            .from('installations')
+            .update({ tecnicoasignado: tecnicoId })
             .eq('id', installationId)
 
         if (error) throw error

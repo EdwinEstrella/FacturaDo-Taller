@@ -108,7 +108,7 @@ export async function getDispatchById(dispatchId: string) {
                 items:InvoiceItem(*)
             ),
             photos:DispatchPhoto(*),
-            technician:User(*)
+            technician:users(*)
         `)
         .eq('id', dispatchId)
         .single()

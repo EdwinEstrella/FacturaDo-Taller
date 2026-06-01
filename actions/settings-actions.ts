@@ -111,7 +111,7 @@ export async function updateCompanySettings(data: CompanySettings) {
                         .from('company-logos')
                         .upload(fileName, file)
 
-                    if (uploadError) {
+                    if (uploadError || !uploadData) {
                         console.error("Failed to upload logo to bucket:", uploadError)
                         companyLogoUrl = "" // Clear logo if upload failed
                     } else {

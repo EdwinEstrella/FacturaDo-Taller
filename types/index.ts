@@ -39,6 +39,7 @@ export interface ProductVariant {
     name: string
     price: string | number
     cost: string | number
+    stock: number
     sku: string | null
     createdAt: string
 }
@@ -50,6 +51,7 @@ export interface InvoiceItem {
     productName: string
     quantity: number
     price: string | number
+    variantId?: string | null
     createdAt: string
 }
 
@@ -82,6 +84,7 @@ export interface QuoteItem {
     productName: string
     quantity: number
     price: string | number
+    variantId?: string | null
 }
 
 export interface Dispatch {
@@ -127,6 +130,58 @@ export interface User {
     customPermissions: Record<string, unknown>
     createdAt: string | Date
     updatedAt: string | Date
+}
+
+export interface Payment {
+    id: string
+    invoiceId: string
+    amount: string | number
+    method: string
+    reference: string | null
+    notes: string | null
+    date: string
+    createdAt: string
+}
+
+export interface DailyClose {
+    id: string
+    closeDate: string
+    totalCash: string | number
+    totalCard: string | number
+    totalTransfer: string | number
+    totalCredit: string | number
+    totalExpenses: string | number
+    netCash: string | number
+    billBreakdowns: Record<string, number>
+    invoicesData: unknown[]
+    expensesData: unknown[]
+    notes: string | null
+    closedBy: string | null
+    closedByName: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export interface ClientHistory {
+    id: string
+    clientId: string
+    action: string
+    description: string
+    metadata: string | null
+    createdAt: string
+}
+
+export interface PettyCashClosing {
+    id: string
+    openingBalance: string | number
+    totalIncome: string | number
+    totalExpenses: string | number
+    closingBalance: string | number
+    notes: string | null
+    closedBy: string | null
+    closedByName: string | null
+    closedAt: string
+    createdAt: string
 }
 
 // Tipos para actualizaciones (todos los campos son opcionales excepto id)

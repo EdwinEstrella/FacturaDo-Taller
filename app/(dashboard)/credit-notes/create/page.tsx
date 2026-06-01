@@ -25,7 +25,8 @@ export default async function CreateCreditNotePage() {
             productId: item.productId || "",
             productName: item.productName,
             quantity: item.quantity,
-            price: Number(item.price)
+            price: Number(item.price),
+            variantId: item.variantId || null
         }))
     }))
 

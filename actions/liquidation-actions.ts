@@ -24,7 +24,7 @@ export async function getLiquidationData({ userId, startDate, endDate }: Liquida
 
         // Fetch user details
         const { data: user } = await insforge.database
-            .from('User')
+            .from('users')
             .select('name, role')
             .eq('id', userId)
             .single()
@@ -70,7 +70,7 @@ export async function getUsersForLiquidation() {
     const insforge = createServerClient()
 
     const { data, error } = await insforge.database
-        .from('User')
+        .from('users')
         .select('id, name, role')
         .in('role', ["SELLER", "TECHNICIAN", "MANAGER"])
 
