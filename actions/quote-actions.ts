@@ -149,14 +149,11 @@ export async function getQuotes() {
         .eq('status', "PENDING")
         .lte('validUntil', now)
 
-    // Get all quotes with client and items
+    // Get quotes, items, and clients separately (Quote table lacks FKs in PostgREST,
+    // so nested queries like items:QuoteItem(*) fail with PGRST200)
     const { data: quotes, error } = await insforge.database
         .from('Quote')
-        .select(`
-            *,
-            client:Client(*),
-            items:QuoteItem(*)
-        `)
+        .select('*')
         .order('createdAt', { ascending: false })
 
     if (error) {
@@ -164,10 +161,47 @@ export async function getQuotes() {
         return []
     }
 
+    // Fetch client data for each unique clientId
+    const clientIds = [...new Set((quotes || []).map(q => q.clientId).filter(Boolean))]
+    let clientsMap: Record<string, any> = {}
+
+    if (clientIds.length > 0) {
+        const { data: clients } = await insforge.database
+            .from('Client')
+            .select('*')
+            .in('id', clientIds)
+
+        if (clients) {
+            clientsMap = Object.fromEntries(clients.map(c => [c.id, c]))
+        }
+    }
+
+    // Fetch associated QuoteItems for all retrieved quotes
+    const quoteIds = (quotes || []).map(q => q.id)
+    let itemsMap: Record<string, any[]> = {}
+
+    if (quoteIds.length > 0) {
+        const { data: items } = await insforge.database
+            .from('QuoteItem')
+            .select('*')
+            .in('quoteId', quoteIds)
+
+        if (items) {
+            itemsMap = items.reduce((acc: Record<string, any[]>, item: any) => {
+                if (!acc[item.quoteId]) {
+                    acc[item.quoteId] = []
+                }
+                acc[item.quoteId].push(item)
+                return acc
+            }, {})
+        }
+    }
+
     return (quotes || []).map(quote => ({
         ...quote,
+        client: quote.clientId ? clientsMap[quote.clientId] || null : null,
         total: Number(quote.total),
-        items: (quote.items || []).map((item: QuoteItem) => ({
+        items: (itemsMap[quote.id] || []).map((item: QuoteItem) => ({
             ...item,
             price: Number(item.price)
         }))
@@ -179,12 +213,7 @@ export async function getQuoteById(id: string) {
 
     const { data: quote, error } = await insforge.database
         .from('Quote')
-        .select(`
-            *,
-            client:Client(*),
-            createdBy:users(*),
-            items:QuoteItem(*)
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
@@ -192,10 +221,33 @@ export async function getQuoteById(id: string) {
         return null
     }
 
+    const [{ data: items }, { data: client }, { data: createdBy }] = await Promise.all([
+        insforge.database
+            .from('QuoteItem')
+            .select('*')
+            .eq('quoteId', id),
+        quote.clientId
+            ? insforge.database
+                .from('Client')
+                .select('*')
+                .eq('id', quote.clientId)
+                .single()
+            : Promise.resolve({ data: null }),
+        quote.createdById
+            ? insforge.database
+                .from('users')
+                .select('id, name, username, role')
+                .eq('id', quote.createdById)
+                .single()
+            : Promise.resolve({ data: null }),
+    ])
+
     return {
         ...quote,
+        client,
+        createdBy,
         total: Number(quote.total),
-        items: (quote.items || []).map((item: QuoteItem) => ({
+        items: (items || []).map((item: QuoteItem) => ({
             ...item,
             price: Number(item.price)
         }))

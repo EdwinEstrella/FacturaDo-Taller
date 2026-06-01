@@ -1,0 +1,12 @@
+[mcp_servers.insforge]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "@insforge/mcp@latest",
+]
+
+[mcp_servers.insforge.env]
+API_KEY = "ik_QIwJ2Wz+iRhsXfKlvT3A061Y1BUBh4fpQJZ/nUAuQmI="
+API_BASE_URL = "https://base.azokia.com"

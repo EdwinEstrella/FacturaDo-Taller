@@ -27,7 +27,7 @@ export function QuotePreviewDialog({ quote, settings }: { quote: any, settings?:
     const contentRef = useRef<HTMLDivElement>(null)
     const reactToPrintFn = useReactToPrint({ contentRef })
 
-    const initialTemplate: "ticket" | "a4-odoo" = "ticket"
+    const initialTemplate: "ticket" | "a4-odoo" = settings?.invoiceTemplate === "a4" ? "a4-odoo" : "ticket"
     const [template, setTemplate] = useState<"ticket" | "a4-odoo">(initialTemplate)
 
     return (
