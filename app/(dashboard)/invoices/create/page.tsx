@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
@@ -25,7 +26,9 @@ export default async function CreateInvoicePage() {
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Nueva Factura</h2>
             </div>
-            <InvoiceForm initialClients={clients} initialProducts={serializedProducts} />
+            <Suspense fallback={null}>
+                <InvoiceForm initialClients={clients} initialProducts={serializedProducts} />
+            </Suspense>
         </div>
     )
 }

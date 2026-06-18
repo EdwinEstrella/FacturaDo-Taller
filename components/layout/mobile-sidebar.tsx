@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import dynamic from 'next/dynamic'
+import { useIsClient } from "@/hooks/use-is-client"
 
 // Dynamically import SessionNavBar
 const SessionNavBarComponent = dynamic(() => import('@/components/ui/sidebar').then(mod => mod.SessionNavBar), {
@@ -24,14 +24,9 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ user }: MobileSidebarProps) {
-    const [isMounted, setIsMounted] = useState(false)
+    const isClient = useIsClient()
 
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsMounted(true)
-    }, [])
-
-    if (!isMounted) {
+    if (!isClient) {
         return null
     }
 

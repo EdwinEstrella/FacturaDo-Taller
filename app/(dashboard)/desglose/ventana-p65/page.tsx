@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { saveWindowBreakdown, getWindowBreakdowns, markAsPrinted, getPendingBreakdowns, deletePendingBreakdowns, createInitialBreakdown, updateBreakdownItems, deleteWindowBreakdown, markAsProduction, getWindowBreakdownById, type WindowBreakdownItem } from "@/actions/window-breakdown-actions"
 import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
+import { useIsClient } from "@/hooks/use-is-client"
 
 interface CalculationResults {
     id: number
@@ -112,7 +113,7 @@ function decimalToFraction(dec: number): string {
     return `${whole} ${simplifiedNum}/${simplifiedDenom}`
 }
 
-export default function VentanaP65Page() {
+function VentanaP65PageContent() {
     const searchParams = useSearchParams()
     const [alto, setAlto] = useState<string>("")
     const [ancho, setAncho] = useState<string>("")
@@ -127,7 +128,7 @@ export default function VentanaP65Page() {
     const [todosPendientes, setTodosPendientes] = useState<WindowBreakdown[]>([])
     const [mostrarPendientes, setMostrarPendientes] = useState<boolean>(true)
     const [guardando, setGuardando] = useState<boolean>(false)
-    const [isClient, setIsClient] = useState<boolean>(false)
+    const isClient = useIsClient()
     const [datosGuardados, setDatosGuardados] = useState<boolean>(false)
     const [currentBreakdownId, setCurrentBreakdownId] = useState<string | null>(null)
     const [mostrarModalGuardado, setMostrarModalGuardado] = useState<boolean>(false)
@@ -136,17 +137,15 @@ export default function VentanaP65Page() {
     const [mostrarConfirmarEliminarP65, setMostrarConfirmarEliminarP65] = useState<boolean>(false)
     const [breakdownIdAEliminarP65, setBreakdownIdAEliminarP65] = useState<string | null>(null)
 
-    // Evitar error de hidratación
+    // Cargar configuraci?n de la empresa
     useEffect(() => {
-        setIsClient(true)
-
-        // Cargar configuración de la empresa
         const loadSettings = async () => {
             const settings = await getCompanySettings()
             setCompanySettings(settings)
         }
-        loadSettings()
+        void loadSettings()
     }, [])
+
 
     // Cargar desglose para editar si viene el parámetro edit
     useEffect(() => {
@@ -1439,5 +1438,14 @@ export default function VentanaP65Page() {
                 </DialogContent>
             </Dialog>
         </div>
+    )
+}
+
+
+export default function VentanaP65Page() {
+    return (
+        <Suspense fallback={null}>
+            <VentanaP65PageContent />
+        </Suspense>
     )
 }

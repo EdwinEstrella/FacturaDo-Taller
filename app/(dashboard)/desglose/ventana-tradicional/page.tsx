@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
 	getCompanySettings,
 	type CompanySettings,
 } from "@/actions/settings-actions";
+import { useIsClient } from "@/hooks/use-is-client";
 
 interface CalculationResults {
 	id: number;
@@ -134,7 +135,7 @@ function decimalToFraction(dec: number): string {
 	return `${whole} ${simplifiedNum}/${simplifiedDenom}`;
 }
 
-export default function VentanaTradicionalPage() {
+function VentanaTradicionalPageContent() {
 	const searchParams = useSearchParams();
 	const [alto, setAlto] = useState<string>("");
 	const [ancho, setAncho] = useState<string>("");
@@ -144,7 +145,7 @@ export default function VentanaTradicionalPage() {
 	const [filaEditando, setFilaEditando] = useState<number | null>(null);
 	const [nombreCliente, setNombreCliente] = useState<string>("");
 	const [nombreTecnico, setNombreTecnico] = useState<string>("");
-	const [isClient, setIsClient] = useState<boolean>(false);
+	const isClient = useIsClient();
 	const [datosGuardados, setDatosGuardados] = useState<boolean>(false);
 	const [guardando, setGuardando] = useState<boolean>(false);
 	const [mostrarReinicioDialog, setMostrarReinicioDialog] =
@@ -169,17 +170,15 @@ export default function VentanaTradicionalPage() {
 		string | null
 	>(null);
 
-	// Evitar error de hidratación - inicializar isClient y cargar configuración
+	// Cargar configuraci?n de la empresa
 	useEffect(() => {
-		setIsClient(true);
-
-		// Cargar configuración de la empresa
 		const loadSettings = async () => {
 			const settings = await getCompanySettings();
 			setCompanySettings(settings);
 		};
-		loadSettings();
+		void loadSettings();
 	}, []);
+
 
 	// Cargar desglose para editar si viene el parámetro edit
 	useEffect(() => {
@@ -1679,5 +1678,14 @@ export default function VentanaTradicionalPage() {
 				</DialogContent>
 			</Dialog>
 		</div>
+	);
+}
+
+
+export default function VentanaTradicionalPage() {
+	return (
+		<Suspense fallback={null}>
+			<VentanaTradicionalPageContent />
+		</Suspense>
 	);
 }

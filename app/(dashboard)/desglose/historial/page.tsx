@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { getWindowBreakdowns, deleteWindowBreakdown, markAsProduction } from "@/actions/window-breakdown-actions"
 import { useRouter } from "next/navigation"
+import { useIsClient } from "@/hooks/use-is-client"
 
 interface FilterOptions {
     dateFrom: string
@@ -57,7 +58,7 @@ export default function HistorialDesglosePage() {
     const [desgloses, setDesgloses] = useState<WindowBreakdown[]>([])
     const [filteredDesgloses, setFilteredDesgloses] = useState<WindowBreakdown[]>([])
     const [loading, setLoading] = useState<boolean>(true)
-    const [isClient, setIsClient] = useState<boolean>(false)
+    const isClient = useIsClient()
     const [mostrarConfirmarEliminar, setMostrarConfirmarEliminar] = useState<boolean>(false)
     const [desgloseAEliminar, setDesgloseAEliminar] = useState<WindowBreakdown | null>(null)
     const [mostrarConfirmarProduccion, setMostrarConfirmarProduccion] = useState<boolean>(false)
@@ -72,10 +73,6 @@ export default function HistorialDesglosePage() {
         maxWindows: ""
     })
 
-    // Evitar error de hidratación
-    useEffect(() => {
-        setIsClient(true)
-    }, [])
 
     const cargarDesgloses = async () => {
         setLoading(true)

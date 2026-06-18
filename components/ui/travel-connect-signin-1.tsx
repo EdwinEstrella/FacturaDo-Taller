@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useSyncExternalStore } from "react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -62,9 +62,39 @@ type RoutePoint = {
     delay: number;
 };
 
+const serverDimensions = { width: 0, height: 0 };
+
 const DotMap = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const dimensionsSnapshotRef = useRef(serverDimensions);
+
+    const dimensions = useSyncExternalStore(
+        (onStoreChange) => {
+            const container = canvasRef.current?.parentElement;
+            if (!container) return () => {};
+
+            const resizeObserver = new ResizeObserver(onStoreChange);
+            resizeObserver.observe(container);
+            onStoreChange();
+
+            return () => resizeObserver.disconnect();
+        },
+        () => {
+            const container = canvasRef.current?.parentElement;
+            if (!container) return dimensionsSnapshotRef.current;
+
+            const { width, height } = container.getBoundingClientRect();
+            const previous = dimensionsSnapshotRef.current;
+            if (previous.width === width && previous.height === height) {
+                return previous;
+            }
+
+            const next = { width, height };
+            dimensionsSnapshotRef.current = next;
+            return next;
+        },
+        () => serverDimensions
+    );
 
     // Set up routes that will animate across the map
     const routes: { start: RoutePoint; end: RoutePoint; color: string }[] = [
@@ -120,29 +150,13 @@ const DotMap = () => {
     };
 
     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const resizeObserver = new ResizeObserver(entries => {
-            if (entries[0]) {
-                const { width, height } = entries[0].contentRect;
-                setDimensions({ width, height });
-                canvas.width = width;
-                canvas.height = height;
-            }
-        });
-
-        if (canvas.parentElement) {
-            resizeObserver.observe(canvas.parentElement);
-        }
-        return () => resizeObserver.disconnect();
-    }, []);
-
-    useEffect(() => {
         if (!dimensions.width || !dimensions.height) return;
 
         const canvas = canvasRef.current;
         if (!canvas) return;
+
+        canvas.width = dimensions.width;
+        canvas.height = dimensions.height;
 
         const ctx = canvas.getContext("2d");
         if (!ctx) return;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { getQuotes } from "@/actions/quote-actions"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,7 @@ import { PageLoading } from "@/components/ui/loading"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type QuoteAny = any
 
-export default function QuotesPage() {
+function QuotesPageContent() {
     const [quotes, setQuotes] = useState<QuoteAny[]>([])
     const [loading, setLoading] = useState(true)
     const searchParams = useSearchParams()
@@ -68,5 +68,13 @@ export default function QuotesPage() {
                 <QuoteList quotes={quotes} />
             )}
         </div>
+    )
+}
+
+export default function QuotesPage() {
+    return (
+        <Suspense fallback={null}>
+            <QuotesPageContent />
+        </Suspense>
     )
 }

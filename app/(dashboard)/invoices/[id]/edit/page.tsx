@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { getInvoiceById } from "@/actions/invoice-actions"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
@@ -52,11 +53,13 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Editar Factura #{invoice.sequenceNumber}</h2>
             </div>
-            <InvoiceForm
-                initialProducts={serializedProducts}
-                initialClients={clients}
-                initialData={invoice}
-            />
+            <Suspense fallback={null}>
+                <InvoiceForm
+                    initialProducts={serializedProducts}
+                    initialClients={clients}
+                    initialData={invoice}
+                />
+            </Suspense>
         </div>
     )
 }

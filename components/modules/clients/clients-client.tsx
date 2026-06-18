@@ -1,8 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-// import { getClients } from "@/actions/client-actions" // Handled by parent
-import { filterClients } from "@/actions/filter-actions"
+import { useMemo, useState } from "react"
 import { ClientDialog } from "@/components/modules/clients/client-dialog"
 import { DeleteClientDialog } from "@/components/modules/clients/delete-client-dialog"
 import { ClientHistoryDialog } from "@/components/modules/clients/client-history-dialog"
@@ -17,37 +15,57 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import type { Client } from "@/types"
-import { CardLoading } from "@/components/ui/loading"
 
 interface ClientsClientProps {
     initialClients: Client[]
 }
 
+interface ClientFiltersState {
+    name?: string
+    rnc?: string
+    startDate?: string
+    endDate?: string
+}
+
 export function ClientsClient({ initialClients }: ClientsClientProps) {
-    const [filteredClients, setFilteredClients] = useState<Client[]>(initialClients)
+    const [filters, setFilters] = useState<ClientFiltersState>({})
     const [showPrint, setShowPrint] = useState(false)
-    const [loading, setLoading] = useState(false) // No longer loading initially
 
-    // Sync props to state when server revalidates
-    useEffect(() => {
-        setFilteredClients(initialClients)
-    }, [initialClients])
+    const visibleClients = useMemo(() => {
+        const normalizedName = filters.name?.trim().toLowerCase()
+        const normalizedRnc = filters.rnc?.trim().toLowerCase()
+        const startDate = filters.startDate ? new Date(filters.startDate) : null
+        const endDate = filters.endDate ? new Date(filters.endDate) : null
 
-    const handleFilter = async (filters: {
-        name?: string
-        rnc?: string
-        startDate?: string
-        endDate?: string
-    }) => {
-        setLoading(true)
-        const filtered = await filterClients({
-            name: filters.name,
-            rnc: filters.rnc,
-            startDate: filters.startDate ? new Date(filters.startDate) : undefined,
-            endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999)
+        }
+
+        return initialClients.filter((client) => {
+            const createdAt = new Date(client.createdAt)
+
+            if (normalizedName && !client.name.toLowerCase().includes(normalizedName)) {
+                return false
+            }
+
+            if (normalizedRnc && !client.rnc?.toLowerCase().includes(normalizedRnc)) {
+                return false
+            }
+
+            if (startDate && createdAt < startDate) {
+                return false
+            }
+
+            if (endDate && createdAt > endDate) {
+                return false
+            }
+
+            return true
         })
-        setFilteredClients(filtered)
-        setLoading(false)
+    }, [filters, initialClients])
+
+    const handleFilter = (filters: ClientFiltersState) => {
+        setFilters(filters)
     }
 
     const handlePrint = () => {
@@ -56,10 +74,6 @@ export function ClientsClient({ initialClients }: ClientsClientProps) {
             window.print()
             setShowPrint(false)
         }, 100)
-    }
-
-    if (loading) {
-        return <CardLoading />
     }
 
     return (
@@ -86,14 +100,14 @@ export function ClientsClient({ initialClients }: ClientsClientProps) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredClients.length === 0 && (
+                            {visibleClients.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="text-center">
                                         No hay clientes registrados.
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {filteredClients.map((client) => (
+                            {visibleClients.map((client) => (
                                 <TableRow key={client.id}>
                                     <TableCell className="font-medium">{client.name}</TableCell>
                                     <TableCell>{client.rnc || "-"}</TableCell>
@@ -117,7 +131,7 @@ export function ClientsClient({ initialClients }: ClientsClientProps) {
 
             {showPrint && (
                 <div className="fixed inset-0 z-50 bg-white overflow-auto">
-                    <ClientReportPrint clients={filteredClients} />
+                    <ClientReportPrint clients={visibleClients} />
                 </div>
             )}
         </>

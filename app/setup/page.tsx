@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +9,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, Database } from "lucide-react";
 
+const subscribeToElectronState = () => () => {};
+const getElectronSnapshot = () => typeof window !== "undefined" && Boolean(window.electron);
+const getServerElectronSnapshot = () => false;
+
 export default function SetupPage() {
-    const [isElectron, setIsElectron] = useState(false);
+    const isElectron = useSyncExternalStore(
+        subscribeToElectronState,
+        getElectronSnapshot,
+        getServerElectronSnapshot
+    );
     const [mode, setMode] = useState<"new" | "existing">("new");
     const [loading, setLoading] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -23,12 +31,6 @@ export default function SetupPage() {
         password: "",
         database: "facturado_prod",
     });
-
-    useEffect(() => {
-        if (typeof window !== "undefined" && window.electron) {
-            setIsElectron(true);
-        }
-    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });

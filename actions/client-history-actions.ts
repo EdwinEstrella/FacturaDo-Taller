@@ -46,12 +46,12 @@ export async function addClientHistoryEntry(
 }
 
 export async function getClientHistory(clientId: string): Promise<{
-    await requireAuth();
 
     success: boolean
     data?: ClientHistoryEntry[]
     error?: string
 }> {
+    await requireAuth();
     const insforge = createServerClient()
 
     try {

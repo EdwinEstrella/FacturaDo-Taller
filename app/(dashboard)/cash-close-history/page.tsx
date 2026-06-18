@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { createServerClient } from "@/lib/insforge/client"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -118,7 +119,9 @@ export default async function CashCloseHistoryPage({ searchParams }: Props) {
                 </p>
             </div>
 
-            <HistoryFilters users={users || []} />
+            <Suspense fallback={null}>
+                <HistoryFilters users={users || []} />
+            </Suspense>
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
