@@ -52,58 +52,6 @@ interface WindowBreakdownItem {
     notas?: string
 }
 
-function decimalToFraction(dec: number): string {
-    const whole = Math.floor(dec)
-    const fraction = dec - whole
-
-    if (fraction === 0) return `${whole}`
-
-    const fractions = [
-        { value: 0.03125, denom: 32, num: 1 },
-        { value: 0.0625, denom: 16, num: 1 },
-        { value: 0.09375, denom: 16, num: 1.5 },
-        { value: 0.125, denom: 8, num: 1 },
-        { value: 0.1875, denom: 8, num: 1.5 },
-        { value: 0.25, denom: 4, num: 1 },
-        { value: 0.3125, denom: 16, num: 5 },
-        { value: 0.375, denom: 8, num: 3 },
-        { value: 0.4375, denom: 16, num: 7 },
-        { value: 0.5, denom: 2, num: 1 },
-        { value: 0.5625, denom: 16, num: 9 },
-        { value: 0.625, denom: 8, num: 5 },
-        { value: 0.6875, denom: 16, num: 11 },
-        { value: 0.75, denom: 4, num: 3 },
-        { value: 0.8125, denom: 16, num: 13 },
-        { value: 0.875, denom: 8, num: 7 },
-        { value: 0.9375, denom: 16, num: 15 },
-    ]
-
-    let bestMatch = fractions[0]
-    let minDiff = Math.abs(fraction - bestMatch.value)
-
-    for (const f of fractions) {
-        const diff = Math.abs(fraction - f.value)
-        if (diff < minDiff) {
-            minDiff = diff
-            bestMatch = f
-        }
-    }
-
-    const numerator = Math.round(bestMatch.num)
-    const denominator = bestMatch.denom
-
-    const gcd = (a: number, b: number): number => {
-        return b === 0 ? a : gcd(b, a % b)
-    }
-
-    const divisor = gcd(numerator, denominator)
-    const simplifiedNum = numerator / divisor
-    const simplifiedDenom = denominator / divisor
-
-    if (whole === 0) return `${simplifiedNum}/${simplifiedDenom}`
-    return `${whole} ${simplifiedNum}/${simplifiedDenom}`
-}
-
 export default function HistorialDesglosePage() {
     const router = useRouter()
     const [desgloses, setDesgloses] = useState<WindowBreakdown[]>([])

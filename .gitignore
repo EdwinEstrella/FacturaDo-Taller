@@ -56,3 +56,5 @@ next-env.d.ts
 .roo
 .trae
 .windsurf
+# Local Pi runtime state
+.atl/

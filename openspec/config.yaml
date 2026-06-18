@@ -1,0 +1,79 @@
+# OpenSpec / SDD project context for FacturaDo-Taller.
+# Generated during SDD initialization; keep user-maintained decisions intact when editing.
+project:
+  name: FacturaDo-Taller
+  package_name: facturado
+  description: FacturaDo desktop/web application
+  language: TypeScript
+  package_manager: npm
+  runtime:
+    node: ">=22.11.0"
+  stack:
+    framework: Next.js 16.1.1
+    ui: React 19.2.3
+    desktop: Electron 39.2.7
+    backend: InsForge SDK (@insforge/sdk ^1.2.0)
+    styling: Tailwind CSS / PostCSS
+    validation: Zod
+
+sdd:
+  mode: strict_tdd
+  artifact_store: openspec
+  default_change_type: lint-typecheck-cleanup
+  phase_rules:
+    init:
+      - Inspect stack, scripts, conventions, and existing docs before planning changes.
+      - Do not modify product code during initialization.
+    proposal:
+      - Define scope and acceptance criteria before implementation.
+      - Prefer small, reviewable changes; ask before work exceeds review budget.
+    apply:
+      - Run failing verification first when practical.
+      - Make minimal targeted edits; do not mix unrelated cleanup.
+    verify:
+      - Re-run impacted commands and record outcomes.
+      - Treat lint, typecheck, and build regressions as blockers unless explicitly waived.
+  review_budget_changed_lines: 400
+  known_initial_request: "use SDD so we fix all lint errors"
+  known_initial_error: "argument of type 'any' is not assignable to parameter of type 'never'"
+
+verification:
+  lint:
+    command: npm run lint
+    script: eslint
+    required: true
+  typecheck:
+    command: npx tsc --noEmit
+    script: null
+    required: true
+    note: No package.json typecheck script is currently defined; tsconfig has noEmit enabled.
+  build:
+    command: npm run build
+    script: next build
+    required: true
+  test:
+    command: null
+    script: null
+    required: false
+    note: No test script detected in package.json.
+
+conventions:
+  typescript:
+    strict: true
+    path_alias: "@/*"
+  eslint:
+    config: eslint.config.mjs
+    version: "^9"
+    presets:
+      - eslint-config-next/core-web-vitals
+      - eslint-config-next/typescript
+  nextjs:
+    app_router: true
+  insforge:
+    instruction_source: AGENTS.md
+    note: Fetch current InsForge docs before editing InsForge integration code.
+
+git:
+  pre_existing_changes:
+    - ".gitignore modified before SDD init"
+    - ".pi/ untracked before SDD init"

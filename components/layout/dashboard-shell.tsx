@@ -1,7 +1,7 @@
 "use client"
 
 // Imports removed
-import AppSidebar from "@/components/layout/app-sidebar"
+import { SessionNavBar } from "@/components/ui/sidebar"
 import { Navbar } from "@/components/layout/navbar"
 
 interface UserProps {
@@ -21,7 +21,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
         <div className="flex h-screen overflow-hidden bg-gray-100">
             {/* Sidebar is distinct flow, hidden on mobile by default usually, but we keep md:flex logic */}
             <div className="hidden md:flex flex-shrink-0 bg-white h-screen">
-                <AppSidebar user={user} />
+                <SessionNavBar user={user} />
             </div>
 
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

@@ -6,8 +6,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import dynamic from 'next/dynamic'
 
-// Dynamically import AppSidebar (default export)
-const AppSidebar = dynamic(() => import('./app-sidebar'), {
+// Dynamically import SessionNavBar
+const SessionNavBarComponent = dynamic(() => import('@/components/ui/sidebar').then(mod => mod.SessionNavBar), {
     ssr: false,
     loading: () => <div className="w-full h-full bg-white" />
 })
@@ -43,7 +43,7 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
                 </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-white border-r w-auto text-black">
-                <AppSidebar user={user} isMobile={true} />
+                <SessionNavBarComponent user={user} />
             </SheetContent>
         </Sheet>
     )

@@ -703,34 +703,6 @@ export default function VentanaP65Page() {
         }
     }
 
-    const handleMandarProduccion = async () => {
-        if (!currentBreakdownId) {
-            alert("Primero debes guardar el desglose antes de mandar a producción")
-            return
-        }
-
-        setGuardando(true)
-
-        try {
-            await markAsProduction(currentBreakdownId)
-
-            // Recargar historial
-            await cargarPendientes()
-
-            alert("Desglose enviado a producción exitosamente")
-        } catch (error) {
-            console.error("Error al mandar a producción:", error)
-            alert("Error al mandar a producción")
-        } finally {
-            setGuardando(false)
-        }
-    }
-
-    const handleEliminarBreakdown = (breakdownId: string) => {
-        setBreakdownIdAEliminarP65(breakdownId)
-        setMostrarConfirmarEliminarP65(true)
-    }
-
     const confirmarEliminarP65 = async () => {
         if (!breakdownIdAEliminarP65) return
 
