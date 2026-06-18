@@ -12,8 +12,9 @@ interface LiquidationParams {
 }
 
 export async function getLiquidationData({
-    await requireAuth();
  userId, startDate, endDate }: LiquidationParams) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {

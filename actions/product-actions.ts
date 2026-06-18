@@ -316,8 +316,9 @@ export async function deleteProduct(id: string) {
 }
 
 export async function quickCreateProduct(data: {
-    await requireAuth();
  name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "ACCOUNTANT")) {
         return { success: false, error: "No tienes permisos para crear productos" }

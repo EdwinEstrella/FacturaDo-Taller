@@ -79,12 +79,12 @@ export async function createInstallationsForInvoice(items: InstallationItem[]) {
 }
 
 export async function getInstallations(filters?: {
-    await requireAuth();
-
     estado?: string
     tecnicoAsignado?: string
     clientId?: string
 }) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
