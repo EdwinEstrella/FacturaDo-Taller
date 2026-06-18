@@ -23,7 +23,7 @@ const SESSION_COOKIE_NAME = "facturado_session_id"
 export async function requireAuth() {
   const user = await getCurrentUser()
   if (!user) {
-    throw new Error("Unauthorized")
+    redirect("/login")
   }
   return user
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from "@/lib/insforge/client"
+import bcrypt from "bcryptjs"
 
 export async function POST(request: NextRequest) {
     const { username, password } = await request.json()
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
 
         if (selectError) {
             console.error("LOGIN ERROR:", selectError)
-            return NextResponse.json({ success: false, error: 'Error al buscar usuario' }, { status: 500 })
+            return NextResponse.json({ success: false, error: 'Servicio de autenticaci?n no disponible' }, { status: 503 })
         }
 
         if (!users || users.length === 0) {
