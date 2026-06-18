@@ -1,6 +1,7 @@
 import { getInvoiceById } from "@/actions/invoice-actions"
 import { getCompanySettings } from "@/actions/settings-actions"
 import { notFound } from "next/navigation"
+import Script from "next/script"
 import { InvoiceTemplate } from "@/components/modules/invoices/invoice-template"
 import { InvoiceOdooTemplate } from "@/components/modules/invoices/invoice-odoo-template"
 import type { Invoice } from "@/types"
@@ -29,7 +30,9 @@ export default async function PrintInvoicePage({
             ) : (
                 <InvoiceOdooTemplate invoice={invoice} settings={settings} />
             )}
-            <script dangerouslySetInnerHTML={{ __html: 'window.print();' }} />
+            <Script id="print-script" strategy="afterInteractive">
+                {`window.print();`}
+            </Script>
         </div>
     )
 }

@@ -27,7 +27,8 @@ import {
   BarChart,
   FileText,
   Archive,
-  Menu
+  Menu,
+  HelpCircle
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link";
@@ -98,7 +99,7 @@ const checkRole = (role: string, href: string) => {
   const normalizedRole = role.toUpperCase()
   if (normalizedRole === 'ADMIN') return true
   if (normalizedRole === 'SELLER' || normalizedRole === 'CUSTOM') {
-      const blocked = ['/analytics', '/accounting', '/liquidations', '/fiscal', '/settings/users', '/technician']
+      const blocked = ['/analytics', '/accounting', '/liquidations', '/fiscal', '/petty-cash', '/daily-close', '/cash-close-history', '/settings/users', '/technician']
       return !blocked.includes(href)
   }
   if (normalizedRole === 'ACCOUNTANT') {
@@ -188,7 +189,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
         className={`relative z-40 flex text-muted-foreground h-full shrink-0 flex-col bg-white dark:bg-black transition-all`}
         variants={contentVariants}
       >
-        <motion.ul variants={staggerVariants} className="flex h-full flex-col">
+        <motion.div variants={staggerVariants} className="flex h-full flex-col">
           <div className="flex grow flex-col items-center overflow-hidden">
             <div className="flex h-[54px] w-full shrink-0 border-b p-2">
               <div className="mt-[1.5px] flex w-full">
@@ -200,7 +201,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                     <div className="flex items-center justify-center size-6 bg-blue-600 rounded text-white font-bold text-xs shrink-0">
                         FD
                     </div>
-                    <motion.li
+                    <motion.div
                         variants={variants}
                         className="flex w-fit items-center gap-2"
                     >
@@ -209,7 +210,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                                 Factura<span className="text-blue-600">DO</span>
                             </p>
                         )}
-                    </motion.li>
+                    </motion.div>
                 </Button>
               </div>
             </div>
@@ -249,11 +250,11 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                                         title={isCollapsed ? item.label : undefined}
                                     >
                                         <Icon className="h-4 w-4 shrink-0" />
-                                        <motion.li variants={variants} className="overflow-hidden">
+                                        <motion.div variants={variants} className="overflow-hidden">
                                             {!isCollapsed && (
                                                 <p className="ml-2 text-[13px] whitespace-nowrap">{item.label}</p>
                                             )}
-                                        </motion.li>
+                                        </motion.div>
                                     </Link>
                                 );
                             })}
@@ -271,11 +272,11 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                             title={isCollapsed ? "Configuración" : undefined}
                         >
                             <Settings className="h-4 w-4 shrink-0" />
-                            <motion.li variants={variants} className="overflow-hidden">
+                            <motion.div variants={variants} className="overflow-hidden">
                                 {!isCollapsed && (
                                     <p className="ml-2 text-[13px]">Configuración</p>
                                 )}
-                            </motion.li>
+                            </motion.div>
                         </Link>
                         <Link
                             href="/settings/users"
@@ -283,11 +284,11 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                             title={isCollapsed ? "Usuarios" : undefined}
                         >
                             <UserCog className="h-4 w-4 shrink-0" />
-                            <motion.li variants={variants} className="overflow-hidden">
+                            <motion.div variants={variants} className="overflow-hidden">
                                 {!isCollapsed && (
                                     <p className="ml-2 text-[13px]">Usuarios</p>
                                 )}
-                            </motion.li>
+                            </motion.div>
                         </Link>
                     </>
                 )}
@@ -298,7 +299,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                         <div className="flex items-center justify-center size-5 bg-blue-600 rounded-full text-white font-bold text-[10px] shrink-0">
                             {user?.name?.charAt(0).toUpperCase() || "U"}
                         </div>
-                        <motion.li
+                        <motion.div
                           variants={variants}
                           className="flex w-full items-center gap-2 overflow-hidden"
                         >
@@ -308,7 +309,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                               <ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground/50 shrink-0" />
                             </>
                           )}
-                        </motion.li>
+                        </motion.div>
                       </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent sideOffset={5} align="start" className="w-[200px]">
@@ -342,7 +343,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
               </div>
             </div>
           </div>
-        </motion.ul>
+        </motion.div>
       </motion.div>
     </motion.div>
   );

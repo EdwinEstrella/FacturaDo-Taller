@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import Script from "next/script"
 import { createServerClient } from "@/lib/insforge/client"
 import { WorkOrderTemplate } from "@/components/modules/orders/work-order-template"
 
@@ -33,7 +34,9 @@ export default async function PrintWorkOrderPage({ params }: { params: Promise<{
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center print:bg-white print:items-start print:justify-start">
             <WorkOrderTemplate invoice={typedInvoice} />
-            <script dangerouslySetInnerHTML={{ __html: 'window.print();' }} />
+            <Script id="print-script" strategy="afterInteractive">
+                {`window.print();`}
+            </Script>
         </div>
     )
 }

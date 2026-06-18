@@ -31,6 +31,13 @@ export function Navbar({ user }: NavbarProps) {
                     >
                         Historial
                     </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push("/ayuda")}
+                    >
+                        Ayuda
+                    </Button>
                     <Button size="sm" variant="outline">
                         {user?.name || "Usuario"}
                     </Button>
