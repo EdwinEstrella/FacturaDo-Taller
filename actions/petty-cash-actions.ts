@@ -1,10 +1,14 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
 
 export async function getPettyCashSummary() {
+    await requireAuth();
+
     const user = await getCurrentUser()
     const insforge = createServerClient()
 
@@ -81,6 +85,8 @@ export async function getPettyCashSummary() {
 }
 
 export async function closePettyCash(formData: FormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
 
     if (!user || user.role !== "ADMIN") {
@@ -148,6 +154,8 @@ export async function closePettyCash(formData: FormData) {
 }
 
 export async function addPettyCashIncome(formData: FormData) {
+    await requireAuth();
+
     const amount = parseFloat(formData.get("amount") as string)
     const description = formData.get("description") as string
 
@@ -171,6 +179,8 @@ export async function addPettyCashIncome(formData: FormData) {
 }
 
 export async function addPettyCashExpense(formData: FormData) {
+    await requireAuth();
+
     const amount = parseFloat(formData.get("amount") as string)
     const description = formData.get("description") as string
 

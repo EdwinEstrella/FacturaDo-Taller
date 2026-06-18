@@ -11,28 +11,32 @@ export default async function DailyClosePage() {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    // 1. Fetch Invoices for Today
-    const { data: invoices } = await insforge.database
-        .from('Invoice')
-        .select('*')
-        .gte('createdAt', today.toISOString())
-        .lt('createdAt', tomorrow.toISOString())
-        .eq('status', 'PAID')
-
-    // 2. Fetch Transactions (Expenses) for Today
-    const { data: transactions } = await insforge.database
-        .from('Transaction')
-        .select('*')
-        .gte('date', today.toISOString())
-        .lt('date', tomorrow.toISOString())
-        .eq('type', 'EXPENSE')
-
-    // 3. Fetch Payments (Actual Cash Flow)
-    const { data: payments } = await insforge.database
-        .from('Payment')
-        .select('*')
-        .gte('date', today.toISOString())
-        .lt('date', tomorrow.toISOString())
+    const [
+        { data: invoices },
+        { data: transactions },
+        { data: payments }
+    ] = await Promise.all([
+        // 1. Fetch Invoices for Today
+        insforge.database
+            .from('Invoice')
+            .select('*')
+            .gte('createdAt', today.toISOString())
+            .lt('createdAt', tomorrow.toISOString())
+            .eq('status', 'PAID'),
+        // 2. Fetch Transactions (Expenses) for Today
+        insforge.database
+            .from('Transaction')
+            .select('*')
+            .gte('date', today.toISOString())
+            .lt('date', tomorrow.toISOString())
+            .eq('type', 'EXPENSE'),
+        // 3. Fetch Payments (Actual Cash Flow)
+        insforge.database
+            .from('Payment')
+            .select('*')
+            .gte('date', today.toISOString())
+            .lt('date', tomorrow.toISOString())
+    ])
 
     // 4. Calculate Totals
 

@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { QuoteItem, Client } from "@/types"
 import { revalidatePath } from "next/cache"
@@ -79,6 +81,8 @@ async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInvento
 }
 
 export async function createQuote(data: QuoteFormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -138,6 +142,8 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 export async function getQuotes() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     // First, check and mark expired quotes
@@ -209,6 +215,8 @@ export async function getQuotes() {
 }
 
 export async function getQuoteById(id: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: quote, error } = await insforge.database
@@ -255,6 +263,8 @@ export async function getQuoteById(id: string) {
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
+    await requireAuth();
+
     const quote = await getQuoteById(quoteId)
 
     if (!quote) return { success: false, error: "Cotización no encontrada" }
@@ -323,6 +333,8 @@ export async function convertQuoteToInvoice(quoteId: string) {
 }
 
 export async function deleteQuote(quoteId: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -347,6 +359,8 @@ export async function deleteQuote(quoteId: string) {
 }
 
 export async function markExpiredQuotes() {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -380,6 +394,8 @@ export async function markExpiredQuotes() {
 }
 
 export async function cleanupExpiredQuotes() {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) {
         return { success: false, error: "Unauthorized" }

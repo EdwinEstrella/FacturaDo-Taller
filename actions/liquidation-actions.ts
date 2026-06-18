@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { startOfDay, endOfDay } from "date-fns"
 
@@ -9,7 +11,9 @@ interface LiquidationParams {
     endDate: Date
 }
 
-export async function getLiquidationData({ userId, startDate, endDate }: LiquidationParams) {
+export async function getLiquidationData({
+    await requireAuth();
+ userId, startDate, endDate }: LiquidationParams) {
     const insforge = createServerClient()
 
     try {
@@ -67,6 +71,8 @@ export async function getLiquidationData({ userId, startDate, endDate }: Liquida
 }
 
 export async function getUsersForLiquidation() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data, error } = await insforge.database

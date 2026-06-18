@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { DispatchUpdate, InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
@@ -7,6 +9,8 @@ import { revalidatePath } from "next/cache"
 
 
 export async function getTechnicianDispatches(technicianId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: dispatches, error } = await insforge.database
@@ -47,6 +51,8 @@ export async function updateDispatchStatus(
     notes?: string,
     photos?: string[]
 ) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const updateData: DispatchUpdate = {
@@ -96,6 +102,8 @@ export async function updateDispatchStatus(
 }
 
 export async function getDispatchById(dispatchId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: dispatch, error } = await insforge.database

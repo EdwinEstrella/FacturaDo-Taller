@@ -500,8 +500,10 @@ function PhotoDialog({ open, installation, onClose, onStateChange }: PhotoDialog
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
 
-    // Load existing photos when installation changes
-    useEffect(() => {
+    const [prevInstallationId, setPrevInstallationId] = useState<string | undefined>(undefined)
+
+    if (installation?.id !== prevInstallationId) {
+        setPrevInstallationId(installation?.id)
         if (installation?.fotos) {
             try {
                 setPhotos(JSON.parse(installation.fotos))
@@ -511,7 +513,7 @@ function PhotoDialog({ open, installation, onClose, onStateChange }: PhotoDialog
         } else {
             setPhotos([])
         }
-    }, [installation])
+    }
 
     const handleAddPhoto = () => {
         if (newPhotoUrl.trim() && photos.length < 5) {

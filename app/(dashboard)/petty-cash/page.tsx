@@ -28,8 +28,10 @@ import { es } from "date-fns/locale"
 import "./petty-cash.css"
 
 export default async function PettyCashPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-    const { q = "" } = await searchParams
-    const summary = await getPettyCashSummary()
+    const [{ q = "" }, summary] = await Promise.all([
+        searchParams,
+        getPettyCashSummary()
+    ])
 
     const filteredTransactions = summary.pendingTransactions.filter(t =>
         q ? t.description?.toLowerCase().includes(q.toLowerCase()) : true

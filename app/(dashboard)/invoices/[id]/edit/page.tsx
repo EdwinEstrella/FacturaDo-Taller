@@ -20,15 +20,16 @@ import { getCurrentUser } from "@/actions/auth-actions"
 import { redirect } from "next/navigation"
 
 export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
-    const { id } = await params
-    const user = await getCurrentUser()
+    const [{ id }, user] = await Promise.all([params, getCurrentUser()])
     if (!user || user.role !== "ADMIN") {
         redirect("/invoices")
     }
 
-    const invoice = await getInvoiceById(id)
-    const clients = await getClients()
-    const products = await getProducts()
+    const [invoice, clients, products] = await Promise.all([
+        getInvoiceById(id),
+        getClients(),
+        getProducts()
+    ])
 
     if (!invoice) {
         notFound()

@@ -4,8 +4,10 @@ import { UsersClient } from "./client"
 import type { User } from "@/types"
 
 export default async function UsersPage() {
-    const { success, data: users } = await getUsers()
-    const currentUser = await getCurrentUser()
+    const [{ success, data: users }, currentUser] = await Promise.all([
+        getUsers(),
+        getCurrentUser()
+    ])
 
     // Safety check if error or no users
     const safeUsers = success && users ? users : []

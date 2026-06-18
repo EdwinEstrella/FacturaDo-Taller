@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -42,6 +44,8 @@ function mapInstallationFromDb(row: InstallationRow) {
 }
 
 export async function createInstallationsForInvoice(items: InstallationItem[]) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -75,6 +79,8 @@ export async function createInstallationsForInvoice(items: InstallationItem[]) {
 }
 
 export async function getInstallations(filters?: {
+    await requireAuth();
+
     estado?: string
     tecnicoAsignado?: string
     clientId?: string
@@ -110,6 +116,8 @@ export async function getInstallations(filters?: {
 }
 
 export async function getPendingInstallationsCount() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -135,6 +143,8 @@ export async function updateInstallationState(
     newState: string,
     userId?: string
 ) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -177,6 +187,8 @@ export async function updateInstallationState(
 }
 
 export async function updateInstallationPhotos(installationId: string, fotos: string[]) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -202,6 +214,8 @@ export async function updateInstallationPhotos(installationId: string, fotos: st
 }
 
 export async function getInstallationById(installationId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -222,6 +236,8 @@ export async function getInstallationById(installationId: string) {
 }
 
 export async function assignTechnician(installationId: string, tecnicoId: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
         return { success: false, error: "No autorizado" }

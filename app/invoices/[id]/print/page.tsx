@@ -13,11 +13,13 @@ export default async function PrintInvoicePage({
     params: Promise<{ id: string }>
     searchParams: Promise<{ template?: string }>
 }) {
-    const { id } = await params
-    const { template } = await searchParams
+    const settingsPromise = getCompanySettings()
+    const [{ id }, { template }] = await Promise.all([params, searchParams])
 
-    const invoice = await getInvoiceById(id) as Invoice | null
-    const settings = await getCompanySettings()
+    const [invoice, settings] = await Promise.all([
+        getInvoiceById(id) as Promise<Invoice | null>,
+        settingsPromise
+    ])
 
     if (!invoice) return notFound()
 

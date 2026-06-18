@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -65,6 +67,8 @@ async function restoreCreditNoteStock(insforge: DatabaseClient, item: CreditNote
 }
 
 export async function createCreditNote(data: CreditNoteFormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -111,6 +115,8 @@ export async function createCreditNote(data: CreditNoteFormData) {
 }
 
 export async function getCreditNoteById(id: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {

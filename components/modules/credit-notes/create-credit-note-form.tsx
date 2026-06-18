@@ -145,6 +145,7 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                                 <Button
                                     variant="outline"
                                     role="combobox"
+                                    aria-controls="invoice-popover"
                                     aria-expanded={openInvoice}
                                     className="w-full justify-between"
                                 >

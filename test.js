@@ -1,0 +1,1 @@
+const fs = require('fs'); let c = fs.readFileSync('actions/product-actions.ts', 'utf8'); console.log(c.match(/export\s+async\s+function\s+\w+\([^)]*\)(?:\s*:\s*[^{]+)?\s*\{/g));

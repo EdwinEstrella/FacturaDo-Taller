@@ -19,6 +19,15 @@ type User = {
 
 const SESSION_COOKIE_NAME = "facturado_session_id"
 
+// eslint-disable-next-line react-doctor/server-auth-actions
+export async function requireAuth() {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw new Error(Unauthorized)
+  }
+  return user
+}
+
 export async function login(username: string, password: string) {
   console.log("LOGIN START: ", username)
 

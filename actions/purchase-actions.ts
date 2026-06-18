@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -33,6 +35,8 @@ const SupplierSchema = z.object({
 })
 
 export async function getSuppliers() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data, error } = await insforge.database
@@ -49,6 +53,8 @@ export async function getSuppliers() {
 }
 
 export async function createSupplier(data: z.infer<typeof SupplierSchema>) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "ACCOUNTANT" && user.role !== "MANAGER")) {
         return { success: false, error: "No tienes permisos para crear proveedores" }
@@ -79,6 +85,8 @@ export async function createSupplier(data: z.infer<typeof SupplierSchema>) {
 }
 
 export async function createPurchase(data: z.infer<typeof PurchaseSchema>) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "ACCOUNTANT" && user.role !== "MANAGER")) {
         return { success: false, error: "No tienes permisos para registrar compras" }

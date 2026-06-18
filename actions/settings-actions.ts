@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 import { revalidatePath } from "next/cache"
@@ -16,6 +18,8 @@ export type CompanySettings = {
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -79,6 +83,8 @@ export async function getCompanySettings(): Promise<CompanySettings> {
 }
 
 export async function updateCompanySettings(data: CompanySettings) {
+    await requireAuth();
+
     const user = await getCurrentUser()
 
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {

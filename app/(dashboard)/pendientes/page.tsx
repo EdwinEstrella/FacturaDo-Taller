@@ -3,9 +3,11 @@ import { getInstallations, getPendingInstallationsCount } from "@/actions/instal
 import { PendientesClient } from "./pendientes-client"
 
 export default async function PendientesPage() {
-    const installations = await getInstallations()
-    const pendingCount = await getPendingInstallationsCount()
-    const currentUser = await getCurrentUser()
+    const [installations, pendingCount, currentUser] = await Promise.all([
+        getInstallations(),
+        getPendingInstallationsCount(),
+        getCurrentUser()
+    ])
 
     return (
         <div className="space-y-6 p-8">

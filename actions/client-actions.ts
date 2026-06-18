@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -17,6 +19,8 @@ const ClientSchema = z.object({
 })
 
 export async function createClientAction(prevState: unknown, formData: FormData) {
+    await requireAuth();
+
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
@@ -62,6 +66,8 @@ export async function createClientAction(prevState: unknown, formData: FormData)
 }
 
 export async function updateClient(id: string, prevState: unknown, formData: FormData) {
+    await requireAuth();
+
     const validatedFields = ClientSchema.safeParse({
         name: formData.get("name"),
         rnc: formData.get("rnc"),
@@ -108,6 +114,8 @@ export async function updateClient(id: string, prevState: unknown, formData: For
 }
 
 export async function deleteClient(id: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -157,6 +165,8 @@ export async function deleteClient(id: string) {
 }
 
 export async function getClients() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data, error } = await insforge.database

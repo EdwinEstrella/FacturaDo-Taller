@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { ProductUpdate, ProductVariant } from "@/types"
 import { revalidatePath } from "next/cache"
@@ -22,6 +24,8 @@ const ProductSchema = z.object({
 })
 
 export async function createProduct(prevState: unknown, formData: FormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
         return { error: "No tienes permisos para crear productos" }
@@ -105,6 +109,8 @@ export async function createProduct(prevState: unknown, formData: FormData) {
 }
 
 export async function getProducts() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: products, error } = await insforge.database
@@ -141,6 +147,8 @@ export async function getProducts() {
 }
 
 export async function updateProduct(id: string, prevState: unknown, formData: FormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
         return { error: "No tienes permisos para editar productos" }
@@ -258,6 +266,8 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
 }
 
 export async function deleteProduct(id: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
         return { success: false, error: "No tienes permisos para eliminar productos" }
@@ -305,7 +315,9 @@ export async function deleteProduct(id: string) {
     }
 }
 
-export async function quickCreateProduct(data: { name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
+export async function quickCreateProduct(data: {
+    await requireAuth();
+ name: string, price: number, sku?: string, category?: "ARTICULO" | "MATERIAL" | "SERVICIO" }) {
     const user = await getCurrentUser()
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "ACCOUNTANT")) {
         return { success: false, error: "No tienes permisos para crear productos" }

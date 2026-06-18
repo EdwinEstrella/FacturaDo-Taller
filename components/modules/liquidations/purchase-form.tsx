@@ -130,42 +130,37 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     const selectedVariant = selectedProduct?.variants?.find(v => v.id === selectedVariantId)
 
     // Effect for Avg Cost & Selling Price
-    useEffect(() => {
-        if (!selectedProduct) return
+    const currentDepsKey = `${quantity}-${unitCost}-${selectedProductId}-${selectedVariantId}-${margin}-${pricingMode}-${fixedPrice}`
+    const [prevDepsKey, setPrevDepsKey] = useState(currentDepsKey)
 
-        // Use variant cost if variant is selected, otherwise use product cost
-        const currentStock = selectedVariant ? selectedVariant.stock || 0 : selectedProduct.stock || 0
-        const currentCost = selectedVariant
-            ? Number(selectedVariant.cost) || 0
-            : Number(selectedProduct.cost) || 0
-        const newQty = quantity
-        const newUnitCost = unitCost
+    if (currentDepsKey !== prevDepsKey) {
+        setPrevDepsKey(currentDepsKey)
 
-        // 1. Calculate Avg Cost (weighted average)
-        let currentAvgCost = 0
-        const totalQty = currentStock + newQty
+        if (selectedProduct) {
+            const currentStock = selectedVariant ? selectedVariant.stock || 0 : selectedProduct.stock || 0
+            const currentCost = selectedVariant
+                ? Number(selectedVariant.cost) || 0
+                : Number(selectedProduct.cost) || 0
+            const totalQty = currentStock + quantity
 
-        if (totalQty === 0) {
-            currentAvgCost = newUnitCost
-        } else {
-            currentAvgCost = ((currentStock * currentCost) + (newQty * newUnitCost)) / totalQty
+            let currentAvgCost = 0
+            if (totalQty === 0) {
+                currentAvgCost = unitCost
+            } else {
+                currentAvgCost = ((currentStock * currentCost) + (quantity * unitCost)) / totalQty
+            }
+
+            const finalAvgCost = parseFloat(currentAvgCost.toFixed(2))
+            setAvgCost(finalAvgCost)
+
+            if (pricingMode === "PERCENTAGE") {
+                const price = finalAvgCost * (1 + (margin / 100))
+                setNewSellingPrice(parseFloat(price.toFixed(2)))
+            } else {
+                setNewSellingPrice(parseFloat(fixedPrice.toFixed(2)))
+            }
         }
-
-        const finalAvgCost = parseFloat(currentAvgCost.toFixed(2))
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setAvgCost(finalAvgCost)
-
-        // 2. Calculate Selling Price based on pricing mode
-        if (pricingMode === "PERCENTAGE") {
-            // Calculate using margin percentage
-            const price = finalAvgCost * (1 + (margin / 100))
-            setNewSellingPrice(parseFloat(price.toFixed(2)))
-        } else {
-            // Use fixed price directly
-            setNewSellingPrice(parseFloat(fixedPrice.toFixed(2)))
-        }
-
-    }, [quantity, unitCost, selectedProduct, selectedVariant, margin, pricingMode, fixedPrice])
+    }
 
 
     // Handlers
@@ -457,6 +452,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                     <Button
                                         variant="outline"
                                         role="combobox"
+                                        aria-controls="product-popover"
                                         aria-expanded={openCombobox}
                                         className="w-full justify-between"
                                     >

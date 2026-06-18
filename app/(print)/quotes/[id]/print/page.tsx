@@ -12,11 +12,13 @@ export default async function PrintQuotePage({
     params: Promise<{ id: string }>
     searchParams: Promise<{ template?: string }>
 }) {
-    const { id } = await params
-    const { template } = await searchParams
+    const settingsPromise = getCompanySettings()
+    const [{ id }, { template }] = await Promise.all([params, searchParams])
 
-    const quote = await getQuoteById(id)
-    const settings = await getCompanySettings()
+    const [quote, settings] = await Promise.all([
+        getQuoteById(id),
+        settingsPromise
+    ])
 
     if (!quote) return notFound()
 

@@ -1,5 +1,7 @@
 'use server'
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -14,6 +16,8 @@ interface UserUpdate {
 }
 
 export async function getUsers() {
+    await requireAuth();
+
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
@@ -48,6 +52,8 @@ interface UserInput {
 }
 
 export async function createUser(data: UserInput) {
+    await requireAuth();
+
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
@@ -96,6 +102,8 @@ export async function createUser(data: UserInput) {
 }
 
 export async function updateUser(id: string, data: UserInput) {
+    await requireAuth();
+
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")
@@ -151,6 +159,8 @@ export async function updateUser(id: string, data: UserInput) {
 }
 
 export async function deleteUser(id: string) {
+    await requireAuth();
+
     const currentUser = await getCurrentUser()
     if (currentUser?.role !== 'ADMIN') {
         throw new Error("Unauthorized")

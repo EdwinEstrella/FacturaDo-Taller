@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -17,6 +19,8 @@ const PaymentSchema = z.object({
 type PaymentFormData = z.infer<typeof PaymentSchema>
 
 export async function registerPayment(data: PaymentFormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 

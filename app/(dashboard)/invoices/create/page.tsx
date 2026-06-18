@@ -9,8 +9,10 @@ interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
 }
 
 export default async function CreateInvoicePage() {
-    const clients = await getClients()
-    const products = await getProducts()
+    const [clients, products] = await Promise.all([
+        getClients(),
+        getProducts()
+    ])
 
     // Serialize Decimal to number for client component
     const serializedProducts: SerializedProduct[] = products.map(product => ({

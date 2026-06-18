@@ -20,8 +20,10 @@ interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
 }
 
 export default async function ProductsPage() {
-    const user = await getCurrentUser()
-    const products = await getProducts()
+    const [user, products] = await Promise.all([
+        getCurrentUser(),
+        getProducts()
+    ])
 
     const canManageProducts = user?.role === "ADMIN" || user?.role === "MANAGER"
 

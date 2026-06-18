@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { Client, Invoice, InvoiceItem } from "@/types"
 
@@ -25,6 +27,8 @@ interface InvoiceFilters {
 }
 
 export async function filterClients(filters: ClientFilters): Promise<Client[]> {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     let query = insforge.database
@@ -75,6 +79,8 @@ export async function filterClients(filters: ClientFilters): Promise<Client[]> {
 }
 
 export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWithNumberTotal[]> {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     let query = insforge.database
@@ -151,6 +157,8 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
 }
 
 export async function getInvoiceStats(filters: InvoiceFilters) {
+    await requireAuth();
+
     const invoices = await filterInvoices(filters)
 
     const stats = {

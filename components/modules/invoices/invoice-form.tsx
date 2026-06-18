@@ -326,6 +326,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 <Button
                                     variant="outline"
                                     role="combobox"
+                                    aria-controls="client-popover"
                                     aria-expanded={openClient}
                                     className="w-full justify-between"
                                 >
@@ -373,7 +374,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         <h3 className="font-semibold">Agregar Producto</h3>
                         <Popover open={openProduct} onOpenChange={setOpenProduct}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={openProduct} className="w-full justify-between">
+                                <Button variant="outline" role="combobox" aria-controls="product-popover" aria-expanded={openProduct} className="w-full justify-between">
                                     Buscar producto...
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>

@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
@@ -137,6 +139,8 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
 }
 
 export async function createInvoice(data: InvoiceFormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -248,6 +252,8 @@ export async function createInvoice(data: InvoiceFormData) {
 }
 
 export async function getInvoices() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: invoices, error } = await insforge.database
@@ -280,6 +286,8 @@ export async function getInvoices() {
 }
 
 export async function getInvoiceById(id: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: invoice, error } = await insforge.database
@@ -316,6 +324,8 @@ export async function getInvoiceById(id: string) {
 }
 
 export async function markAsDispatched(invoiceId: string, driverName?: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     // Update invoice
@@ -337,6 +347,8 @@ export async function markAsDispatched(invoiceId: string, driverName?: string) {
 }
 
 export async function markAsPaid(invoiceId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     await insforge.database
@@ -348,6 +360,8 @@ export async function markAsPaid(invoiceId: string) {
 }
 
 export async function deleteInvoice(id: string, password?: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -430,6 +444,8 @@ export async function deleteInvoice(id: string, password?: string) {
 }
 
 export async function updateInvoice(id: string, data: InvoiceFormData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
         throw new Error("Unauthorized: Only Admins can edit invoices")

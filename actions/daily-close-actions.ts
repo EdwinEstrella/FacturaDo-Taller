@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/actions/auth-actions"
@@ -41,6 +43,8 @@ interface SaveDailyCloseData {
 }
 
 export async function saveDailyClose(data: SaveDailyCloseData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
 
     if (!user) {
@@ -110,6 +114,8 @@ export async function saveDailyClose(data: SaveDailyCloseData) {
 }
 
 export async function getDailyCloseHistory() {
+    await requireAuth();
+
     const user = await getCurrentUser()
 
     if (!user) {
@@ -137,6 +143,8 @@ export async function getDailyCloseHistory() {
 }
 
 export async function getDailyCloseById(id: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
 
     if (!user) {

@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -25,6 +27,8 @@ export interface WindowBreakdownData {
 }
 
 export async function saveWindowBreakdown(data: WindowBreakdownData) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -62,6 +66,8 @@ export async function saveWindowBreakdown(data: WindowBreakdownData) {
 }
 
 export async function createInitialBreakdown(windowType: "P65" | "TRADICIONAL", clientName: string, technicianName: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -98,6 +104,8 @@ export async function createInitialBreakdown(windowType: "P65" | "TRADICIONAL", 
 }
 
 export async function updateBreakdownItems(breakdownId: string, items: WindowBreakdownItem[]) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -123,6 +131,8 @@ export async function updateBreakdownItems(breakdownId: string, items: WindowBre
 }
 
 export async function getWindowBreakdowns(windowType?: "P65" | "TRADICIONAL") {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -150,6 +160,8 @@ export async function getWindowBreakdowns(windowType?: "P65" | "TRADICIONAL") {
 }
 
 export async function getWindowBreakdownById(breakdownId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -173,6 +185,8 @@ export async function getWindowBreakdownById(breakdownId: string) {
 }
 
 export async function markAsPrinted(breakdownId: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -198,6 +212,8 @@ export async function markAsPrinted(breakdownId: string) {
 }
 
 export async function deleteWindowBreakdown(breakdownId: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -220,6 +236,8 @@ export async function deleteWindowBreakdown(breakdownId: string) {
 }
 
 export async function getPendingBreakdowns(clientName: string, technicianName: string, windowType: "P65" | "TRADICIONAL") {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -245,6 +263,8 @@ export async function getPendingBreakdowns(clientName: string, technicianName: s
 }
 
 export async function deletePendingBreakdowns(clientName: string, technicianName: string, windowType: "P65" | "TRADICIONAL") {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
@@ -270,6 +290,8 @@ export async function deletePendingBreakdowns(clientName: string, technicianName
 }
 
 export async function markAsProduction(breakdownId: string) {
+    await requireAuth();
+
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 

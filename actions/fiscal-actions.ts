@@ -1,9 +1,13 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 
 export async function getFiscalSequences() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data, error } = await insforge.database
@@ -20,6 +24,8 @@ export async function getFiscalSequences() {
 }
 
 export async function updateFiscalSequence(type: string, current: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: existing } = await insforge.database
@@ -43,6 +49,8 @@ export async function updateFiscalSequence(type: string, current: string) {
 }
 
 export async function generateNCF(type: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
     const key = `NCF_${type}`
 

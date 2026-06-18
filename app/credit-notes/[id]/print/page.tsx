@@ -11,8 +11,10 @@ export default async function PrintCreditNotePage({
 }) {
     const { id } = await params
 
-    const creditNote = await getCreditNoteById(id)
-    const settings = await getCompanySettings()
+    const [creditNote, settings] = await Promise.all([
+        getCreditNoteById(id),
+        getCompanySettings()
+    ])
 
     if (!creditNote) return notFound()
 

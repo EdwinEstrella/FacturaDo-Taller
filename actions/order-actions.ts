@@ -1,9 +1,13 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 
 export async function createWorkOrder(invoiceId: string, notes: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -31,6 +35,8 @@ export async function createWorkOrder(invoiceId: string, notes: string) {
 }
 
 export async function updateWorkOrderStatus(id: string, status: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -52,6 +58,8 @@ export async function updateWorkOrderStatus(id: string, status: string) {
 }
 
 export async function getWorkOrders() {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     const { data: workOrders, error } = await insforge.database

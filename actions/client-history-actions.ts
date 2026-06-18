@@ -1,5 +1,7 @@
 "use server"
 
+
+import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 
 
@@ -18,6 +20,8 @@ export async function addClientHistoryEntry(
     description?: string,
     metadata?: Record<string, unknown>
 ) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
@@ -42,6 +46,8 @@ export async function addClientHistoryEntry(
 }
 
 export async function getClientHistory(clientId: string): Promise<{
+    await requireAuth();
+
     success: boolean
     data?: ClientHistoryEntry[]
     error?: string
@@ -77,6 +83,8 @@ export async function getClientHistory(clientId: string): Promise<{
 }
 
 export async function getClientStats(clientId: string) {
+    await requireAuth();
+
     const insforge = createServerClient()
 
     try {
