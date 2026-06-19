@@ -22,9 +22,37 @@ import {
 } from "@/components/ui/select"
 import { createProduct, updateProduct } from "@/actions/product-actions"
 import { useFormStatus } from "react-dom"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { Product } from "@/types"
 import { Edit, X } from "lucide-react"
+
+interface Variant {
+    id?: string
+    name: string
+    price: number
+    stock: number
+    sku: string
+    cost: number
+    margin?: number
+}
+
+function calculateMargin(cost: number, price: number) {
+    if (cost > 0 && price > 0) {
+        return parseFloat((((price - cost) / cost) * 100).toFixed(2))
+    }
+
+    return 30
+}
+
+function getInitialVariants(product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string }) {
+    return ((product as Product & { variants?: Variant[] } | undefined)?.variants || []).map((variant) => ({
+        ...variant,
+        cost: Number(variant.cost || 0),
+        price: Number(variant.price || 0),
+        stock: Number(variant.stock || 0),
+        margin: calculateMargin(Number(variant.cost || 0), Number(variant.price || 0))
+    }))
+}
 
 function SubmitButton({ isEdit }: { isEdit: boolean }) {
     const { pending } = useFormStatus()
@@ -39,18 +67,14 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
+    const [unitType, setUnitType] = useState(product?.unitType || "UNIT")
 
     // Price/Cost/Margin State
     const initialCost = product?.cost || 0
     const initialPrice = product?.price || 0
     const [cost, setCost] = useState(initialCost)
     const [price, setPrice] = useState(initialPrice)
-    const [margin, setMargin] = useState(() => {
-        if (initialCost > 0 && initialPrice > 0) {
-            return parseFloat((((initialPrice - initialCost) / initialCost) * 100).toFixed(2))
-        }
-        return 30 // Default 30% margin
-    })
+    const [margin, setMargin] = useState(() => calculateMargin(initialCost, initialPrice))
 
     const handleCostChange = (val: number) => {
         setCost(val)
@@ -76,18 +100,25 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
         }
     }
 
-    interface Variant {
-        id?: string
-        name: string
-        price: number
-        stock: number
-        sku: string
-        cost: number
-        margin?: number
-    }
+    const [variants, setVariants] = useState<Variant[]>(() => getInitialVariants(product))
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [variants, setVariants] = useState<Variant[]>((product as any)?.variants?.map((v: any) => ({ ...v, cost: Number(v.cost || 0) })) || [])
+    useEffect(() => {
+        if (!open) {
+            return
+        }
+
+        const nextCategory = product?.category || "ARTICULO"
+        const nextUnitType = product?.unitType || "UNIT"
+        const nextCost = product?.cost || 0
+        const nextPrice = product?.price || 0
+
+        setCategory(nextCategory)
+        setUnitType(nextUnitType)
+        setCost(nextCost)
+        setPrice(nextPrice)
+        setMargin(calculateMargin(nextCost, nextPrice))
+        setVariants(getInitialVariants(product))
+    }, [open, product])
 
     const addVariant = () => {
         setVariants([...variants, { name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
@@ -151,7 +182,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="category" className="text-right">Categoría</Label>
                             <div className="col-span-3">
-                                <Select name="category" defaultValue={category} onValueChange={(value) => setCategory(value as "MATERIAL" | "ARTICULO" | "SERVICIO")}>
+                                <Select name="category" value={category} onValueChange={(value) => setCategory(value as "MATERIAL" | "ARTICULO" | "SERVICIO")}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>
@@ -167,7 +198,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="unitType" className="text-right">Unidad de Medida</Label>
                             <div className="col-span-3">
-                                <Select name="unitType" defaultValue={product?.unitType || "UNIT"}>
+                                <Select name="unitType" value={unitType} onValueChange={setUnitType}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>
