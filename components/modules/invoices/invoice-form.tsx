@@ -357,7 +357,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                 invoiceId,
                                 productId: item.productId,
                                 productName: item.productName,
-                                quantity: item.quantity,
+                                quantity: Number(item.quantity || 0),
                                 clientName: selectedClient.name,
                                 clientAddress: selectedClient.address,
                                 clientPhone: selectedClient.phone
@@ -808,7 +808,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                                             <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)}</TableCell>
                                                             <TableCell className="w-32 text-right align-top">{formatCurrency(item.price)}</TableCell>
                                                             <TableCell className="w-32 text-right align-top font-medium">
-                                                                {formatCurrency(item.price * item.quantity)}
+                                                                {formatCurrency(item.price * Number(item.quantity || 0))}
                                                             </TableCell>
                                                         </TableRow>
                                                     ))}
