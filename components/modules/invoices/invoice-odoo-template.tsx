@@ -123,7 +123,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
           <div>
             <h3 className="mb-1 text-[14px] font-black uppercase">Detalles de factura</h3>
             <p>
-              <span className="font-black">Factura #:</span> {documentNumber}
+              <span className="font-black">Factura:</span> {documentNumber}
             </p>
             <p>
               <span className="font-black">Fecha:</span>{" "}

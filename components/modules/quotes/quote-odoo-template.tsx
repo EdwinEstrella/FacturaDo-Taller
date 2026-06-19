@@ -133,7 +133,7 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
           <div>
             <h3 className="mb-1 text-[14px] font-black uppercase">Detalles de cotización</h3>
             <p>
-              <span className="font-black">Cotización #:</span> {documentNumber}
+              <span className="font-black">Cotización:</span> {documentNumber}
             </p>
             <p>
               <span className="font-black">Fecha:</span>{" "}

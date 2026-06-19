@@ -164,6 +164,16 @@ export async function createQuote(data: QuoteFormData) {
     try {
         await validateQuoteItems(insforge, validated.data.items)
 
+        // Get max sequence number to increment it
+        const { data: latestQuote } = await insforge.database
+            .from('Quote')
+            .select('sequenceNumber')
+            .order('sequenceNumber', { ascending: false })
+            .limit(1)
+            .single()
+            
+        const nextSequence = (latestQuote?.sequenceNumber || 0) + 1
+
         const { data: quote, error: quoteError } = await insforge.database
             .from('Quote')
             .insert([{
@@ -177,6 +187,7 @@ export async function createQuote(data: QuoteFormData) {
                 shippingCost: validated.data.shippingCost || 0,
                 applyTax: validated.data.applyTax || false,
                 isDraft,
+                sequenceNumber: nextSequence
             }])
             .select()
             .single()

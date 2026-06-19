@@ -185,6 +185,16 @@ export async function createInvoice(data: InvoiceFormData) {
     }
 
     try {
+        // Get max sequence number to increment it
+        const { data: latestInvoice } = await insforge.database
+            .from('Invoice')
+            .select('sequenceNumber')
+            .order('sequenceNumber', { ascending: false })
+            .limit(1)
+            .single()
+            
+        const nextSequence = (latestInvoice?.sequenceNumber || 0) + 1
+
         // Create Invoice
         const { data: invoice, error: invoiceError } = await insforge.database
             .from('Invoice')
@@ -201,6 +211,7 @@ export async function createInvoice(data: InvoiceFormData) {
                 tax: validated.data.tax || 0,
                 hasNcf: validated.data.hasNcf || false,
                 createdById: user.id,
+                sequenceNumber: nextSequence
             }])
             .select()
             .single()
