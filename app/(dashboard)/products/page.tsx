@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/table"
 import { getProducts } from "@/actions/product-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { formatCurrency } from "@/lib/utils"
+import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
+import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
 import { Badge } from "@/components/ui/badge"
@@ -69,7 +70,7 @@ export default async function ProductsPage() {
                                         <span className="text-muted-foreground italic">Servicio</span>
                                     ) : (
                                         <span className={product.stock <= product.minStock ? "text-red-500 font-bold" : ""}>
-                                            {product.stock}
+                                            {formatQuantity(product.stock)} {getMeasurementShortLabel(getMeasurementModeFromProduct(product))}
                                         </span>
                                     )}
                                 </TableCell>

@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 interface InvoiceOdooTemplateProps {
@@ -166,7 +166,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
                     {item.productName}
                     {item.description && <div className="mt-1 text-[10px] font-normal">{item.description}</div>}
                   </td>
-                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{item.quantity}</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">
                     {formatCurrency(Number(item.price))}
                   </td>

@@ -21,13 +21,21 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { createProduct, updateProduct } from "@/actions/product-actions"
+import {
+    getMeasurementLabel,
+    getMeasurementModeFromProduct,
+    isMeasuredMode,
+    PRODUCT_MEASUREMENT_OPTIONS,
+    type ProductMeasurementMode,
+} from "@/lib/product-measurements"
 import { useFormStatus } from "react-dom"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { Product } from "@/types"
 import { Edit, X } from "lucide-react"
 
 interface Variant {
     id?: string
+    clientKey: string
     name: string
     price: number
     stock: number
@@ -47,6 +55,7 @@ function calculateMargin(cost: number, price: number) {
 function getInitialVariants(product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string }) {
     return ((product as Product & { variants?: Variant[] } | undefined)?.variants || []).map((variant) => ({
         ...variant,
+        clientKey: variant.id || crypto.randomUUID(),
         sku: variant.sku ?? "",
         cost: Number(variant.cost || 0),
         price: Number(variant.price || 0),
@@ -68,7 +77,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     const [open, setOpen] = useState(false)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
-    const [unitType, setUnitType] = useState(product?.unitType || "UNIT")
+    const [measurementMode, setMeasurementMode] = useState<ProductMeasurementMode>(() => getMeasurementModeFromProduct(product))
 
     // Price/Cost/Margin State
     const initialCost = product?.cost || 0
@@ -103,26 +112,28 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
 
     const [variants, setVariants] = useState<Variant[]>(() => getInitialVariants(product))
 
-    useEffect(() => {
-        if (!open) {
-            return
-        }
-
+    const handleOpenChange = (nextOpen: boolean) => {
+        if (nextOpen) {
         const nextCategory = product?.category || "ARTICULO"
-        const nextUnitType = product?.unitType || "UNIT"
+        const nextMeasurementMode = getMeasurementModeFromProduct(product)
         const nextCost = product?.cost || 0
         const nextPrice = product?.price || 0
 
         setCategory(nextCategory)
-        setUnitType(nextUnitType)
+        setMeasurementMode(nextMeasurementMode)
         setCost(nextCost)
         setPrice(nextPrice)
         setMargin(calculateMargin(nextCost, nextPrice))
         setVariants(getInitialVariants(product))
-    }, [open, product])
+        }
+
+        setOpen(nextOpen)
+    }
+
+    const stockInputStep = isMeasuredMode(measurementMode) ? "0.01" : "1"
 
     const addVariant = () => {
-        setVariants([...variants, { name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
+        setVariants([...variants, { clientKey: crypto.randomUUID(), name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
     }
 
     const removeVariant = (index: number) => {
@@ -152,7 +163,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     }
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 {isEdit ? (
                     <Button variant="ghost" size="icon"><Edit className="h-4 w-4" /></Button>
@@ -199,15 +210,21 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="unitType" className="text-right">Unidad de Medida</Label>
                             <div className="col-span-3">
-                                <Select name="unitType" value={unitType} onValueChange={(value) => setUnitType(value as "UNIT" | "MEASURE")}>
+                                <Select name="measurementMode" value={measurementMode} onValueChange={(value) => setMeasurementMode(value as ProductMeasurementMode)}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="UNIT">Por Unidad (u)</SelectItem>
-                                        <SelectItem value="MEASURE">Por Medida (m/ft)</SelectItem>
+                                        {PRODUCT_MEASUREMENT_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>{option.label} ({option.shortLabel})</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {measurementMode === "UNIT"
+                                        ? "Solo permite cantidades enteras."
+                                        : `Permite cantidades decimales para inventario y venta ${getMeasurementLabel(measurementMode).toLowerCase()}.`}
+                                </p>
                             </div>
                         </div>
 
@@ -265,7 +282,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         {category !== "SERVICIO" && variants.length === 0 && (
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="stock" className="text-right">Stock</Label>
-                                <Input id="stock" name="stock" type="number" defaultValue={product?.stock || 0} className="col-span-3" />
+                                <Input id="stock" name="stock" type="number" step={stockInputStep} defaultValue={product?.stock || 0} className="col-span-3" />
                             </div>
                         )}
                         {category === "SERVICIO" && <input type="hidden" name="stock" value="0" />}
@@ -286,7 +303,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 </div>
                                 <div className="space-y-4">
                                     {variants.map((variant, index) => (
-                                        <div key={index} className="grid gap-2 border p-3 rounded bg-gray-50 relative">
+                                        <div key={variant.clientKey} className="grid gap-2 border p-3 rounded bg-gray-50 relative">
                                             <Button
                                                 type="button"
                                                 variant="ghost"
@@ -339,8 +356,9 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs">Stock</Label>
                                                     <Input
                                                         type="number"
+                                                        step={stockInputStep}
                                                         value={variant.stock}
-                                                        onChange={(e) => updateVariant(index, "stock", parseInt(e.target.value))}
+                                                        onChange={(e) => updateVariant(index, "stock", Number(e.target.value) || 0)}
                                                         className="h-8 text-sm"
                                                     />
                                                 </div>

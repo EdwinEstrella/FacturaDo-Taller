@@ -12,11 +12,19 @@ const PurchaseItemSchema = z.object({
     productId: z.string(),
     variantId: z.string().optional(),
     variantName: z.string().optional(),
-    quantity: z.number().min(1),
+    quantity: z.number().positive(),
     quantityType: z.enum(["UNIT", "BOX", "MEASURE"]).default("UNIT"),
     unitCost: z.number().min(0),
     newCost: z.number().optional(),
     newPrice: z.number().optional()
+}).superRefine((item, ctx) => {
+    if (item.quantityType !== "MEASURE" && !Number.isInteger(item.quantity)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["quantity"],
+            message: "Solo las compras por medida permiten cantidades decimales",
+        })
+    }
 })
 
 const PurchaseSchema = z.object({

@@ -12,4 +12,17 @@ export function formatCurrency(value: number) {
   }).format(value)
 }
 
+export function formatQuantity(value: number | string | null | undefined, maxFractionDigits = 2) {
+  const numericValue = Number(value ?? 0)
+
+  if (!Number.isFinite(numericValue)) {
+    return "0"
+  }
+
+  return new Intl.NumberFormat("es-DO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Number.isInteger(numericValue) ? 0 : maxFractionDigits,
+  }).format(numericValue)
+}
+
 

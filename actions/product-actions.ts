@@ -3,6 +3,7 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { measurementModeToPersistence, type ProductMeasurementMode } from "@/lib/product-measurements"
 import type { ProductUpdate, ProductVariant } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -15,12 +16,20 @@ const ProductSchema = z.object({
     description: z.string().optional(),
     price: z.coerce.number().min(0),
     cost: z.coerce.number().min(0).optional(),
-    stock: z.coerce.number().int().min(0),
+    stock: z.coerce.number().min(0),
     minStock: z.coerce.number().int().min(0).optional(),
     sku: z.string().optional(),
     variants: z.string().optional(),
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
-    unitType: z.enum(["UNIT", "MEASURE"]).default("UNIT"),
+    measurementMode: z.enum(["UNIT", "FEET", "CENTIMETERS", "INCHES"]).default("UNIT"),
+}).superRefine((data, ctx) => {
+    if (data.measurementMode === "UNIT" && !Number.isInteger(data.stock)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["stock"],
+            message: "Los productos por unidad requieren stock entero",
+        })
+    }
 })
 
 export async function createProduct(prevState: unknown, formData: FormData) {
@@ -40,7 +49,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
-        unitType: formData.get("unitType"),
+        measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
     })
 
@@ -53,9 +62,14 @@ export async function createProduct(prevState: unknown, formData: FormData) {
     const insforge = createServerClient()
 
     try {
-        const { category, variants, unitType, ...rest } = validatedFields.data
+        const { category, variants, measurementMode, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
+        const { unitType, measurementUnit } = measurementModeToPersistence(measurementMode as ProductMeasurementMode)
+
+        if (measurementMode === "UNIT" && parsedVariants.some((variant: Record<string, unknown>) => !Number.isInteger(Number(variant.stock) || 0))) {
+            return { error: "Los productos por unidad requieren stock entero en cada variación" }
+        }
 
         const totalStock = hasVariants
             ? parsedVariants.reduce((acc: number, v: Record<string, unknown>) => acc + (Number(v.stock) || 0), 0)
@@ -66,6 +80,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
             stock: totalStock,
             category,
             unitType,
+            measurementUnit,
             isService: category === "SERVICIO",
             hasVariants,
         }
@@ -136,12 +151,14 @@ export async function getProducts() {
         ...product,
         price: Number(product.price),
         cost: product.cost ? Number(product.cost) : 0,
+        stock: Number(product.stock || 0),
         variants: (variants || [])
             .filter((v: ProductVariant) => v.productId === product.id)
             .map((variant: ProductVariant) => ({
                 ...variant,
                 price: Number(variant.price),
-                cost: variant.cost ? Number(variant.cost) : 0
+                cost: variant.cost ? Number(variant.cost) : 0,
+                stock: Number(variant.stock || 0)
             }))
     }))
 }
@@ -163,7 +180,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
-        unitType: formData.get("unitType"),
+        measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
     })
 
@@ -174,9 +191,14 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
     const insforge = createServerClient()
 
     try {
-        const { category, variants, unitType, ...rest } = validatedFields.data
+        const { category, variants, measurementMode, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const hasVariants = parsedVariants.length > 0
+        const { unitType, measurementUnit } = measurementModeToPersistence(measurementMode as ProductMeasurementMode)
+
+        if (measurementMode === "UNIT" && parsedVariants.some((variant: Record<string, unknown>) => !Number.isInteger(Number(variant.stock) || 0))) {
+            return { error: "Los productos por unidad requieren stock entero en cada variación" }
+        }
 
         const totalStock = hasVariants
             ? parsedVariants.reduce((acc: number, v: Record<string, unknown>) => acc + (Number(v.stock) || 0), 0)
@@ -187,6 +209,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
             stock: totalStock,
             category,
             unitType,
+            measurementUnit,
             isService: category === "SERVICIO",
             hasVariants,
         }
@@ -337,6 +360,7 @@ export async function quickCreateProduct(data: {
             isService: data.category === "SERVICIO",
             hasVariants: false,
             unitType: "UNIT",
+            measurementUnit: null,
             minStock: 0,
         }
 
@@ -356,7 +380,8 @@ export async function quickCreateProduct(data: {
             product: {
                 ...product,
                 price: Number(product.price),
-                cost: product.cost ? Number(product.cost) : 0
+                cost: product.cost ? Number(product.cost) : 0,
+                stock: Number(product.stock || 0)
             }
         }
     } catch (e) {

@@ -3,6 +3,7 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { isMeasuredMode } from "@/lib/product-measurements"
 import type { InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -14,7 +15,7 @@ import { addClientHistoryEntry } from "./client-history-actions"
 const InvoiceItemSchema = z.object({
     productId: z.string(),
     productName: z.string(),
-    quantity: z.number().min(1),
+    quantity: z.number().positive(),
     price: z.number().min(0),
     variantId: z.string().optional(),
 })
@@ -45,12 +46,30 @@ type InventoryItem = {
 
 type DatabaseClient = ReturnType<typeof createServerClient>
 
+function assertProductQuantityMode(product: { name?: string | null, unitType?: string | null, measurementUnit?: string | null }, quantity: number, fallbackName?: string) {
+    if (!isMeasuredMode(product) && !Number.isInteger(quantity)) {
+        throw new Error(`El producto ${fallbackName || product.name || "seleccionado"} solo permite cantidades enteras`)
+    }
+}
+
 async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
     await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
 }
 
 async function adjustInventoryStock(insforge: DatabaseClient, item: InventoryItem, delta: number) {
     if (!item.productId) return
+
+    const { data: product } = await insforge.database
+        .from('Product')
+        .select('*')
+        .eq('id', item.productId)
+        .single()
+
+    if (!product) {
+        throw new Error(`Product with ID ${item.productId} not found.`)
+    }
+
+    assertProductQuantityMode(product, Number(item.quantity), item.productName)
 
     if (item.variantId) {
         const { data: variant } = await insforge.database
@@ -77,16 +96,6 @@ async function adjustInventoryStock(insforge: DatabaseClient, item: InventoryIte
         return
     }
 
-    const { data: product } = await insforge.database
-        .from('Product')
-        .select('*')
-        .eq('id', item.productId)
-        .single()
-
-    if (!product) {
-        throw new Error(`Product with ID ${item.productId} not found.`)
-    }
-
     if (product.isService) return
 
     const nextStock = Number(product.stock || 0) + delta
@@ -104,6 +113,18 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
     for (const item of items) {
         if (!item.productId) continue
 
+        const { data: product } = await insforge.database
+            .from('Product')
+            .select('*')
+            .eq('id', item.productId)
+            .single()
+
+        if (!product) {
+            throw new Error(`Product with ID ${item.productId} not found.`)
+        }
+
+        assertProductQuantityMode(product, Number(item.quantity), item.productName)
+
         if (item.variantId) {
             const { data: variant } = await insforge.database
                 .from('ProductVariant')
@@ -120,16 +141,6 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
             }
 
             continue
-        }
-
-        const { data: product } = await insforge.database
-            .from('Product')
-            .select('*')
-            .eq('id', item.productId)
-            .single()
-
-        if (!product) {
-            throw new Error(`Product with ID ${item.productId} not found.`)
         }
 
         if (!product.isService && Number(product.stock || 0) < item.quantity) {
@@ -280,6 +291,7 @@ export async function getInvoices() {
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
+            quantity: Number(item.quantity),
             price: Number(item.price)
         }))
     }))
@@ -318,6 +330,7 @@ export async function getInvoiceById(id: string) {
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
+            quantity: Number(item.quantity),
             price: Number(item.price)
         }))
     }

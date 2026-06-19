@@ -34,7 +34,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { createCreditNote } from "@/actions/credit-note-actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -86,7 +86,7 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
     }
 
     const updateItemQuantity = (itemId: string, qty: number, maxQty: number) => {
-        if (qty < 1) return
+        if (qty <= 0) return
         if (qty > maxQty) qty = maxQty
         setSelectedItems(prev => ({ ...prev, [itemId]: qty }))
     }
@@ -139,10 +139,11 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-medium">Factura</label>
+                        <label htmlFor="credit-note-invoice" className="text-sm font-medium">Factura</label>
                         <Popover open={openInvoice} onOpenChange={setOpenInvoice}>
                             <PopoverTrigger asChild>
                                 <Button
+                                    id="credit-note-invoice"
                                     variant="outline"
                                     role="combobox"
                                     aria-controls="invoice-popover"
@@ -189,8 +190,9 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Razón / Motivo</label>
+                        <label htmlFor="credit-note-reason" className="text-sm font-medium">Razón / Motivo</label>
                         <Textarea
+                            id="credit-note-reason"
                             placeholder="Ej: Devolución de mercancía, Error en precio..."
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
@@ -240,15 +242,16 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                                             />
                                         </TableCell>
                                         <TableCell>{item.productName}</TableCell>
-                                        <TableCell className="text-right">{item.quantity}</TableCell>
+                                        <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
                                         <TableCell className="text-right">
                                             {selectedItems[item.id] ? (
                                                 <Input
                                                     type="number"
+                                                    step="0.01"
                                                     className="w-20 ml-auto h-8"
                                                     value={selectedItems[item.id]}
-                                                    onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value), item.quantity)}
-                                                    min={1}
+                                                    onChange={(e) => updateItemQuantity(item.id, Number(e.target.value), item.quantity)}
+                                                    min={0.01}
                                                     max={item.quantity}
                                                 />
                                             ) : (

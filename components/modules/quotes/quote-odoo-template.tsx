@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 interface QuoteOdooTemplateProps {
@@ -170,7 +170,7 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
                 <tr key={item.id} className="odd:bg-[#f7f7f7] even:bg-white">
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{index + 1}.</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] align-top font-semibold">{item.productName}</td>
-                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{item.quantity}</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">{formatCurrency(Number(item.price))}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">{formatCurrency(Number(item.price) * item.quantity)}</td>
                 </tr>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useRef, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -39,7 +39,8 @@ import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
 import { CalendarIcon, Loader2, Plus, Trash2, Check, ChevronsUpDown } from "lucide-react"
 
-import { cn, formatCurrency } from "@/lib/utils"
+import { getMeasurementLabel, getMeasurementModeFromProduct, isMeasuredMode } from "@/lib/product-measurements"
+import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { createPurchase, createSupplier } from "@/actions/purchase-actions"
 import { useRouter } from "next/navigation"
 import { quickCreateProduct } from "@/actions/product-actions"
@@ -65,11 +66,14 @@ interface Product {
     cost: number | null
     price: number
     sku: string | null
+    unitType: "UNIT" | "MEASURE"
+    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     variants?: any[]
 }
 
 interface PurchaseItem {
+    id: string
     productId: string
     productName: string
     variantId?: string
@@ -131,10 +135,10 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
 
     // Effect for Avg Cost & Selling Price
     const currentDepsKey = `${quantity}-${unitCost}-${selectedProductId}-${selectedVariantId}-${margin}-${pricingMode}-${fixedPrice}`
-    const [prevDepsKey, setPrevDepsKey] = useState(currentDepsKey)
+    const prevDepsKey = useRef(currentDepsKey)
 
-    if (currentDepsKey !== prevDepsKey) {
-        setPrevDepsKey(currentDepsKey)
+    if (currentDepsKey !== prevDepsKey.current) {
+        prevDepsKey.current = currentDepsKey
 
         if (selectedProduct) {
             const currentStock = selectedVariant ? selectedVariant.stock || 0 : selectedProduct.stock || 0
@@ -210,6 +214,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         if (product) {
             setSelectedProductId(productId)
             setSelectedVariantId("") // Reset variant selection
+            setQuantityType(isMeasuredMode(product) ? "MEASURE" : "UNIT")
 
             // If product has variants, select the first one by default
             if (product.variants && product.variants.length > 0) {
@@ -250,6 +255,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         const variant = product.variants?.find(v => v.id === selectedVariantId)
 
         const newItem: PurchaseItem & { newCost?: number, newPrice?: number } = {
+            id: crypto.randomUUID(),
             productId: selectedProductId,
             productName: product.name,
             variantId: selectedVariantId,
@@ -497,7 +503,8 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 <div className="flex gap-2">
                                     <Input
                                         type="number"
-                                        min="1"
+                                        min={quantityType === "MEASURE" ? "0.01" : "1"}
+                                        step={quantityType === "MEASURE" ? "0.01" : "1"}
                                         value={quantity}
                                         onChange={(e) => setQuantity(Number(e.target.value))}
                                         className="flex-1"
@@ -515,12 +522,12 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 </div>
                                 {selectedProduct && !selectedVariant && (
                                     <p className="text-xs text-muted-foreground">
-                                        Stock actual: {selectedProduct.stock} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
+                                        Stock actual: {formatQuantity(selectedProduct.stock)} | {getMeasurementLabel(getMeasurementModeFromProduct(selectedProduct))} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
                                     </p>
                                 )}
                                 {selectedVariant && (
                                     <p className="text-xs text-muted-foreground">
-                                        Variante: {selectedVariant.name} | Stock: {selectedVariant.stock} | Costo: {formatCurrency(Number(selectedVariant.cost))}
+                                        Variante: {selectedVariant.name} | Stock: {formatQuantity(selectedVariant.stock)} | Costo: {formatCurrency(Number(selectedVariant.cost))}
                                     </p>
                                 )}
                             </div>
@@ -547,7 +554,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                     <SelectContent>
                                         {selectedProduct.variants.map((variant) => (
                                             <SelectItem key={variant.id} value={variant.id}>
-                                                {variant.name} - {formatCurrency(Number(variant.cost))} (Stock: {variant.stock})
+                                                {variant.name} - {formatCurrency(Number(variant.cost))} (Stock: {formatQuantity(variant.stock)})
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -679,9 +686,9 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 </TableRow>
                             )}
                             {items.map((item, index) => (
-                                <TableRow key={index}>
+                                <TableRow key={item.id}>
                                     <TableCell>{item.productName}</TableCell>
-                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
                                     <TableCell className="text-right">
                                         {item.quantityType === "UNIT" && "Unidad"}
                                         {item.quantityType === "BOX" && "Caja"}

@@ -3,6 +3,7 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { isMeasuredMode } from "@/lib/product-measurements"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
@@ -11,7 +12,7 @@ import { z } from "zod"
 const CreditNoteItemSchema = z.object({
     productId: z.string(),
     productName: z.string(),
-    quantity: z.number().min(1),
+    quantity: z.number().positive(),
     price: z.number(),
     variantId: z.string().optional(),
 })
@@ -29,11 +30,27 @@ type DatabaseClient = ReturnType<typeof createServerClient>
 
 type CreditNoteInventoryItem = z.infer<typeof CreditNoteItemSchema>
 
+function assertProductQuantityMode(product: { name?: string | null, unitType?: string | null, measurementUnit?: string | null }, quantity: number, fallbackName?: string) {
+    if (!isMeasuredMode(product) && !Number.isInteger(quantity)) {
+        throw new Error(`El producto ${fallbackName || product.name || "seleccionado"} solo permite cantidades enteras`)
+    }
+}
+
 async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
     await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
 }
 
 async function restoreCreditNoteStock(insforge: DatabaseClient, item: CreditNoteInventoryItem) {
+    const { data: productMeta } = await insforge.database
+        .from('Product')
+        .select('name, unitType, measurementUnit')
+        .eq('id', item.productId)
+        .single()
+
+    if (productMeta) {
+        assertProductQuantityMode(productMeta, Number(item.quantity), item.productName)
+    }
+
     if (item.variantId) {
         const { data: variant } = await insforge.database
             .from('ProductVariant')
@@ -81,6 +98,18 @@ export async function createCreditNote(data: CreditNoteFormData) {
     const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
     try {
+        for (const item of items) {
+            const { data: product } = await insforge.database
+                .from('Product')
+                .select('name, unitType, measurementUnit')
+                .eq('id', item.productId)
+                .single()
+
+            if (product) {
+                assertProductQuantityMode(product, Number(item.quantity), item.productName)
+            }
+        }
+
         // Create Credit Note
         const { data: creditNote, error: creditNoteError } = await insforge.database
             .from('CreditNote')

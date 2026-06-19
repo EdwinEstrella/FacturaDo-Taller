@@ -25,7 +25,14 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
-import { cn, formatCurrency } from "@/lib/utils"
+import {
+    getMeasurementLabel,
+    getMeasurementModeFromProduct,
+    getMeasurementShortLabel,
+    isMeasuredMode,
+    type ProductMeasurementMode,
+} from "@/lib/product-measurements"
+import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote } from "@/actions/quote-actions"
 import { createInstallationsForInvoice } from "@/actions/installation-actions"
@@ -59,15 +66,34 @@ interface InvoiceItemState {
     productName: string
     price: number
     quantity: number
+    measurementMode: ProductMeasurementMode
     variantId?: string
     variantName?: string
     requiresInstallation?: boolean
 }
 
+function getDefaultMeasurementMode(product?: SerializedProduct | Product) {
+    return getMeasurementModeFromProduct(product)
+}
+
+function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, products: SerializedProduct[] | Product[]) {
+    if (!initialItems) {
+        return []
+    }
+
+    const productsById = new Map(products.map((product) => [product.id, product]))
+
+    return initialItems.map((item) => ({
+        ...item,
+        quantity: Number(item.quantity || 0),
+        measurementMode: getDefaultMeasurementMode(productsById.get(item.productId)),
+    }))
+}
+
 export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
     // Handling form state changes for HMR sync
 
-    const [items, setItems] = useState<InvoiceItemState[]>(initialData?.items || [])
+    const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(initialData?.items, initialProducts))
     const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
     const [isPending, startTransition] = useTransition()
     const [showPreview, setShowPreview] = useState(false)
@@ -123,6 +149,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     productName: variant ? `${product.name} - ${variant.name}` : product.name,
                     price: variant ? variant.price : Number(product.price),
                     quantity: 1,
+                    measurementMode: getDefaultMeasurementMode(product),
                     requiresInstallation
                 }
 
@@ -169,8 +196,20 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     }
 
     const updateQuantity = (productId: string, variantId: string | undefined, q: number) => {
-        if (q < 1) return
+        if (q <= 0) return
         setItems(prev => prev.map(p => {
+            const isTarget = variantId
+                ? p.productId === productId && p.variantId === variantId
+                : p.productId === productId && !p.variantId
+
+            if (!isTarget) {
+                return p
+            }
+
+            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(q)) {
+                return p
+            }
+
             if (variantId) {
                 return p.productId === productId && p.variantId === variantId ? { ...p, quantity: q } : p
             }
@@ -450,13 +489,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                                     onSelect={() => addItem(product)}
                                                 >
                                                     <Check className="mr-2 h-4 w-4 opacity-0" />
-                                                    <div className="flex flex-col">
-                                                        <span>{product.name}</span>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            SKU: {product.sku} | Stock: {product.stock} | {product.unitType === "UNIT" ? "Por Unidad" : "Por Medida"}
-                                                        </span>
-                                                    </div>
-                                                </CommandItem>
+                                                     <div className="flex flex-col">
+                                                         <span>{product.name}</span>
+                                                         <span className="text-xs text-muted-foreground">
+                                                            SKU: {product.sku} | Stock: {formatQuantity(product.stock)} {getMeasurementShortLabel(getDefaultMeasurementMode(product))} | {getMeasurementLabel(getDefaultMeasurementMode(product))}
+                                                         </span>
+                                                     </div>
+                                                 </CommandItem>
                                             )
                                         })}
                                     </CommandGroup>
@@ -539,13 +578,15 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 <div key={`${item.productId}-${item.variantId || 'no-variant'}`} className="flex items-center justify-between border-b pb-2">
                                     <div className="flex-1">
                                         <p className="font-medium">{item.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {item.quantity}</p>
+                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(item.quantity)} {getMeasurementShortLabel(item.measurementMode)}</p>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <Input
                                             type="number"
+                                            step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
+                                            min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                             value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.productId, item.variantId, parseInt(e.target.value))}
+                                            onChange={(e) => updateQuantity(item.productId, item.variantId, Number(e.target.value))}
                                             className="w-16 h-8"
                                         />
                                         <div className="font-bold w-20 text-right">
@@ -687,8 +728,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
             {/* Preview Dialog */}
             <Dialog open={showPreview} onOpenChange={setShowPreview}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
+                <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[90vh] w-[95vw] max-w-6xl gap-0 overflow-hidden p-0">
+                    <DialogHeader className="shrink-0 border-b px-6 py-5">
                         <DialogTitle className="flex items-center gap-2">
                             <Eye className="h-5 w-5" />
                             {type === "QUOTE" ? "Vista Previa de Cotización" : "Vista Previa de Factura"}
@@ -699,100 +740,108 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     </DialogHeader>
 
                     {selectedClient && (
-                        <div className="space-y-6">
-                            {/* Client Info */}
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <h3 className="font-semibold text-lg mb-3">Información del Cliente</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="font-medium">Nombre:</span> {selectedClient.name}
+                        <>
+                            <div className="min-h-0 min-w-0 overflow-y-auto px-6 py-5">
+                                <div className="space-y-6">
+                                    {/* Client Info */}
+                                    <div className="rounded-lg bg-gray-50 p-4">
+                                        <h3 className="mb-3 text-lg font-semibold">Información del Cliente</h3>
+                                        <div className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-4">
+                                            <div>
+                                                <span className="font-medium">Nombre:</span> {selectedClient.name}
+                                            </div>
+                                            <div>
+                                                <span className="font-medium">RNC/Cédula:</span> {selectedClient.rnc}
+                                            </div>
+                                            <div>
+                                                <span className="font-medium">Teléfono:</span> {selectedClient.phone}
+                                            </div>
+                                            <div>
+                                                <span className="font-medium">Email:</span> {selectedClient.email}
+                                            </div>
+                                            <div className="sm:col-span-2">
+                                                <span className="font-medium">Dirección:</span> {selectedClient.address}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="font-medium">RNC/Cédula:</span> {selectedClient.rnc}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Teléfono:</span> {selectedClient.phone}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Email:</span> {selectedClient.email}
-                                    </div>
-                                    <div className="col-span-2">
-                                        <span className="font-medium">Dirección:</span> {selectedClient.address}
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Invoice Items */}
-                            <div>
-                                <h3 className="font-semibold text-lg mb-3">Detalle de Productos/Servicios</h3>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Descripción</TableHead>
-                                            <TableHead className="text-right">Cantidad</TableHead>
-                                            <TableHead className="text-right">Precio Unitario</TableHead>
-                                            <TableHead className="text-right">Subtotal</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {items.map((item) => (
-                                            <TableRow key={item.productId}>
-                                                <TableCell>{item.productName}</TableCell>
-                                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                                                <TableCell className="text-right font-medium">
-                                                    {formatCurrency(item.price * item.quantity)}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-
-                            {/* Totals */}
-                            <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span>Subtotal:</span>
-                                    <span>{formatCurrency(subtotal)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span>Envío:</span>
-                                    <span>{formatCurrency(shippingCost)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-red-600">
-                                    <span>{applyTax ? "ITBIS (18%):" : "ITBIS desactivado:"}</span>
-                                    <span>{formatCurrency(taxAmount)}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xl font-bold border-t border-blue-200 pt-2">
-                                    <span>Total a Pagar:</span>
-                                    <span className="text-blue-600">{formatCurrency(total)}</span>
-                                </div>
-                                {paymentMethod === "CASH" && amountTendered > 0 && (
-                                    <div className="flex justify-between text-sm text-green-700 font-medium pt-2">
-                                        <span>Recibido: {formatCurrency(amountTendered)}</span>
-                                        <span>Devuelta: {formatCurrency(change)}</span>
+                                    {/* Invoice Items */}
+                                    <div className="min-w-0">
+                                        <h3 className="mb-3 text-lg font-semibold">Detalle de Productos/Servicios</h3>
+                                        <div className="overflow-hidden rounded-lg border bg-white">
+                                            <Table className="min-w-[720px] md:table-fixed">
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="whitespace-normal">Descripción</TableHead>
+                                                        <TableHead className="w-24 text-right">Cantidad</TableHead>
+                                                        <TableHead className="w-32 text-right">Precio Unitario</TableHead>
+                                                        <TableHead className="w-32 text-right">Subtotal</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {items.map((item) => (
+                                                        <TableRow key={item.productId}>
+                                                            <TableCell className="align-top whitespace-normal break-words">{item.productName}</TableCell>
+                                                            <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)}</TableCell>
+                                                            <TableCell className="w-32 text-right align-top">{formatCurrency(item.price)}</TableCell>
+                                                            <TableCell className="w-32 text-right align-top font-medium">
+                                                                {formatCurrency(item.price * item.quantity)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
                                     </div>
-                                )}
+
+                                    {/* Totals */}
+                                    <div className="ml-auto w-full max-w-sm space-y-2 rounded-lg bg-blue-50 p-4">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Subtotal:</span>
+                                            <span>{formatCurrency(subtotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span>Envío:</span>
+                                            <span>{formatCurrency(shippingCost)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm text-red-600">
+                                            <span>{applyTax ? "ITBIS (18%):" : "ITBIS desactivado:"}</span>
+                                            <span>{formatCurrency(taxAmount)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-t border-blue-200 pt-2 text-xl font-bold">
+                                            <span>Total a Pagar:</span>
+                                            <span className="text-blue-600">{formatCurrency(total)}</span>
+                                        </div>
+                                        {paymentMethod === "CASH" && amountTendered > 0 && (
+                                            <div className="flex justify-between pt-2 text-sm font-medium text-green-700">
+                                                <span>Recibido: {formatCurrency(amountTendered)}</span>
+                                                <span>Devuelta: {formatCurrency(change)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-3 justify-end pt-4 border-t">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowPreview(false)}
-                                    disabled={isPending}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    className={cn(type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
-                                    onClick={handleConfirm}
-                                    disabled={isPending}
-                                >
-                                    {isPending ? "Procesando..." : "Confirmar y " + (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
-                                </Button>
+                            <div className="shrink-0 border-t bg-background px-6 py-4">
+                                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setShowPreview(false)}
+                                        disabled={isPending}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        className={cn(type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                        onClick={handleConfirm}
+                                        disabled={isPending}
+                                    >
+                                        {isPending ? "Procesando..." : "Confirmar y " + (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
+                        </>
                     )}
                 </DialogContent>
             </Dialog>

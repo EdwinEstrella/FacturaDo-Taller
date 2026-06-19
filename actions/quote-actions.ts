@@ -3,6 +3,7 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { isMeasuredMode } from "@/lib/product-measurements"
 import type { QuoteItem, Client } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -13,7 +14,7 @@ import { getCurrentUser } from "./auth-actions"
 const QuoteItemSchema = z.object({
     productId: z.string(),
     productName: z.string(),
-    quantity: z.number().min(1),
+    quantity: z.number().positive(),
     price: z.number().min(0),
     variantId: z.string().optional(),
 })
@@ -40,12 +41,30 @@ type QuoteInventoryItem = {
     variantId?: string | null
 }
 
+function assertProductQuantityMode(product: { name?: string | null, unitType?: string | null, measurementUnit?: string | null }, quantity: number, fallbackName?: string) {
+    if (!isMeasuredMode(product) && !Number.isInteger(quantity)) {
+        throw new Error(`El producto ${fallbackName || product.name || "seleccionado"} solo permite cantidades enteras`)
+    }
+}
+
 async function syncProductStockFromVariants(insforge: DatabaseClient, productId: string) {
     await insforge.database.rpc("sync_product_stock_from_variants", { p_product_id: productId })
 }
 
 async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInventoryItem) {
     if (!item.productId) return
+
+    const { data: product } = await insforge.database
+        .from('Product')
+        .select('*')
+        .eq('id', item.productId)
+        .single()
+
+    if (!product) {
+        throw new Error(`Producto no encontrado: ${item.productName}`)
+    }
+
+    assertProductQuantityMode(product, Number(item.quantity), item.productName)
 
     if (item.variantId) {
         const { data: variant } = await insforge.database
@@ -72,12 +91,6 @@ async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInvento
         return
     }
 
-    const { data: product } = await insforge.database
-        .from('Product')
-        .select('*')
-        .eq('id', item.productId)
-        .single()
-
     if (product && !product.isService) {
         const nextStock = Number(product.stock || 0) - item.quantity
         if (nextStock < 0) {
@@ -94,7 +107,26 @@ async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInvento
 function normalizeQuoteItem(item: QuoteItem) {
     return {
         ...item,
+        quantity: Number(item.quantity),
         price: Number(item.price),
+    }
+}
+
+async function validateQuoteItems(insforge: DatabaseClient, items: QuoteInventoryItem[]) {
+    for (const item of items) {
+        if (!item.productId) continue
+
+        const { data: product } = await insforge.database
+            .from('Product')
+            .select('name, unitType, measurementUnit')
+            .eq('id', item.productId)
+            .single()
+
+        if (!product) {
+            throw new Error(`Producto no encontrado: ${item.productName}`)
+        }
+
+        assertProductQuantityMode(product, Number(item.quantity), item.productName)
     }
 }
 
@@ -130,6 +162,8 @@ export async function createQuote(data: QuoteFormData) {
     const isDraft = validated.data.isDraft ?? false
 
     try {
+        await validateQuoteItems(insforge, validated.data.items)
+
         const { data: quote, error: quoteError } = await insforge.database
             .from('Quote')
             .insert([{
