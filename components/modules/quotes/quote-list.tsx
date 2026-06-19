@@ -35,7 +35,7 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                 <TableBody>
                     {quotes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No hay cotizaciones</TableCell></TableRow>}
                     {quotes.map((quote) => {
-                        const isExpired = quote.status === "EXPIRED" || (quote.validUntil && new Date(quote.validUntil) < new Date())
+                        const isExpired = !quote.isDraft && quote.status === "EXPIRED"
                         const validUntilText = quote.validUntil ? formatDateDO(quote.validUntil) : "N/A"
 
                         return (
@@ -49,12 +49,14 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                 <TableCell className="text-right font-bold">{formatCurrency(Number(quote.total))}</TableCell>
                                 <TableCell>
                                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                        quote.isDraft ? "bg-slate-100 text-slate-800" :
                                         quote.status === "ACCEPTED" ? "bg-green-100 text-green-800" :
                                         quote.status === "EXPIRED" || isExpired ? "bg-red-100 text-red-800" :
                                         quote.status === "REJECTED" ? "bg-gray-100 text-gray-800" :
                                         "bg-yellow-100 text-yellow-800"
                                     }`}>
-                                        {quote.status === "ACCEPTED" ? "Aceptada" :
+                                        {quote.isDraft ? "Borrador" :
+                                         quote.status === "ACCEPTED" ? "Aceptada" :
                                          quote.status === "EXPIRED" ? "Vencida" :
                                          quote.status === "REJECTED" ? "Rechazada" :
                                          "Pendiente"}

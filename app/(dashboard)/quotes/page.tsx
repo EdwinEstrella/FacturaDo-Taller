@@ -26,7 +26,7 @@ function QuotesPageContent() {
             // filtro simple en cliente por ahora: cliente o estado o total en texto
             const filtered = query
                 ? data.filter((q: QuoteAny) => {
-                    const text = `${q.clientName || q.client?.name || ""} ${q.status || ""} ${q.total}`.toLowerCase()
+                    const text = `${q.clientName || q.client?.name || ""} ${q.status || ""} ${q.isDraft ? "borrador draft" : ""} ${q.total}`.toLowerCase()
                     return text.includes(query.toLowerCase())
                 })
                 : data

@@ -5,20 +5,31 @@ import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import type { QuoteItem, Client } from "@/types"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 
 
 
-type QuoteFormData = {
-    clientId: string;
-    items: Array<{
-        productId: string;
-        productName: string;
-        quantity: number;
-        price: number;
-        variantId?: string;
-    }>;
-};
+const QuoteItemSchema = z.object({
+    productId: z.string(),
+    productName: z.string(),
+    quantity: z.number().min(1),
+    price: z.number().min(0),
+    variantId: z.string().optional(),
+})
+
+const QuoteSchema = z.object({
+    clientId: z.string(),
+    items: z.array(QuoteItemSchema).min(1),
+    total: z.number().min(0),
+    shippingCost: z.number().min(0).optional(),
+    notes: z.string().optional(),
+    tax: z.number().min(0).optional(),
+    applyTax: z.boolean().optional(),
+    isDraft: z.boolean().optional(),
+})
+
+type QuoteFormData = z.infer<typeof QuoteSchema>
 
 type DatabaseClient = ReturnType<typeof createServerClient>
 
@@ -80,29 +91,58 @@ async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInvento
     }
 }
 
+function normalizeQuoteItem(item: QuoteItem) {
+    return {
+        ...item,
+        price: Number(item.price),
+    }
+}
+
+function normalizeQuoteRecord<T extends Record<string, unknown>>(quote: T) {
+    return {
+        ...quote,
+        total: Number(quote.total ?? 0),
+        tax: Number(quote.tax ?? 0),
+        shippingCost: Number(quote.shippingCost ?? 0),
+        applyTax: Boolean(quote.applyTax),
+        isDraft: Boolean(quote.isDraft),
+    }
+}
+
 export async function createQuote(data: QuoteFormData) {
     await requireAuth();
 
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
 
-    const insforge = createServerClient()
+    const validated = QuoteSchema.safeParse(data)
 
-    const total = data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+    if (!validated.success) {
+        return { success: false, error: validated.error.message }
+    }
+
+    const insforge = createServerClient()
 
     // Calculate expiration date (15 days from now)
     const validUntil = new Date()
     validUntil.setDate(validUntil.getDate() + 15)
 
+    const isDraft = validated.data.isDraft ?? false
+
     try {
         const { data: quote, error: quoteError } = await insforge.database
             .from('Quote')
             .insert([{
-                clientId: data.clientId,
-                total: total,
+                clientId: validated.data.clientId,
+                total: validated.data.total,
                 createdById: user.id,
                 status: "PENDING",
-                validUntil: validUntil.toISOString(),
+                validUntil: isDraft ? null : validUntil.toISOString(),
+                notes: validated.data.notes,
+                tax: validated.data.tax || 0,
+                shippingCost: validated.data.shippingCost || 0,
+                applyTax: validated.data.applyTax || false,
+                isDraft,
             }])
             .select()
             .single()
@@ -112,7 +152,7 @@ export async function createQuote(data: QuoteFormData) {
         }
 
         // Insert items
-        const quoteItems = data.items.map(item => ({
+        const quoteItems = validated.data.items.map(item => ({
             quoteId: quote.id,
             productId: item.productId,
             productName: item.productName,
@@ -132,6 +172,7 @@ export async function createQuote(data: QuoteFormData) {
         // Get full quote with relations
         const fullQuote = await getQuoteById(quote.id)
 
+        revalidatePath('/quotes')
         revalidatePath('/invoices')
 
         return { success: true, quote: fullQuote }
@@ -153,6 +194,7 @@ export async function getQuotes() {
         .from('Quote')
         .update({ status: "EXPIRED" })
         .eq('status', "PENDING")
+        .eq('isDraft', false)
         .lte('validUntil', now)
 
     // Get quotes, items, and clients separately (Quote table lacks FKs in PostgREST,
@@ -204,13 +246,9 @@ export async function getQuotes() {
     }
 
     return (quotes || []).map(quote => ({
-        ...quote,
+        ...normalizeQuoteRecord(quote),
         client: quote.clientId ? clientsMap[quote.clientId] || null : null,
-        total: Number(quote.total),
-        items: (itemsMap[quote.id] || []).map((item: QuoteItem) => ({
-            ...item,
-            price: Number(item.price)
-        }))
+        items: (itemsMap[quote.id] || []).map(normalizeQuoteItem)
     }))
 }
 
@@ -251,14 +289,10 @@ export async function getQuoteById(id: string) {
     ])
 
     return {
-        ...quote,
+        ...normalizeQuoteRecord(quote),
         client,
         createdBy,
-        total: Number(quote.total),
-        items: (items || []).map((item: QuoteItem) => ({
-            ...item,
-            price: Number(item.price)
-        }))
+        items: (items || []).map(normalizeQuoteItem)
     }
 }
 
@@ -283,10 +317,11 @@ export async function convertQuoteToInvoice(quoteId: string) {
                 createdById: quote.createdById,
                 creatorName: quote.createdBy?.name,
                 balance: 0,
-                shippingCost: 0,
-                tax: 0,
+                shippingCost: quote.shippingCost || 0,
+                tax: quote.tax || 0,
                 hasNcf: false,
                 dispatched: false,
+                notes: quote.notes,
             }])
             .select()
             .single()
@@ -320,10 +355,11 @@ export async function convertQuoteToInvoice(quoteId: string) {
 
         await insforge.database
             .from('Quote')
-            .update({ status: "ACCEPTED" })
+            .update({ status: "ACCEPTED", isDraft: false })
             .eq('id', quoteId)
 
         revalidatePath("/invoices")
+        revalidatePath("/quotes")
         return { success: true, invoiceId: invoice.id }
 
     } catch (e) {
@@ -373,6 +409,7 @@ export async function markExpiredQuotes() {
             .from('Quote')
             .select('id')
             .eq('status', "PENDING")
+            .eq('isDraft', false)
             .lte('validUntil', now)
 
         if (error) {
@@ -383,6 +420,7 @@ export async function markExpiredQuotes() {
             .from('Quote')
             .update({ status: "EXPIRED" })
             .eq('status', "PENDING")
+            .eq('isDraft', false)
             .lte('validUntil', now)
 
         revalidatePath("/quotes")

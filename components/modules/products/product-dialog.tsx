@@ -47,6 +47,7 @@ function calculateMargin(cost: number, price: number) {
 function getInitialVariants(product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string }) {
     return ((product as Product & { variants?: Variant[] } | undefined)?.variants || []).map((variant) => ({
         ...variant,
+        sku: variant.sku ?? "",
         cost: Number(variant.cost || 0),
         price: Number(variant.price || 0),
         stock: Number(variant.stock || 0),
@@ -198,7 +199,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="unitType" className="text-right">Unidad de Medida</Label>
                             <div className="col-span-3">
-                                <Select name="unitType" value={unitType} onValueChange={setUnitType}>
+                                <Select name="unitType" value={unitType} onValueChange={(value) => setUnitType(value as "UNIT" | "MEASURE")}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Seleccione..." />
                                     </SelectTrigger>

@@ -111,7 +111,11 @@ export interface Quote {
     clientId: string | null
     clientName: string | null
     total: string | number
-    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CONVERTED"
+    tax: string | number
+    shippingCost: string | number
+    applyTax: boolean
+    isDraft: boolean
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CONVERTED" | "EXPIRED"
     notes: string | null
     validUntil: string | null
     createdAt: string

@@ -78,6 +78,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     const [notes, setNotes] = useState<string>(initialData?.notes || "")
     const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || "CASH")
     const [amountTendered, setAmountTendered] = useState<number>(0)
+    const [applyTax, setApplyTax] = useState<boolean>(initialData?.applyTax ?? true)
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -85,6 +86,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
     // If initialData exists, we assume we are editing whatever type passing in, but usually Invoice editing.
     const isEdit = !!initialData
     const type = searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE"
+    const isQuoteMode = !isEdit && type === "QUOTE"
 
     // Product Search State
     const [openProduct, setOpenProduct] = useState(false)
@@ -201,9 +203,21 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         return acc + (item.price * item.quantity)
     }, 0)
 
-    const taxAmount = taxableSubtotal * 0.18
+    const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
     const total = subtotal + taxAmount + shippingCost
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
+
+    const resetCreateForm = () => {
+        setItems([])
+        setSelectedClientId("")
+        setShippingCost(0)
+        setDeliveryDate(undefined)
+        setNotes("")
+        setPaymentMethod("CASH")
+        setAmountTendered(0)
+        setHasNcf(false)
+        setApplyTax(true)
+    }
 
     const handlePreview = () => {
         if (!selectedClientId) return toast.error("Seleccione un cliente")
@@ -211,9 +225,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         setShowPreview(true)
     }
 
-    const handleConfirm = () => {
-        setShowPreview(false)
-
+    const submitDocument = (saveAsDraft = false) => {
         const selectedClient = initialClients.find(c => c.id === selectedClientId)
         if (!selectedClient) return toast.error("Cliente inválido")
 
@@ -240,9 +252,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     res = await createQuote({
                         clientId: selectedClientId,
                         items,
-                        // Quote doesn't support shipping/notes yet in schema? 
-                        // Wait, I didn't update Quote schema. Let's ignore new fields for Quote or just pass them if schema allowed (it doesn't).
-                        // I will ignore for Quote for now as user asked for Invoice enhancements.
+                        total,
+                        shippingCost,
+                        notes,
+                        tax: taxAmount,
+                        applyTax,
+                        isDraft: saveAsDraft,
                     })
                 } else {
                     res = await createInvoice({
@@ -263,7 +278,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
             if (res.success) {
                 // Crear instalaciones para items que las requieren (solo en facturas, no cotizaciones)
-                if (type === "INVOICE" && !isEdit) {
+                if (!isEdit && !isQuoteMode) {
                     const invoiceId = 'invoiceId' in res ? res.invoiceId as string : undefined
 
                     if (invoiceId) {
@@ -286,17 +301,34 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     }
                 }
 
-                toast.success(isEdit ? "Factura Actualizada" : (type === "QUOTE" ? "Cotización Creada!" : "Factura Creada!"))
+                toast.success(
+                    isEdit
+                        ? "Factura Actualizada"
+                        : isQuoteMode
+                            ? (saveAsDraft ? "Borrador guardado" : "Cotización creada")
+                            : "Factura Creada!"
+                )
                 if (!isEdit) {
-                    setItems([])
-                    setSelectedClientId("")
+                    resetCreateForm()
                 }
-                router.push("/invoices")
+                router.push(isQuoteMode ? "/quotes" : "/invoices")
                 router.refresh()
             } else {
                 toast.error("Error: " + res.error)
             }
         })
+    }
+
+    const handleConfirm = () => {
+        setShowPreview(false)
+        submitDocument(false)
+    }
+
+    const handleSaveDraft = () => {
+        if (!selectedClientId) return toast.error("Seleccione un cliente")
+        if (items.length === 0) return toast.error("Agregue productos")
+        setShowPreview(false)
+        submitDocument(true)
     }
 
     const selectedClient = initialClients.find(c => c.id === selectedClientId)
@@ -312,7 +344,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         {/* Only show info box if NOT editing to avoid clutter, or update text */}
                         {!isEdit && (
                             <div className="bg-yellow-100 p-2 rounded text-sm mb-2">
-                                {type === "QUOTE" ? "Modo: Cotización (No afecta stock)" : "Modo: Facturación (Descuenta stock)"}
+                                {isQuoteMode
+                                    ? "Modo: Cotización (no descuenta stock, no consume NCF y no afecta contabilidad)"
+                                    : "Modo: Facturación (descuenta stock)"}
                             </div>
                         )}
                         {isEdit && (
@@ -434,12 +468,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
                 <Card>
                     <CardContent className="p-4 space-y-4">
-                        <h3 className="font-semibold">Detalles de Facturación y Envío</h3>
+                        <h3 className="font-semibold">{isQuoteMode ? "Detalles de Cotización y Envío" : "Detalles de Facturación y Envío"}</h3>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Costo de Envío</label>
+                                <Label htmlFor="shipping-cost" className="text-sm font-medium">Costo de Envío</Label>
                                 <Input
+                                    id="shipping-cost"
                                     type="number"
                                     value={shippingCost}
                                     onChange={(e) => setShippingCost(Number(e.target.value))}
@@ -447,23 +482,45 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Fecha de Entrega</label>
+                                <p className="text-sm font-medium">Fecha de Entrega</p>
                                 <DatePicker date={deliveryDate} setDate={setDeliveryDate} />
                             </div>
                         </div>
 
-                        <div className="flex items-center space-x-2 pt-2">
-                            <Checkbox
-                                id="ncf"
-                                checked={hasNcf}
-                                onCheckedChange={(c) => setHasNcf(!!c)}
-                            />
-                            <Label htmlFor="ncf">Requiere Comprobante Fiscal (NCF)</Label>
-                        </div>
+                        {isQuoteMode ? (
+                            <div className="space-y-3 rounded-md border border-yellow-200 bg-yellow-50 p-3">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="apply-tax"
+                                        checked={applyTax}
+                                        onCheckedChange={(c) => setApplyTax(!!c)}
+                                    />
+                                    <Label htmlFor="apply-tax">Mostrar ITBIS (18%) en esta cotización</Label>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Las cotizaciones no consumen NCF ni generan movimientos contables. El ITBIS solo se reflejará si está activado aquí.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3 pt-2">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="ncf"
+                                        checked={hasNcf}
+                                        onCheckedChange={(c) => setHasNcf(!!c)}
+                                    />
+                                    <Label htmlFor="ncf">Requiere Comprobante Fiscal (NCF)</Label>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    El ITBIS se calcula automáticamente según los productos gravados.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Notas / Observaciones</label>
+                            <Label htmlFor="document-notes" className="text-sm font-medium">Notas / Observaciones</Label>
                             <Textarea
+                                id="document-notes"
                                 placeholder="Instrucciones de entrega, notas internas..."
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
@@ -513,8 +570,11 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 <span>Envío</span>
                                 <span>{formatCurrency(shippingCost)}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm text-red-600">
-                                <span>ITBIS (18%)</span>
+                            <div className={cn(
+                                "flex justify-between items-center text-sm",
+                                applyTax ? "text-red-600" : "text-muted-foreground"
+                            )}>
+                                <span>{applyTax ? "ITBIS (18%)" : "ITBIS desactivado"}</span>
                                 <span>{formatCurrency(taxAmount)}</span>
                             </div>
                             <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
@@ -527,9 +587,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         {!isEdit && type !== "QUOTE" && (
                             <div className="border-t pt-4 space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Método de Pago</label>
+                                    <Label htmlFor="payment-method" className="text-sm font-medium">Método de Pago</Label>
                                     <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="payment-method">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -544,8 +604,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 {paymentMethod === "CASH" && (
                                     <div className="grid grid-cols-2 gap-4 bg-green-50 p-3 rounded-md border border-green-100">
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-green-700">Recibido (Efectivo)</label>
+                                            <Label htmlFor="amount-tendered" className="text-xs font-bold text-green-700">Recibido (Efectivo)</Label>
                                             <Input
+                                                id="amount-tendered"
                                                 type="number"
                                                 className="bg-white"
                                                 value={amountTendered || ""}
@@ -553,7 +614,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                             />
                                         </div>
                                         <div className="space-y-1 text-right">
-                                            <label className="text-xs font-bold text-green-700 block">Devuelta</label>
+                                            <p className="text-xs font-bold text-green-700 block">Devuelta</p>
                                             <div className="text-xl font-bold text-green-800 h-9 flex items-center justify-end">
                                                 {formatCurrency(change)}
                                             </div>
@@ -564,25 +625,39 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                         )}
 
                         {!isEdit && (
-                            <div className="flex gap-2 mt-4">
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    size="lg"
-                                    onClick={handlePreview}
-                                    disabled={isPending || items.length === 0}
-                                >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Previsualizar
-                                </Button>
-                                <Button
-                                    className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
-                                    size="lg"
-                                    onClick={handlePreview}
-                                    disabled={isPending || items.length === 0}
-                                >
-                                    {isPending ? "Procesando..." : (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
-                                </Button>
+                            <div className="space-y-2 mt-4">
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1"
+                                        size="lg"
+                                        onClick={handlePreview}
+                                        disabled={isPending || items.length === 0}
+                                    >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        Previsualizar
+                                    </Button>
+                                    <Button
+                                        className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                        size="lg"
+                                        onClick={handlePreview}
+                                        disabled={isPending || items.length === 0}
+                                    >
+                                        {isPending ? "Procesando..." : (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
+                                    </Button>
+                                </div>
+                                {isQuoteMode && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        className="w-full"
+                                        size="lg"
+                                        onClick={handleSaveDraft}
+                                        disabled={isPending || items.length === 0}
+                                    >
+                                        {isPending ? "Procesando..." : "Guardar borrador"}
+                                    </Button>
+                                )}
                             </div>
                         )}
                         {isEdit && (
@@ -685,7 +760,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                     <span>{formatCurrency(shippingCost)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm text-red-600">
-                                    <span>ITBIS (18%):</span>
+                                    <span>{applyTax ? "ITBIS (18%):" : "ITBIS desactivado:"}</span>
                                     <span>{formatCurrency(taxAmount)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xl font-bold border-t border-blue-200 pt-2">
@@ -714,7 +789,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                     onClick={handleConfirm}
                                     disabled={isPending}
                                 >
-                                    {isPending ? "Procesando..." : "Confirmar y " + (type === "QUOTE" ? "Crear Cotización" : "Facturar")}
+                                    {isPending ? "Procesando..." : "Confirmar y " + (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
                                 </Button>
                             </div>
                         </div>

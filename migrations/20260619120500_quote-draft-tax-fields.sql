@@ -1,0 +1,5 @@
+ALTER TABLE public."Quote"
+  ADD COLUMN IF NOT EXISTS tax numeric NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "shippingCost" numeric NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "applyTax" boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "isDraft" boolean NOT NULL DEFAULT false;
