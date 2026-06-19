@@ -612,10 +612,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             onChange={(e) => updateQuantity(item.productId, item.variantId, e.target.value)}
                                             className="w-24 h-8"
                                         />
-                                        <div className="font-bold w-20 text-right">
+                                        <div className="font-bold min-w-28 text-right px-2">
                                             {formatCurrency(item.price * Number(item.quantity || 0))}
                                         </div>
-                                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId, item.variantId)}>
+                                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeItem(item.productId, item.variantId)}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
                                     </div>
