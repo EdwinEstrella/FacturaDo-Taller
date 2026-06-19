@@ -1,4 +1,5 @@
 import { formatCurrency, formatQuantity } from "@/lib/utils"
+import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 const quoteDateFormatter = new Intl.DateTimeFormat("es-DO", {
@@ -112,7 +113,7 @@ export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
                             </div>
                             <div className="flex justify-between">
                                 <span>Cantidad:</span>
-                                <span className="font-medium">x{formatQuantity(item.quantity)}</span>
+                                <span className="font-medium">x{formatQuantity(item.quantity)} {getMeasurementShortLabel(getMeasurementModeFromProduct(item))}</span>
                             </div>
                             <div className="flex justify-between font-bold text-base">
                                 <span>Subtotal:</span>

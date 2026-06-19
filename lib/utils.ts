@@ -24,5 +24,3 @@ export function formatQuantity(value: number | string | null | undefined, maxFra
     maximumFractionDigits: Number.isInteger(numericValue) ? 0 : maxFractionDigits,
   }).format(numericValue)
 }
-
-

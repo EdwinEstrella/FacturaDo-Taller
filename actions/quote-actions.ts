@@ -322,17 +322,43 @@ export async function getQuoteById(id: string) {
             : Promise.resolve({ data: null }),
     ])
 
+    // Enrich items with product unit info for display
+    const normalizedItems = (items || []).map(normalizeQuoteItem)
+    const productIds = [...new Set(normalizedItems.map(i => i.productId).filter(Boolean))] as string[]
+    let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
+
+    if (productIds.length > 0) {
+        const { data: products } = await insforge.database
+            .from('Product')
+            .select('id, unitType, measurementUnit')
+            .in('id', productIds)
+
+        if (products) {
+            productsMap = Object.fromEntries(
+                products.map((p: { id: string; unitType: string; measurementUnit: string | null }) => [p.id, { unitType: p.unitType, measurementUnit: p.measurementUnit }])
+            )
+        }
+    }
+
+    const enrichedItems = normalizedItems.map(item => {
+        const product = item.productId ? productsMap[item.productId] : null
+        return {
+            ...item,
+            unitType: product?.unitType ?? 'UNIT',
+            measurementUnit: product?.measurementUnit ?? null,
+        }
+    })
+
     return {
         ...normalizeQuoteRecord(quote),
         client,
         createdBy,
-        items: (items || []).map(normalizeQuoteItem)
+        items: enrichedItems
     }
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
     await requireAuth();
-
     const quote = await getQuoteById(quoteId)
 
     if (!quote) return { success: false, error: "Cotización no encontrada" }
