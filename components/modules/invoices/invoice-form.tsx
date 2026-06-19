@@ -34,7 +34,7 @@ import {
 } from "@/lib/product-measurements"
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
-import { createQuote } from "@/actions/quote-actions"
+import { createQuote, updateQuote } from "@/actions/quote-actions"
 import { createInstallationsForInvoice } from "@/actions/installation-actions"
 import type { Client, Product, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -59,13 +59,14 @@ interface InvoiceFormProps {
     initialClients: Client[]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     initialData?: any // Optional initial data for editing
+    documentType?: "INVOICE" | "QUOTE"
 }
 
 interface InvoiceItemState {
     productId: string
     productName: string
     price: number
-    quantity: number
+    quantity: number | string
     measurementMode: ProductMeasurementMode
     variantId?: string
     variantName?: string
@@ -90,7 +91,7 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
     }))
 }
 
-export function InvoiceForm({ initialProducts, initialClients, initialData }: InvoiceFormProps) {
+export function InvoiceForm({ initialProducts, initialClients, initialData, documentType }: InvoiceFormProps) {
     // Handling form state changes for HMR sync
 
     const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(initialData?.items, initialProducts))
@@ -108,11 +109,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
 
     const searchParams = useSearchParams()
     const router = useRouter()
-    // Determine type: explicitly QUOTE param, OR if we are editing an Invoice (no param usually)
-    // If initialData exists, we assume we are editing whatever type passing in, but usually Invoice editing.
+    
     const isEdit = !!initialData
-    const type = searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE"
-    const isQuoteMode = !isEdit && type === "QUOTE"
+    const type = documentType || (searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE")
+    const isQuoteMode = type === "QUOTE"
 
     // Product Search State
     const [openProduct, setOpenProduct] = useState(false)
@@ -137,9 +137,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                 if (existing) {
                     return prev.map(p => {
                         if (variant) {
-                            return p.variantId === variant.id ? { ...p, quantity: p.quantity + 1 } : p
+                            return p.variantId === variant.id ? { ...p, quantity: Number(p.quantity) + 1 } : p
                         } else {
-                            return p.productId === product.id && !p.variantId ? { ...p, quantity: p.quantity + 1 } : p
+                            return p.productId === product.id && !p.variantId ? { ...p, quantity: Number(p.quantity) + 1 } : p
                         }
                     })
                 }
@@ -195,8 +195,21 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         }))
     }
 
-    const updateQuantity = (productId: string, variantId: string | undefined, q: number) => {
-        if (q <= 0) return
+    const updateQuantity = (productId: string, variantId: string | undefined, q: string | number) => {
+        // Permitir vacío temporalmente mientras escribe
+        if (q === "") {
+            setItems(prev => prev.map(p => {
+                const isTarget = variantId
+                    ? p.productId === productId && p.variantId === variantId
+                    : p.productId === productId && !p.variantId
+                return isTarget ? { ...p, quantity: q } : p
+            }))
+            return
+        }
+
+        const numValue = Number(q)
+        if (numValue < 0) return
+
         setItems(prev => prev.map(p => {
             const isTarget = variantId
                 ? p.productId === productId && p.variantId === variantId
@@ -206,7 +219,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                 return p
             }
 
-            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(q)) {
+            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(numValue) && typeof q !== 'string') {
                 return p
             }
 
@@ -229,7 +242,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         return map
     }, [initialProducts])
 
-    const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+    const subtotal = useMemo(() => {
+        return items.reduce((sum, item) => sum + (item.price * Number(item.quantity || 0)), 0)
+    }, [items])
 
     // Solo aplicamos ITBIS a productos que NO son servicios
     const taxableSubtotal = items.reduce((acc, item) => {
@@ -239,7 +254,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         const asAny = product as any | undefined
         const isService = asAny?.isService || asAny?.category === "SERVICIO"
         if (isService) return acc
-        return acc + (item.price * item.quantity)
+        return acc + (item.price * Number(item.quantity || 0))
     }, 0)
 
     const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
@@ -271,26 +286,41 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
         startTransition(async () => {
             let res;
 
+            const parsedItems = items.map(i => ({ ...i, quantity: Number(i.quantity || 0) }))
+
             if (isEdit) {
-                // Edit Mode (Always Invoice for now)
-                res = await updateInvoice(initialData.id, {
-                    clientId: selectedClientId,
-                    clientName: selectedClient.name,
-                    items,
-                    total,
-                    paymentMethod,
-                    shippingCost,
-                    deliveryDate,
-                    notes,
-                    tax: taxAmount,
-                    hasNcf,
-                })
+                // Edit Mode
+                if (type === "QUOTE") {
+                    res = await updateQuote(initialData.id, {
+                        clientId: selectedClientId,
+                        items: parsedItems,
+                        total,
+                        shippingCost,
+                        notes,
+                        tax: taxAmount,
+                        applyTax,
+                        isDraft: saveAsDraft,
+                    })
+                } else {
+                    res = await updateInvoice(initialData.id, {
+                        clientId: selectedClientId,
+                        clientName: selectedClient.name,
+                        items: parsedItems,
+                        total,
+                        paymentMethod,
+                        shippingCost,
+                        deliveryDate,
+                        notes,
+                        tax: taxAmount,
+                        hasNcf,
+                    })
+                }
             } else {
                 // Create Mode
                 if (type === "QUOTE") {
                     res = await createQuote({
                         clientId: selectedClientId,
-                        items,
+                        items: parsedItems,
                         total,
                         shippingCost,
                         notes,
@@ -302,7 +332,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                     res = await createInvoice({
                         clientId: selectedClientId,
                         clientName: selectedClient.name,
-                        items,
+                        items: parsedItems,
                         total,
                         paymentMethod,
                         shippingCost,
@@ -378,21 +408,14 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                 <Card>
                     <CardContent className="p-4 space-y-4">
                         <h3 className="font-semibold text-lg">
-                            {isEdit ? "Editar Factura" : (type === "QUOTE" ? "Nueva Cotización" : "Nueva Factura")}
+                            {isEdit ? (isQuoteMode ? "Editar Cotización" : "Editar Factura") : (type === "QUOTE" ? "Nueva Cotización" : "Nueva Factura")}
                         </h3>
-                        {/* Only show info box if NOT editing to avoid clutter, or update text */}
-                        {!isEdit && (
-                            <div className="bg-yellow-100 p-2 rounded text-sm mb-2">
-                                {isQuoteMode
-                                    ? "Modo: Cotización (no descuenta stock, no consume NCF y no afecta contabilidad)"
-                                    : "Modo: Facturación (descuenta stock)"}
-                            </div>
-                        )}
-                        {isEdit && (
-                            <div className="bg-blue-100 p-2 rounded text-sm mb-2">
-                                Modo Edición: El stock se recalculará automáticamente.
-                            </div>
-                        )}
+                        
+                        <div className={cn("p-2 rounded text-sm mb-2", isQuoteMode ? "bg-yellow-100" : "bg-blue-100")}>
+                            {isQuoteMode 
+                                ? "Modo: Cotización (no descuenta stock, no consume NCF y no afecta contabilidad)"
+                                : isEdit ? "Modo Edición: El stock se recalculará automáticamente." : "Modo: Facturación (descuenta stock)"}
+                        </div>
 
                         <Popover open={openClient} onOpenChange={setOpenClient}>
                             <PopoverTrigger asChild>
@@ -578,7 +601,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                 <div key={`${item.productId}-${item.variantId || 'no-variant'}`} className="flex items-center justify-between border-b pb-2">
                                     <div className="flex-1">
                                         <p className="font-medium">{item.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(item.quantity)} {getMeasurementShortLabel(item.measurementMode)}</p>
+                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(Number(item.quantity || 0))} {getMeasurementShortLabel(item.measurementMode)}</p>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <Input
@@ -586,11 +609,11 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                             step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                             min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                             value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.productId, item.variantId, Number(e.target.value))}
-                                            className="w-16 h-8"
+                                            onChange={(e) => updateQuantity(item.productId, item.variantId, e.target.value)}
+                                            className="w-24 h-8"
                                         />
                                         <div className="font-bold w-20 text-right">
-                                            {formatCurrency(item.price * item.quantity)}
+                                            {formatCurrency(item.price * Number(item.quantity || 0))}
                                         </div>
                                         <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId, item.variantId)}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
@@ -707,7 +730,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                     variant="outline"
                                     className="flex-1"
                                     size="lg"
-                                    onClick={() => router.push("/invoices")}
+                                    onClick={() => router.push(isQuoteMode ? "/quotes" : "/invoices")}
                                     disabled={isPending}
                                 >
                                     Cancelar
@@ -718,7 +741,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData }: In
                                     onClick={handleConfirm}
                                     disabled={isPending}
                                 >
-                                    {isPending ? "Procesando..." : "Actualizar Factura"}
+                                    {isPending ? "Procesando..." : (isQuoteMode ? "Actualizar Cotización" : "Actualizar Factura")}
                                 </Button>
                             </div>
                         )}

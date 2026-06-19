@@ -534,3 +534,69 @@ export async function cleanupExpiredQuotes() {
         return { success: false, error: "Error al limpiar cotizaciones vencidas" }
     }
 }
+
+export async function updateQuote(id: string, data: QuoteFormData) {
+    await requireAuth();
+
+    const user = await getCurrentUser()
+    if (!user || user.role !== "ADMIN") throw new Error("Unauthorized")
+
+    const validated = QuoteSchema.safeParse(data)
+
+    if (!validated.success) {
+        return { success: false, error: validated.error.message }
+    }
+
+    const insforge = createServerClient()
+
+    try {
+        await validateQuoteItems(insforge, validated.data.items)
+
+        const { error: quoteError } = await insforge.database
+            .from('Quote')
+            .update({
+                clientId: validated.data.clientId,
+                total: validated.data.total,
+                notes: validated.data.notes,
+                tax: validated.data.tax || 0,
+                shippingCost: validated.data.shippingCost || 0,
+                applyTax: validated.data.applyTax || false,
+                isDraft: validated.data.isDraft ?? false,
+            })
+            .eq('id', id)
+
+        if (quoteError) {
+            throw new Error(quoteError.message || "Failed to update quote")
+        }
+
+        // Delete existing items
+        await insforge.database
+            .from('QuoteItem')
+            .delete()
+            .eq('quoteId', id)
+
+        // Insert new items
+        const quoteItems = validated.data.items.map(item => ({
+            quoteId: id,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            variantId: item.variantId || null
+        }))
+
+        const { error: itemsError } = await insforge.database
+            .from('QuoteItem')
+            .insert(quoteItems)
+
+        if (itemsError) {
+            throw new Error(itemsError.message || "Failed to add quote items")
+        }
+
+        revalidatePath("/quotes")
+        return { success: true }
+    } catch (error) {
+        console.error("Error updating quote:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Failed to update quote" }
+    }
+}

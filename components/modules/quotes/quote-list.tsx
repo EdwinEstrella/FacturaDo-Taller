@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
 import { convertQuoteToInvoice, deleteQuote } from "@/actions/quote-actions"
-import { ArrowRight, Printer, Trash2, AlertTriangle } from "lucide-react"
+import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,6 +76,11 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                             }
                                         }}>
                                             <ArrowRight className="mr-2 h-4 w-4" /> Facturar
+                                        </Button>
+                                    )}
+                                    {(!isExpired && quote.status === "PENDING") && (
+                                        <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/edit`)}>
+                                            <Pencil className="h-4 w-4 text-blue-500" />
                                         </Button>
                                     )}
                                     <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/print`)}>
