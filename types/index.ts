@@ -66,6 +66,7 @@ export interface Invoice {
     paymentMethod: string
     shippingCost: string | number
     tax: string | number
+    discount?: string | number
     hasNcf: boolean
     ncf?: string | null
     dispatched: boolean

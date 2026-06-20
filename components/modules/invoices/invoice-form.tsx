@@ -63,6 +63,8 @@ interface InvoiceFormProps {
 }
 
 interface InvoiceItemState {
+    id?: string
+    lineId: string
     productId: string
     productName: string
     price: number
@@ -77,6 +79,25 @@ function getDefaultMeasurementMode(product?: SerializedProduct | Product) {
     return getMeasurementModeFromProduct(product)
 }
 
+function createLineId() {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`
+}
+
+function getInitialDiscount(initialData?: { discount?: number | string; total?: number | string; tax?: number | string; shippingCost?: number | string; items?: InvoiceItemState[] }) {
+    if (!initialData) return 0
+    if (initialData.discount !== undefined) return Number(initialData.discount || 0)
+
+    const subtotal = (initialData.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
+    const tax = Number(initialData.tax || 0)
+    const shipping = Number(initialData.shippingCost || 0)
+    const total = Number(initialData.total || subtotal + tax + shipping)
+    const derivedDiscount = subtotal + tax + shipping - total
+
+    return derivedDiscount > 0 ? derivedDiscount : 0
+}
+
 function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, products: SerializedProduct[] | Product[]) {
     if (!initialItems) {
         return []
@@ -86,6 +107,7 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
 
     return initialItems.map((item) => ({
         ...item,
+        lineId: item.lineId || item.id || createLineId(),
         quantity: Number(item.quantity || 0),
         measurementMode: getDefaultMeasurementMode(productsById.get(item.productId)),
     }))
@@ -101,6 +123,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
 
     // New Fields State
     const [shippingCost, setShippingCost] = useState<number>(initialData?.shippingCost || 0)
+    const [discount, setDiscount] = useState<number>(() => getInitialDiscount(initialData))
     const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(initialData?.deliveryDate ? new Date(initialData.deliveryDate) : undefined)
     const [notes, setNotes] = useState<string>(initialData?.notes || "")
     const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || "CASH")
@@ -126,25 +149,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
     }>({ open: false, product: null })
 
     const addItem = (product: SerializedProduct, variant?: { id: string; name: string; price: number }, requiresInstallation?: boolean) => {
-        // Si requiresInstallation está definido, agregar directamente (caso de editar)
         if (requiresInstallation !== undefined) {
             setItems(prev => {
-                // Si es variante, buscamos por variantId, si no, por productId
-                const existing = variant
-                    ? prev.find(p => p.variantId === variant.id)
-                    : prev.find(p => p.productId === product.id && !p.variantId)
-
-                if (existing) {
-                    return prev.map(p => {
-                        if (variant) {
-                            return p.variantId === variant.id ? { ...p, quantity: Number(p.quantity) + 1 } : p
-                        } else {
-                            return p.productId === product.id && !p.variantId ? { ...p, quantity: Number(p.quantity) + 1 } : p
-                        }
-                    })
-                }
-
                 const newItem: InvoiceItemState = {
+                    lineId: createLineId(),
                     productId: product.id,
                     productName: variant ? `${product.name} - ${variant.name}` : product.name,
                     price: variant ? variant.price : Number(product.price),
@@ -186,23 +194,14 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
         setOpenProduct(false)
     }
 
-    const removeItem = (productId: string, variantId?: string) => {
-        setItems(prev => prev.filter(p => {
-            if (variantId) {
-                return !(p.productId === productId && p.variantId === variantId)
-            }
-            return p.productId !== productId
-        }))
+    const removeItem = (lineId: string) => {
+        setItems(prev => prev.filter(p => p.lineId !== lineId))
     }
 
-    const updateQuantity = (productId: string, variantId: string | undefined, q: string | number) => {
-        // Permitir vacío temporalmente mientras escribe
+    const updateQuantity = (lineId: string, q: string | number) => {
         if (q === "") {
             setItems(prev => prev.map(p => {
-                const isTarget = variantId
-                    ? p.productId === productId && p.variantId === variantId
-                    : p.productId === productId && !p.variantId
-                return isTarget ? { ...p, quantity: q } : p
+                return p.lineId === lineId ? { ...p, quantity: q } : p
             }))
             return
         }
@@ -211,22 +210,17 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
         if (numValue < 0) return
 
         setItems(prev => prev.map(p => {
-            const isTarget = variantId
-                ? p.productId === productId && p.variantId === variantId
-                : p.productId === productId && !p.variantId
+            const isTarget = p.lineId === lineId
 
             if (!isTarget) {
                 return p
             }
 
-            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(numValue) && typeof q !== 'string') {
+            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(numValue)) {
                 return p
             }
 
-            if (variantId) {
-                return p.productId === productId && p.variantId === variantId ? { ...p, quantity: q } : p
-            }
-            return p.productId === productId ? { ...p, quantity: q } : p
+            return { ...p, quantity: q }
         }))
     }
 
@@ -258,13 +252,15 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
     }, 0)
 
     const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
-    const total = subtotal + taxAmount + shippingCost
+    const activeDiscount = isQuoteMode ? 0 : Math.min(Math.max(discount, 0), subtotal + taxAmount + shippingCost)
+    const total = Math.max(0, subtotal + taxAmount + shippingCost - activeDiscount)
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
     const resetCreateForm = () => {
         setItems([])
         setSelectedClientId("")
         setShippingCost(0)
+        setDiscount(0)
         setDeliveryDate(undefined)
         setNotes("")
         setPaymentMethod("CASH")
@@ -309,6 +305,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         total,
                         paymentMethod,
                         shippingCost,
+                        discount: activeDiscount,
                         deliveryDate,
                         notes,
                         tax: taxAmount,
@@ -336,6 +333,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         total,
                         paymentMethod,
                         shippingCost,
+                        discount: activeDiscount,
                         deliveryDate,
                         notes,
                         amountPaid: paymentMethod === "CASH" ? amountTendered : undefined,
@@ -543,6 +541,18 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                     min={0}
                                 />
                             </div>
+                            {!isQuoteMode && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="invoice-discount" className="text-sm font-medium">Discount</Label>
+                                    <Input
+                                        id="invoice-discount"
+                                        type="number"
+                                        value={discount}
+                                        onChange={(e) => setDiscount(Number(e.target.value || 0))}
+                                        min={0}
+                                    />
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <p className="text-sm font-medium">Fecha de Entrega</p>
                                 <DatePicker date={deliveryDate} setDate={setDeliveryDate} />
@@ -586,6 +596,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                 placeholder="Instrucciones de entrega, notas internas..."
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.stopPropagation()
+                                }}
                             />
                         </div>
                     </CardContent>
@@ -598,7 +611,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         <h3 className="font-semibold mb-4">Detalle</h3>
                         <div className="space-y-2">
                             {items.map(item => (
-                                <div key={`${item.productId}-${item.variantId || 'no-variant'}`} className="flex items-center justify-between border-b pb-2">
+                                <div key={item.lineId} className="flex items-center justify-between border-b pb-2">
                                     <div className="flex-1">
                                         <p className="font-medium">{item.productName}</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(Number(item.quantity || 0))} {getMeasurementShortLabel(item.measurementMode)}</p>
@@ -609,13 +622,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                             min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                             value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.productId, item.variantId, e.target.value)}
+                                            onChange={(e) => updateQuantity(item.lineId, e.target.value)}
                                             className="w-24 h-8"
                                         />
                                         <div className="font-bold min-w-28 text-right px-2">
                                             {formatCurrency(item.price * Number(item.quantity || 0))}
                                         </div>
-                                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeItem(item.productId, item.variantId)}>
+                                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeItem(item.lineId)}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
                                     </div>
@@ -634,6 +647,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                 <span>Envío</span>
                                 <span>{formatCurrency(shippingCost)}</span>
                             </div>
+                            {!isQuoteMode && activeDiscount > 0 && (
+                                <div className="flex justify-between items-center text-sm text-emerald-700">
+                                    <span>Discount</span>
+                                    <span>-{formatCurrency(activeDiscount)}</span>
+                                </div>
+                            )}
                             <div className={cn(
                                 "flex justify-between items-center text-sm",
                                 applyTax ? "text-red-600" : "text-muted-foreground"
@@ -803,7 +822,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                                 </TableHeader>
                                                 <TableBody>
                                                     {items.map((item) => (
-                                                        <TableRow key={item.productId}>
+                                                        <TableRow key={item.lineId}>
                                                             <TableCell className="align-top whitespace-normal break-words">{item.productName}</TableCell>
                                                             <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)}</TableCell>
                                                             <TableCell className="w-32 text-right align-top">{formatCurrency(item.price)}</TableCell>
@@ -827,6 +846,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             <span>Envío:</span>
                                             <span>{formatCurrency(shippingCost)}</span>
                                         </div>
+                                        {!isQuoteMode && activeDiscount > 0 && (
+                                            <div className="flex justify-between text-sm text-emerald-700">
+                                                <span>Discount:</span>
+                                                <span>-{formatCurrency(activeDiscount)}</span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between text-sm text-red-600">
                                             <span>{applyTax ? "ITBIS (18%):" : "ITBIS desactivado:"}</span>
                                             <span>{formatCurrency(taxAmount)}</span>
@@ -839,6 +864,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             <div className="flex justify-between pt-2 text-sm font-medium text-green-700">
                                                 <span>Recibido: {formatCurrency(amountTendered)}</span>
                                                 <span>Devuelta: {formatCurrency(change)}</span>
+                                            </div>
+                                        )}
+                                        {notes && (
+                                            <div className="border-t border-blue-200 pt-2 text-sm">
+                                                <div className="font-medium">Notes:</div>
+                                                <div className="whitespace-pre-line text-muted-foreground">{notes}</div>
                                             </div>
                                         )}
                                     </div>

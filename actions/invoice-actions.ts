@@ -3,6 +3,7 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { calculateDerivedInvoiceDiscount } from "@/lib/invoice-totals"
 import { isMeasuredMode } from "@/lib/product-measurements"
 import type { InvoiceItem } from "@/types"
 import { revalidatePath } from "next/cache"
@@ -32,6 +33,7 @@ const InvoiceSchema = z.object({
     notes: z.string().optional(),
     amountPaid: z.number().min(0).optional(),
     tax: z.number().min(0).optional(),
+    discount: z.number().min(0).optional(),
     hasNcf: z.boolean().optional(),
 })
 
@@ -299,6 +301,7 @@ export async function getInvoices() {
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
+        discount: calculateDerivedInvoiceDiscount(invoice),
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
@@ -338,6 +341,7 @@ export async function getInvoiceById(id: string) {
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
+        discount: calculateDerivedInvoiceDiscount(invoice),
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
