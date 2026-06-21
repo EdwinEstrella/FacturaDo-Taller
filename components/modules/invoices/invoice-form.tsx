@@ -252,7 +252,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
     }, 0)
 
     const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
-    const activeDiscount = isQuoteMode ? 0 : Math.min(Math.max(discount, 0), subtotal + taxAmount + shippingCost)
+    const activeDiscount = Math.min(Math.max(discount, 0), subtotal + taxAmount + shippingCost)
     const total = Math.max(0, subtotal + taxAmount + shippingCost - activeDiscount)
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
@@ -294,6 +294,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         shippingCost,
                         notes,
                         tax: taxAmount,
+                        discount: activeDiscount,
                         applyTax,
                         isDraft: saveAsDraft,
                     })
@@ -322,6 +323,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         shippingCost,
                         notes,
                         tax: taxAmount,
+                        discount: activeDiscount,
                         applyTax,
                         isDraft: saveAsDraft,
                     })
@@ -541,18 +543,16 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                     min={0}
                                 />
                             </div>
-                            {!isQuoteMode && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="invoice-discount" className="text-sm font-medium">Discount</Label>
-                                    <Input
-                                        id="invoice-discount"
-                                        type="number"
-                                        value={discount}
-                                        onChange={(e) => setDiscount(Number(e.target.value || 0))}
-                                        min={0}
-                                    />
-                                </div>
-                            )}
+                            <div className="space-y-2">
+                                <Label htmlFor="document-discount" className="text-sm font-medium">Discount</Label>
+                                <Input
+                                    id="document-discount"
+                                    type="number"
+                                    value={discount}
+                                    onChange={(e) => setDiscount(Number(e.target.value || 0))}
+                                    min={0}
+                                />
+                            </div>
                             <div className="space-y-2">
                                 <p className="text-sm font-medium">Fecha de Entrega</p>
                                 <DatePicker date={deliveryDate} setDate={setDeliveryDate} />
@@ -647,7 +647,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                 <span>Envío</span>
                                 <span>{formatCurrency(shippingCost)}</span>
                             </div>
-                            {!isQuoteMode && activeDiscount > 0 && (
+                            {activeDiscount > 0 && (
                                 <div className="flex justify-between items-center text-sm text-emerald-700">
                                     <span>Discount</span>
                                     <span>-{formatCurrency(activeDiscount)}</span>
@@ -846,7 +846,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             <span>Envío:</span>
                                             <span>{formatCurrency(shippingCost)}</span>
                                         </div>
-                                        {!isQuoteMode && activeDiscount > 0 && (
+                                        {activeDiscount > 0 && (
                                             <div className="flex justify-between text-sm text-emerald-700">
                                                 <span>Discount:</span>
                                                 <span>-{formatCurrency(activeDiscount)}</span>
