@@ -114,6 +114,7 @@ export interface Quote {
     clientName: string | null
     total: string | number
     tax: string | number
+    discount?: string | number
     shippingCost: string | number
     applyTax: boolean
     isDraft: boolean

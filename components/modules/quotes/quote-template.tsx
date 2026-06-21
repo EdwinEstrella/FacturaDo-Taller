@@ -49,8 +49,9 @@ export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
         0
     )
     const tax = Number(quote.tax ?? 0)
+    const discount = Number(quote.discount ?? 0)
     const shipping = Number(quote.shippingCost ?? 0)
-    const total = Number(quote.total ?? subtotal + tax + shipping)
+    const total = Number(quote.total ?? subtotal + tax + shipping - discount)
     const quoteNumber = quote.sequenceNumber
         ? `#${String(quote.sequenceNumber).padStart(6, "0")}`
         : `#${String(quote.id ?? "").slice(-8).toUpperCase()}`
@@ -135,6 +136,12 @@ export function QuoteTemplate({ quote, settings }: QuoteTemplateProps) {
                     <div className="flex justify-between text-red-600">
                         <span>ITBIS:</span>
                         <span>{formatCurrency(tax)}</span>
+                    </div>
+                )}
+                {discount > 0 && (
+                    <div className="flex justify-between">
+                        <span>Discount:</span>
+                        <span>-{formatCurrency(discount)}</span>
                     </div>
                 )}
                 {shipping > 0 && (
