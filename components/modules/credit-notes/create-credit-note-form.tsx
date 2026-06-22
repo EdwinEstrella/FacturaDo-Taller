@@ -7,6 +7,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
     Card,
+"use client"
+
+import { useState, useTransition } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+    Card,
     CardContent,
     CardDescription,
     CardFooter,
@@ -19,6 +28,7 @@ import {
     CommandGroup,
     CommandInput,
     CommandItem,
+    CommandList,
 } from "@/components/ui/command"
 import {
     Popover,
@@ -159,31 +169,33 @@ export function CreateCreditNoteForm({ invoices }: CreateCreditNoteFormProps) {
                             <PopoverContent className="w-[400px] p-0">
                                 <Command>
                                     <CommandInput placeholder="Buscar por # o cliente..." />
-                                    <CommandEmpty>No encontrada.</CommandEmpty>
-                                    <CommandGroup>
-                                        {invoices.map((inv) => (
-                                            <CommandItem
-                                                key={inv.id}
-                                                value={`#${inv.sequenceNumber} ${inv.clientName || ""}`}
-                                                onSelect={() => {
-                                                    setSelectedInvoiceId(inv.id)
-                                                    setOpenInvoice(false)
-                                                    setSelectedItems({}) // Reset items
-                                                }}
-                                            >
-                                                <Check
-                                                    className={cn(
-                                                        "mr-2 h-4 w-4",
-                                                        selectedInvoiceId === inv.id ? "opacity-100" : "opacity-0"
-                                                    )}
-                                                />
-                                                <div className="flex flex-col">
-                                                    <span>Factura #{inv.sequenceNumber}</span>
-                                                    <span className="text-xs text-muted-foreground">{inv.clientName} - {formatCurrency(Number(inv.total))}</span>
-                                                </div>
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
+                                    <CommandList>
+                                        <CommandEmpty>No encontrada.</CommandEmpty>
+                                        <CommandGroup>
+                                            {invoices.map((inv) => (
+                                                <CommandItem
+                                                    key={inv.id}
+                                                    value={`#${inv.sequenceNumber} ${inv.clientName || ""}`}
+                                                    onSelect={() => {
+                                                        setSelectedInvoiceId(inv.id)
+                                                        setOpenInvoice(false)
+                                                        setSelectedItems({}) // Reset items
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            selectedInvoiceId === inv.id ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    <div className="flex flex-col">
+                                                        <span>Factura #{inv.sequenceNumber}</span>
+                                                        <span className="text-xs text-muted-foreground">{inv.clientName} - {formatCurrency(Number(inv.total))}</span>
+                                                    </div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
                                 </Command>
                             </PopoverContent>
                         </Popover>

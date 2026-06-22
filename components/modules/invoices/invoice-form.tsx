@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import {
     Dialog,
     DialogContent,
@@ -435,30 +435,32 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                             <PopoverContent className="w-[400px] p-0">
                                 <Command>
                                     <CommandInput placeholder="Buscar cliente por nombre o RNC..." />
-                                    <CommandEmpty>Cliente no encontrado.</CommandEmpty>
-                                    <CommandGroup>
-                                        {initialClients.map((client) => (
-                                            <CommandItem
-                                                key={client.id}
-                                                value={`${client.name} ${client.rnc || ""}`}
-                                                onSelect={() => {
-                                                    setSelectedClientId(client.id)
-                                                    setOpenClient(false)
-                                                }}
-                                            >
-                                                <Check
-                                                    className={cn(
-                                                        "mr-2 h-4 w-4",
-                                                        selectedClientId === client.id ? "opacity-100" : "opacity-0"
-                                                    )}
-                                                />
-                                                <div className="flex flex-col">
-                                                    <span>{client.name}</span>
-                                                    {client.rnc && <span className="text-xs text-muted-foreground">RNC: {client.rnc}</span>}
-                                                </div>
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
+                                    <CommandList>
+                                        <CommandEmpty>Cliente no encontrado.</CommandEmpty>
+                                        <CommandGroup>
+                                            {initialClients.map((client) => (
+                                                <CommandItem
+                                                    key={client.id}
+                                                    value={`${client.name} ${client.rnc || ""}`}
+                                                    onSelect={() => {
+                                                        setSelectedClientId(client.id)
+                                                        setOpenClient(false)
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            selectedClientId === client.id ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    <div className="flex flex-col">
+                                                        <span>{client.name}</span>
+                                                        {client.rnc && <span className="text-xs text-muted-foreground">RNC: {client.rnc}</span>}
+                                                    </div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
                                 </Command>
                             </PopoverContent>
                         </Popover>
@@ -478,50 +480,52 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                             <PopoverContent className="w-[400px] p-0">
                                 <Command>
                                     <CommandInput placeholder="Buscar producto..." />
-                                    <CommandEmpty>No encontrado.</CommandEmpty>
-                                    <CommandGroup>
-                                        {(initialProducts as SerializedProduct[]).map((product) => {
-                                            // Si tiene variantes, mostrar las variantes en lugar del producto
-                                            if (product.hasVariants && product.variants && product.variants.length > 0) {
-                                                return (
-                                                    <div key={product.id}>
-                                                        {product.variants.map((variant: ProductVariant) => (
-                                                            <CommandItem
-                                                                key={variant.id}
-                                                                value={`${product.name} ${variant.name} ${variant.sku || ""}`}
-                                                                onSelect={() => addItem(product, { id: variant.id, name: variant.name, price: Number(variant.price) })}
-                                                            >
-                                                                <Check className="mr-2 h-4 w-4 opacity-0" />
-                                                                <div className="flex flex-col">
-                                                                    <span>{product.name} - {variant.name}</span>
-                                                                    <span className="text-xs text-muted-foreground">
-                                                                        SKU: {variant.sku || product.sku} | Precio: RD${Number(variant.price)}
-                                                                    </span>
-                                                                </div>
-                                                            </CommandItem>
-                                                        ))}
-                                                    </div>
-                                                )
-                                            }
+                                    <CommandList>
+                                        <CommandEmpty>No encontrado.</CommandEmpty>
+                                        <CommandGroup>
+                                            {(initialProducts as SerializedProduct[]).map((product) => {
+                                                // Si tiene variantes, mostrar las variantes en lugar del producto
+                                                if (product.hasVariants && product.variants && product.variants.length > 0) {
+                                                    return (
+                                                        <div key={product.id}>
+                                                            {product.variants.map((variant: ProductVariant) => (
+                                                                <CommandItem
+                                                                    key={variant.id}
+                                                                    value={`${product.name} ${variant.name} ${variant.sku || ""}`}
+                                                                    onSelect={() => addItem(product, { id: variant.id, name: variant.name, price: Number(variant.price) })}
+                                                                >
+                                                                    <Check className="mr-2 h-4 w-4 opacity-0" />
+                                                                    <div className="flex flex-col">
+                                                                        <span>{product.name} - {variant.name}</span>
+                                                                        <span className="text-xs text-muted-foreground">
+                                                                            SKU: {variant.sku || product.sku} | Precio: RD${Number(variant.price)}
+                                                                        </span>
+                                                                    </div>
+                                                                </CommandItem>
+                                                            ))}
+                                                        </div>
+                                                    )
+                                                }
 
-                                            // Producto sin variantes
-                                            return (
-                                                <CommandItem
-                                                    key={product.id}
-                                                    value={`${product.name} ${product.sku || ""}`}
-                                                    onSelect={() => addItem(product)}
-                                                >
-                                                    <Check className="mr-2 h-4 w-4 opacity-0" />
-                                                     <div className="flex flex-col">
-                                                         <span>{product.name}</span>
-                                                         <span className="text-xs text-muted-foreground">
-                                                            SKU: {product.sku} | Stock: {formatQuantity(product.stock)} {getMeasurementShortLabel(getDefaultMeasurementMode(product))} | {getMeasurementLabel(getDefaultMeasurementMode(product))}
-                                                         </span>
-                                                     </div>
-                                                 </CommandItem>
-                                            )
-                                        })}
-                                    </CommandGroup>
+                                                // Producto sin variantes
+                                                return (
+                                                    <CommandItem
+                                                        key={product.id}
+                                                        value={`${product.name} ${product.sku || ""}`}
+                                                        onSelect={() => addItem(product)}
+                                                    >
+                                                        <Check className="mr-2 h-4 w-4 opacity-0" />
+                                                         <div className="flex flex-col">
+                                                             <span>{product.name}</span>
+                                                             <span className="text-xs text-muted-foreground">
+                                                                SKU: {product.sku} | Stock: {formatQuantity(product.stock)} {getMeasurementShortLabel(getDefaultMeasurementMode(product))} | {getMeasurementLabel(getDefaultMeasurementMode(product))}
+                                                             </span>
+                                                         </div>
+                                                     </CommandItem>
+                                                )
+                                            })}
+                                        </CommandGroup>
+                                    </CommandList>
                                 </Command>
                             </PopoverContent>
                         </Popover>
