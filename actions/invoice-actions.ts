@@ -32,6 +32,7 @@ const InvoiceSchema = z.object({
     notes: z.string().optional(),
     amountPaid: z.number().min(0).optional(),
     tax: z.number().min(0).optional(),
+    discount: z.number().min(0).optional(),
     hasNcf: z.boolean().optional(),
 })
 
@@ -209,6 +210,7 @@ export async function createInvoice(data: InvoiceFormData) {
                 notes: notes,
                 balance: balance,
                 tax: validated.data.tax || 0,
+                discount: validated.data.discount || 0,
                 hasNcf: validated.data.hasNcf || false,
                 createdById: user.id,
                 sequenceNumber: nextSequence
@@ -299,6 +301,7 @@ export async function getInvoices() {
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
+        discount: Number(invoice.discount ?? 0),
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
@@ -338,6 +341,7 @@ export async function getInvoiceById(id: string) {
         balance: invoice.balance ? Number(invoice.balance) : 0,
         shippingCost: invoice.shippingCost ? Number(invoice.shippingCost) : 0,
         tax: invoice.tax ? Number(invoice.tax) : 0,
+        discount: Number(invoice.discount ?? 0),
         hasNcf: invoice.hasNcf,
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
@@ -514,6 +518,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                 deliveryDate: deliveryDate?.toISOString(),
                 notes: notes,
                 tax: validated.data.tax || 0,
+                discount: validated.data.discount || 0,
                 hasNcf: validated.data.hasNcf || false,
             })
             .eq('id', id)

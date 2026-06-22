@@ -1,6 +1,7 @@
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency, formatQuantity } from "@/lib/utils"
+import { calculateDerivedInvoiceDiscount } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 interface InvoiceOdooTemplateProps {
@@ -30,7 +31,8 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
   )
   const tax = Number(invoice.tax ?? 0)
   const shipping = Number(invoice.shippingCost ?? 0)
-  const total = Number(invoice.total ?? subtotal + tax + shipping)
+  const discount = calculateDerivedInvoiceDiscount(invoice)
+  const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
   const balance = Number(invoice.balance ?? 0)
   const isPending = invoice.status === "PENDING" || balance > 0
   const documentNumber = `#${String(invoice.sequenceNumber ?? "").padStart(6, "0")}`
@@ -189,6 +191,12 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
               <span>ITBIS</span>
               <span>{formatCurrency(tax)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between py-[5px]">
+                <span>Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+            )}
             {shipping > 0 && (
               <div className="flex justify-between py-[5px]">
                 <span>Envío</span>
@@ -224,7 +232,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
 
           <div>
             <h3 className="mb-2 text-[14px] font-black uppercase">Notas:</h3>
-            <p>
+            <p className="whitespace-pre-line">
               {invoice.notes ||
                 "Gracias por su compra. Favor realizar el pago antes de la fecha acordada e incluir el número de factura como referencia."}
             </p>

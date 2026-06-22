@@ -66,6 +66,7 @@ export interface Invoice {
     paymentMethod: string
     shippingCost: string | number
     tax: string | number
+    discount?: string | number
     hasNcf: boolean
     ncf?: string | null
     dispatched: boolean
@@ -113,6 +114,7 @@ export interface Quote {
     clientName: string | null
     total: string | number
     tax: string | number
+    discount?: string | number
     shippingCost: string | number
     applyTax: boolean
     isDraft: boolean

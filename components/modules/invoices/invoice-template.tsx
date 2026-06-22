@@ -1,4 +1,5 @@
 import { formatCurrency, formatQuantity } from "@/lib/utils"
+import { calculateDerivedInvoiceDiscount, calculateInvoiceSubtotal } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
 interface InvoiceTemplateProps {
@@ -19,6 +20,12 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
     const companyPhone = settings?.companyPhone || "809-555-0101"
     const logoSrc = normalizeStorageObjectUrl(settings?.companyLogo) || "/logo.png"
+    const subtotal = calculateInvoiceSubtotal(invoice.items || [])
+    const tax = Number(invoice.tax || 0)
+    const shipping = Number(invoice.shippingCost || 0)
+    const discount = calculateDerivedInvoiceDiscount(invoice)
+    const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
+    const balance = Number(invoice.balance || 0)
 
     // Helper for Santo Domingo timezone date
     const formatDate = (date: Date | string) => {
@@ -102,17 +109,35 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
 
             <div className="border-b border-dashed border-black mb-2"></div>
 
-            <div className="flex justify-between font-bold text-lg">
-                <span>TOTAL:</span>
-                <span>{formatCurrency(Number(invoice.total))}</span>
+            <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                </div>
+                {discount > 0 && (
+                    <div className="flex justify-between">
+                        <span>Discount:</span>
+                        <span>-{formatCurrency(discount)}</span>
+                    </div>
+                )}
+                {tax > 0 && (
+                    <div className="flex justify-between">
+                        <span>ITBIS:</span>
+                        <span>{formatCurrency(tax)}</span>
+                    </div>
+                )}
+                {shipping > 0 && (
+                    <div className="flex justify-between">
+                        <span>Envío:</span>
+                        <span>{formatCurrency(shipping)}</span>
+                    </div>
+                )}
             </div>
 
-            {invoice.shippingCost > 0 && (
-                <div className="flex justify-between text-xs mt-1">
-                    <span>Envío:</span>
-                    <span>{formatCurrency(Number(invoice.shippingCost))}</span>
-                </div>
-            )}
+            <div className="flex justify-between font-bold text-lg mt-2">
+                <span>TOTAL:</span>
+                <span>{formatCurrency(total)}</span>
+            </div>
 
             {/* Payment Details */}
             <div className="border-t border-dashed border-black my-2"></div>
@@ -121,19 +146,26 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                     <span>Estado:</span>
                     <span className="font-bold">{invoice.status === 'PAID' ? 'PAGADO' : 'PENDIENTE'}</span>
                 </div>
-                {invoice.status === 'PENDIENTE' && (
+                {invoice.status === 'PENDING' && (
                     <>
                         <div className="flex justify-between">
                             <span>Abonado:</span>
-                            <span>{formatCurrency(Number(invoice.total) - Number(invoice.balance))}</span>
+                            <span>{formatCurrency(total - balance)}</span>
                         </div>
                         <div className="flex justify-between font-bold text-base mt-2">
                             <span>RESTA:</span>
-                            <span>{formatCurrency(Number(invoice.balance))}</span>
+                            <span>{formatCurrency(balance)}</span>
                         </div>
                     </>
                 )}
             </div>
+
+            {invoice.notes && (
+                <div className="border-t border-dashed border-black my-2 pt-2 text-xs">
+                    <div className="font-bold">Notes:</div>
+                    <div className="whitespace-pre-line">{invoice.notes}</div>
+                </div>
+            )}
 
             <div className="text-xs text-center mt-4 mb-4">
                 <p>Gracias por su compra!</p>
