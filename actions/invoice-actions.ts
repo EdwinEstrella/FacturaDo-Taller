@@ -17,7 +17,7 @@ const InvoiceItemSchema = z.object({
     productName: z.string(),
     quantity: z.number().positive(),
     price: z.number().min(0),
-    variantId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
 })
 
 const InvoiceSchema = z.object({

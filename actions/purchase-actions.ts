@@ -10,7 +10,7 @@ import { getCurrentUser } from "./auth-actions"
 
 const PurchaseItemSchema = z.object({
     productId: z.string(),
-    variantId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
     variantName: z.string().optional(),
     quantity: z.number().positive(),
     quantityType: z.enum(["UNIT", "BOX", "MEASURE"]).default("UNIT"),

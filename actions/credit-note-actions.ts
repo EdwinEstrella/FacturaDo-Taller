@@ -14,7 +14,7 @@ const CreditNoteItemSchema = z.object({
     productName: z.string(),
     quantity: z.number().positive(),
     price: z.number(),
-    variantId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
 })
 
 const CreditNoteSchema = z.object({
