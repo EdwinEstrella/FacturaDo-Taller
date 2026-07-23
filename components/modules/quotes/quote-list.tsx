@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
     Table,
     TableBody,
@@ -8,16 +9,68 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
 import { convertQuoteToInvoice, deleteQuote, renewQuote } from "@/actions/quote-actions"
-import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil, RotateCcw } from "lucide-react"
+import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil, RotateCcw, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function QuoteList({ quotes }: { quotes: any[] }) {
     const router = useRouter()
+    const [dialogState, setDialogState] = useState<{
+        isOpen: boolean;
+        type: 'renew' | 'convert' | 'delete' | null;
+        quoteId: string | null;
+        isLoading: boolean;
+    }>({ isOpen: false, type: null, quoteId: null, isLoading: false })
+
+    const handleAction = async () => {
+        if (!dialogState.quoteId || !dialogState.type) return;
+        
+        setDialogState(prev => ({ ...prev, isLoading: true }))
+        
+        try {
+            let res;
+            if (dialogState.type === 'renew') {
+                res = await renewQuote(dialogState.quoteId)
+                if (res.success) toast.success("Cotización renovada por 15 días más")
+            } else if (dialogState.type === 'convert') {
+                res = await convertQuoteToInvoice(dialogState.quoteId)
+                if (res.success) toast.success("Convertida a Factura exitosamente")
+            } else if (dialogState.type === 'delete') {
+                res = await deleteQuote(dialogState.quoteId)
+                if (res.success) toast.success("Cotización eliminada")
+            }
+
+            if (res && !res.success) {
+                toast.error("Error: " + res.error)
+            } else {
+                // Successful operation -> wait slightly for backend, then refresh the page
+                router.refresh()
+            }
+        } catch (error) {
+            toast.error("Ocurrió un error inesperado")
+        } finally {
+            setDialogState({ isOpen: false, type: null, quoteId: null, isLoading: false })
+        }
+    }
+
+    const openDialog = (type: 'renew' | 'convert' | 'delete', quoteId: string) => {
+        setDialogState({ isOpen: true, type, quoteId, isLoading: false })
+    }
 
     return (
         <div className="rounded-md border">
@@ -64,17 +117,7 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                 </TableCell>
                                 <TableCell className="text-right">
                                     {quote.status === "PENDING" && !isExpired && (
-                                        <Button size="sm" variant="outline" onClick={async () => {
-                                            if (confirm("¿Confirmar conversión a factura?")) {
-                                                const res = await convertQuoteToInvoice(quote.id)
-                                                if (res.success) {
-                                                    alert("¡Convertido a Factura!")
-                                                    router.refresh()
-                                                } else {
-                                                    alert("Error: " + res.error)
-                                                }
-                                            }
-                                        }}>
+                                        <Button size="sm" variant="outline" onClick={() => openDialog('convert', quote.id)}>
                                             <ArrowRight className="mr-2 h-4 w-4" /> Facturar
                                         </Button>
                                     )}
@@ -84,32 +127,14 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                         </Button>
                                     )}
                                     {isExpired && (
-                                        <Button size="sm" variant="ghost" onClick={async () => {
-                                            if (confirm("¿Renovar esta cotización por 15 días más?")) {
-                                                const res = await renewQuote(quote.id)
-                                                if (res.success) {
-                                                    router.refresh()
-                                                } else {
-                                                    alert("Error: " + res.error)
-                                                }
-                                            }
-                                        }} title="Renovar cotización">
+                                        <Button size="sm" variant="ghost" onClick={() => openDialog('renew', quote.id)} title="Renovar cotización">
                                             <RotateCcw className="h-4 w-4 text-green-600" />
                                         </Button>
                                     )}
                                     <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/print`)}>
                                         <Printer className="h-4 w-4" />
                                     </Button>
-                                    <Button size="sm" variant="ghost" onClick={async () => {
-                                        if (confirm("¿Eliminar esta cotización permanentemente?")) {
-                                            const res = await deleteQuote(quote.id)
-                                            if (res.success) {
-                                                router.refresh()
-                                            } else {
-                                                alert("Error: " + res.error)
-                                            }
-                                        }
-                                    }}>
+                                    <Button size="sm" variant="ghost" onClick={() => openDialog('delete', quote.id)}>
                                         <Trash2 className="h-4 w-4 text-red-500" />
                                     </Button>
                                 </TableCell>
@@ -118,6 +143,33 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                     })}
                 </TableBody>
             </Table>
+
+            <AlertDialog open={dialogState.isOpen} onOpenChange={(open) => !dialogState.isLoading && setDialogState(prev => ({ ...prev, isOpen: open }))}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {dialogState.type === 'renew' ? 'Renovar cotización' :
+                             dialogState.type === 'convert' ? 'Convertir a factura' :
+                             'Eliminar cotización'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {dialogState.type === 'renew' ? 'Esta acción volverá el estado a Pendiente y extenderá el plazo 15 días más.' :
+                             dialogState.type === 'convert' ? 'Se creará una factura con los detalles de esta cotización. El inventario se descontará.' :
+                             '¿Estás seguro de que quieres eliminar esta cotización de forma permanente? Esta acción no se puede deshacer.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={dialogState.isLoading}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={(e) => { e.preventDefault(); handleAction(); }}
+                            disabled={dialogState.isLoading}
+                            className={dialogState.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : ''}
+                        >
+                            {dialogState.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

@@ -36,7 +36,7 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
                     <Printer className="h-4 w-4" />
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[800px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto overflow-x-hidden" style={{ maxWidth: '900px', width: '95vw' }}>
                 <DialogHeader>
                     <DialogTitle>Vista Previa de Factura</DialogTitle>
                 </DialogHeader>

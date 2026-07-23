@@ -71,8 +71,16 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
         }
       `}</style>
 
-      <div className="invoice-page min-h-[277mm] bg-white px-[12mm] py-[11mm] shadow-[0_10px_25px_rgba(15,23,42,0.22)]">
-        <header className="mb-4">
+      <div className="invoice-page min-h-[277mm] bg-white px-[12mm] py-[11mm] shadow-[0_10px_25px_rgba(15,23,42,0.22)] relative overflow-hidden">
+        {invoice.status === 'PAID' && (
+          <div className="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 -rotate-[35deg] pointer-events-none z-0" style={{ opacity: 0.12 }}>
+            <div className="text-[120px] font-black text-emerald-600 border-[12px] border-emerald-600 px-12 py-4 rounded-3xl whitespace-nowrap uppercase tracking-[0.2em] shadow-sm">
+              Pagado
+            </div>
+          </div>
+        )}
+
+        <header className="mb-4 relative z-10">
           <div className="flex items-start justify-between gap-8">
             <div className="flex max-w-[105mm] items-start gap-3">
               <div className="flex h-[21mm] w-[21mm] shrink-0 items-center justify-center">

@@ -49,15 +49,27 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     }
 
     return (
-        <div className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto">
+        <div className="font-mono text-sm w-[80mm] p-2 bg-white text-black mx-auto relative overflow-hidden">
             <style>{`
                 @media print {
                     @page { margin: 0; size: 80mm auto; }
                     body { width: 80mm; }
+                    .watermark {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
                 }
             `}</style>
 
-            <div className="text-center mb-4">
+            {invoice.status === 'PAID' && (
+                <div className="watermark absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 -rotate-[35deg] pointer-events-none z-0" style={{ opacity: 0.15 }}>
+                    <div className="text-5xl font-black text-emerald-600 border-8 border-emerald-600 px-4 py-2 rounded-xl whitespace-nowrap uppercase tracking-widest">
+                        Pagado
+                    </div>
+                </div>
+            )}
+
+            <div className="text-center mb-4 relative z-10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={logoSrc} alt="Logo" className="h-11 max-w-20 object-contain mx-auto mb-2" />
                 <h1 className="font-bold text-lg uppercase">{companyName}</h1>
