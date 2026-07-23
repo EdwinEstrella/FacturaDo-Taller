@@ -616,3 +616,35 @@ export async function updateQuote(id: string, data: QuoteFormData) {
         return { success: false, error: error instanceof Error ? error.message : "Failed to update quote" }
     }
 }
+
+export async function renewQuote(id: string) {
+    await requireAuth();
+
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const insforge = createServerClient()
+
+    try {
+        const validUntil = new Date()
+        validUntil.setDate(validUntil.getDate() + 15)
+
+        const { error: quoteError } = await insforge.database
+            .from('Quote')
+            .update({
+                status: 'PENDING',
+                validUntil: validUntil.toISOString(),
+            })
+            .eq('id', id)
+
+        if (quoteError) {
+            throw new Error(quoteError.message || "Failed to renew quote")
+        }
+
+        revalidatePath("/quotes")
+        return { success: true }
+    } catch (error) {
+        console.error("Error renewing quote:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Failed to renew quote" }
+    }
+}

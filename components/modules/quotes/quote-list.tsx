@@ -11,8 +11,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
-import { convertQuoteToInvoice, deleteQuote } from "@/actions/quote-actions"
-import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil } from "lucide-react"
+import { convertQuoteToInvoice, deleteQuote, renewQuote } from "@/actions/quote-actions"
+import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil, RotateCcw } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +81,20 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
                                     {(!isExpired && quote.status === "PENDING") && (
                                         <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/edit`)}>
                                             <Pencil className="h-4 w-4 text-blue-500" />
+                                        </Button>
+                                    )}
+                                    {isExpired && (
+                                        <Button size="sm" variant="ghost" onClick={async () => {
+                                            if (confirm("¿Renovar esta cotización por 15 días más?")) {
+                                                const res = await renewQuote(quote.id)
+                                                if (res.success) {
+                                                    router.refresh()
+                                                } else {
+                                                    alert("Error: " + res.error)
+                                                }
+                                            }
+                                        }} title="Renovar cotización">
+                                            <RotateCcw className="h-4 w-4 text-green-600" />
                                         </Button>
                                     )}
                                     <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/print`)}>

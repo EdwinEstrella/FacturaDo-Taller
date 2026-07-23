@@ -398,11 +398,7 @@ export async function deleteInvoice(id: string, password?: string) {
     // Get invoice with related data
     const { data: invoice } = await insforge.database
         .from('Invoice')
-        .select(`
-            *,
-            workOrder:WorkOrder(*),
-            dispatchInfo:Dispatch(*)
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
