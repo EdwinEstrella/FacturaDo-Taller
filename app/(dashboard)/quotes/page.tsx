@@ -16,8 +16,11 @@ type QuoteAny = any
 function QuotesPageContent() {
     const [quotes, setQuotes] = useState<QuoteAny[]>([])
     const [loading, setLoading] = useState(true)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
     const searchParams = useSearchParams()
     const query = searchParams.get("q") ?? ""
+
+    const triggerRefresh = () => setRefreshTrigger(prev => prev + 1)
 
     useEffect(() => {
         const load = async () => {
@@ -34,7 +37,7 @@ function QuotesPageContent() {
             setLoading(false)
         }
         void load()
-    }, [query])
+    }, [query, refreshTrigger])
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -65,7 +68,7 @@ function QuotesPageContent() {
             {loading ? (
                 <PageLoading message="Cargando cotizaciones..." />
             ) : (
-                <QuoteList quotes={quotes} />
+                <QuoteList quotes={quotes} onRefresh={triggerRefresh} />
             )}
         </div>
     )

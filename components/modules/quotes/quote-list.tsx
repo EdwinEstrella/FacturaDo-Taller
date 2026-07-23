@@ -28,7 +28,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function QuoteList({ quotes }: { quotes: any[] }) {
+export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: () => void }) {
     const router = useRouter()
     const [dialogState, setDialogState] = useState<{
         isOpen: boolean;
@@ -58,7 +58,7 @@ export function QuoteList({ quotes }: { quotes: any[] }) {
             if (res && !res.success) {
                 toast.error("Error: " + res.error)
             } else {
-                // Successful operation -> wait slightly for backend, then refresh the page
+                if (onRefresh) onRefresh()
                 router.refresh()
             }
         } catch (error) {
