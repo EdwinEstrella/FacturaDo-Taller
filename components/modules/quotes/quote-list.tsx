@@ -117,7 +117,7 @@ export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: ()
                                 </TableCell>
                                 <TableCell className="text-right">
                                     {quote.status === "PENDING" && !isExpired && (
-                                        <Button size="sm" variant="outline" onClick={() => openDialog('convert', quote.id)}>
+                                        <Button size="sm" variant="outline" onClick={() => router.push(`/invoices/create?sourceQuoteId=${quote.id}`)}>
                                             <ArrowRight className="mr-2 h-4 w-4" /> Facturar
                                         </Button>
                                     )}

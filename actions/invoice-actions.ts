@@ -34,6 +34,7 @@ const InvoiceSchema = z.object({
     tax: z.number().min(0).optional(),
     discount: z.number().min(0).optional(),
     hasNcf: z.boolean().optional(),
+    sourceQuoteId: z.string().optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -267,7 +268,15 @@ export async function createInvoice(data: InvoiceFormData) {
             )
         }
 
+        if (validated.data.sourceQuoteId) {
+            await insforge.database
+                .from('Quote')
+                .update({ status: 'ACCEPTED' })
+                .eq('id', validated.data.sourceQuoteId)
+        }
+
         revalidatePath("/invoices")
+        revalidatePath("/quotes")
         return { success: true, invoiceId: invoice.id }
     } catch (e) {
         console.error(e)

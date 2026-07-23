@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -59,6 +59,8 @@ interface InvoiceFormProps {
     initialClients: Client[]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     initialData?: any // Optional initial data for editing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sourceQuote?: any // Optional quote data for converting to invoice
     documentType?: "INVOICE" | "QUOTE"
 }
 
@@ -113,33 +115,55 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
     }))
 }
 
-export function InvoiceForm({ initialProducts, initialClients, initialData, documentType }: InvoiceFormProps) {
+export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType }: InvoiceFormProps) {
     // Handling form state changes for HMR sync
 
-    const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(initialData?.items, initialProducts))
-    const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.clientId || "")
+    const dataToUse = initialData || sourceQuote
+    const isEdit = !!initialData
+
+    const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(dataToUse?.items, initialProducts))
+    const [selectedClientId, setSelectedClientId] = useState<string>(dataToUse?.clientId || "")
     const [isPending, startTransition] = useTransition()
     const [showPreview, setShowPreview] = useState(false)
 
     // New Fields State
-    const [shippingCost, setShippingCost] = useState<number>(initialData?.shippingCost || 0)
-    const [discount, setDiscount] = useState<number>(() => getInitialDiscount(initialData))
-    const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(initialData?.deliveryDate ? new Date(initialData.deliveryDate) : undefined)
-    const [notes, setNotes] = useState<string>(initialData?.notes || "")
-    const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || "CASH")
+    const [shippingCost, setShippingCost] = useState<number>(dataToUse?.shippingCost || 0)
+    const [discount, setDiscount] = useState<number>(() => getInitialDiscount(dataToUse))
+    const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(dataToUse?.deliveryDate ? new Date(dataToUse.deliveryDate) : undefined)
+    const [notes, setNotes] = useState<string>(dataToUse?.notes || "")
+    const [paymentMethod, setPaymentMethod] = useState<string>(dataToUse?.paymentMethod || "CASH")
     const [amountTendered, setAmountTendered] = useState<number>(0)
     const [applyTax, setApplyTax] = useState<boolean>(
-        initialData?.applyTax !== undefined 
-            ? initialData.applyTax 
-            : initialData 
-                ? (initialData.tax > 0) 
+        dataToUse?.applyTax !== undefined 
+            ? dataToUse.applyTax 
+            : dataToUse 
+                ? (dataToUse.tax > 0) 
                 : true
     )
+
+    // Force sync when dataToUse changes (resolves Next.js caching / HMR issues when navigating from Quote to Invoice)
+    useEffect(() => {
+        if (dataToUse && dataToUse.id) {
+            setItems(hydrateInitialItems(dataToUse.items, initialProducts))
+            setSelectedClientId(dataToUse.clientId || "")
+            setShippingCost(dataToUse.shippingCost || 0)
+            setDiscount(getInitialDiscount(dataToUse))
+            setDeliveryDate(dataToUse.deliveryDate ? new Date(dataToUse.deliveryDate) : undefined)
+            setNotes(dataToUse.notes || "")
+            setPaymentMethod(dataToUse.paymentMethod || "CASH")
+            setHasNcf(dataToUse.hasNcf || false)
+            setApplyTax(
+                dataToUse.applyTax !== undefined 
+                    ? dataToUse.applyTax 
+                    : (dataToUse.tax > 0)
+            )
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataToUse?.id]) // Only depend on the ID to prevent infinite loops from object reference changes
 
     const searchParams = useSearchParams()
     const router = useRouter()
     
-    const isEdit = !!initialData
     const type = documentType || (searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE")
     const isQuoteMode = type === "QUOTE"
 
@@ -230,7 +254,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
         }))
     }
 
-    const [hasNcf, setHasNcf] = useState<boolean>(initialData?.hasNcf || false)
+    const [hasNcf, setHasNcf] = useState<boolean>(dataToUse?.hasNcf || false)
 
     // Mapa de productos para saber si son servicios / exentos de ITBIS
     const productMap = useMemo(() => {
@@ -344,9 +368,10 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                         discount: activeDiscount,
                         deliveryDate,
                         notes,
-                        amountPaid: paymentMethod === "CASH" ? amountTendered : undefined,
+                        amountPaid: paymentMethod === "CREDIT" ? 0 : (amountTendered > 0 ? amountTendered : undefined),
                         tax: taxAmount,
                         hasNcf,
+                        sourceQuoteId: sourceQuote ? sourceQuote.id : undefined,
                     })
                 }
             }
@@ -702,24 +727,38 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                     </Select>
                                 </div>
 
-                                {paymentMethod === "CASH" && (
-                                    <div className="grid grid-cols-2 gap-4 bg-green-50 p-3 rounded-md border border-green-100">
+                                {paymentMethod !== "CREDIT" && (
+                                    <div className={cn(
+                                        "grid gap-4 p-3 rounded-md border",
+                                        paymentMethod === "CASH" ? "grid-cols-2 bg-green-50 border-green-100" : "grid-cols-1 bg-blue-50 border-blue-100"
+                                    )}>
                                         <div className="space-y-1">
-                                            <Label htmlFor="amount-tendered" className="text-xs font-bold text-green-700">Recibido (Efectivo)</Label>
+                                            <Label htmlFor="amount-tendered" className={cn(
+                                                "text-xs font-bold block",
+                                                paymentMethod === "CASH" ? "text-green-700" : "text-blue-700"
+                                            )}>
+                                                Monto Recibido / Abono ({paymentMethod === "CASH" ? "Efectivo" : paymentMethod === "TRANSFER" ? "Transferencia" : "Tarjeta"})
+                                            </Label>
                                             <Input
                                                 id="amount-tendered"
                                                 type="number"
                                                 className="bg-white"
+                                                placeholder={total.toString()}
                                                 value={amountTendered || ""}
                                                 onChange={(e) => setAmountTendered(Number(e.target.value))}
                                             />
+                                            <p className="text-[10px] text-muted-foreground mt-1">
+                                                Dejar en blanco para registrar pago completo
+                                            </p>
                                         </div>
-                                        <div className="space-y-1 text-right">
-                                            <p className="text-xs font-bold text-green-700 block">Devuelta</p>
-                                            <div className="text-xl font-bold text-green-800 h-9 flex items-center justify-end">
-                                                {formatCurrency(change)}
+                                        {paymentMethod === "CASH" && (
+                                            <div className="space-y-1 text-right">
+                                                <p className="text-xs font-bold text-green-700 block">Devuelta</p>
+                                                <div className="text-xl font-bold text-green-800 h-9 flex items-center justify-end">
+                                                    {formatCurrency(change)}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -878,10 +917,14 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                             <span>Total a Pagar:</span>
                                             <span className="text-blue-600">{formatCurrency(total)}</span>
                                         </div>
-                                        {paymentMethod === "CASH" && amountTendered > 0 && (
-                                            <div className="flex justify-between pt-2 text-sm font-medium text-green-700">
-                                                <span>Recibido: {formatCurrency(amountTendered)}</span>
-                                                <span>Devuelta: {formatCurrency(change)}</span>
+                                        {paymentMethod !== "CREDIT" && amountTendered > 0 && (
+                                            <div className={cn(
+                                                "flex justify-between pt-2 text-sm font-medium",
+                                                paymentMethod === "CASH" ? "text-green-700" : "text-blue-700"
+                                            )}>
+                                                <span>Abono / Recibido: {formatCurrency(amountTendered)}</span>
+                                                {paymentMethod === "CASH" && <span>Devuelta: {formatCurrency(change)}</span>}
+                                                {paymentMethod !== "CASH" && amountTendered < total && <span>Pendiente: {formatCurrency(total - amountTendered)}</span>}
                                             </div>
                                         )}
                                         {notes && (
