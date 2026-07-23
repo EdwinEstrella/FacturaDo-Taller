@@ -842,7 +842,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                                     {items.map((item) => (
                                                         <TableRow key={item.lineId}>
                                                             <TableCell className="align-top whitespace-normal break-words">{item.productName}</TableCell>
-                                                            <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)}</TableCell>
+                                                            <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)} {getMeasurementShortLabel(item.measurementMode)}</TableCell>
                                                             <TableCell className="w-32 text-right align-top">{formatCurrency(item.price)}</TableCell>
                                                             <TableCell className="w-32 text-right align-top font-medium">
                                                                 {formatCurrency(item.price * Number(item.quantity || 0))}

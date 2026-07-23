@@ -335,6 +335,36 @@ export async function getInvoiceById(id: string) {
         return null
     }
 
+    // Enrich items with product unit info for display
+    const normalizedItems = (invoice.items || []).map((item: InvoiceItem) => ({
+        ...item,
+        quantity: Number(item.quantity),
+        price: Number(item.price)
+    }))
+    
+    const productIds = [...new Set(normalizedItems.map((i: any) => i.productId).filter(Boolean))] as string[]
+    let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
+    
+    if (productIds.length > 0) {
+        const { data: products } = await insforge.database
+            .from('Product')
+            .select('id, unitType, measurementUnit')
+            .in('id', productIds)
+            
+        if (products) {
+            productsMap = products.reduce((acc, p) => ({
+                ...acc,
+                [p.id]: p
+            }), {})
+        }
+    }
+
+    const enrichedItems = normalizedItems.map((item: any) => ({
+        ...item,
+        unitType: item.productId ? productsMap[item.productId]?.unitType : 'UNIT',
+        measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
+    }))
+
     return {
         ...invoice,
         total: Number(invoice.total),
@@ -343,11 +373,7 @@ export async function getInvoiceById(id: string) {
         tax: invoice.tax ? Number(invoice.tax) : 0,
         discount: Number(invoice.discount ?? 0),
         hasNcf: invoice.hasNcf,
-        items: (invoice.items || []).map((item: InvoiceItem) => ({
-            ...item,
-            quantity: Number(item.quantity),
-            price: Number(item.price)
-        }))
+        items: enrichedItems
     }
 }
 

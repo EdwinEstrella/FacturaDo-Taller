@@ -1,6 +1,7 @@
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency, formatQuantity } from "@/lib/utils"
+import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { calculateDerivedInvoiceDiscount } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
@@ -175,7 +176,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
                     {item.productName}
                     {item.description && <div className="mt-1 text-[10px] font-normal">{item.description}</div>}
                   </td>
-                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)}</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)} {getMeasurementShortLabel(getMeasurementModeFromProduct(item))}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">
                     {formatCurrency(Number(item.price))}
                   </td>

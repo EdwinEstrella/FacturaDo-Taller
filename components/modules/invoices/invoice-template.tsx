@@ -1,4 +1,5 @@
 import { formatCurrency, formatQuantity } from "@/lib/utils"
+import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { calculateDerivedInvoiceDiscount, calculateInvoiceSubtotal } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 
@@ -107,7 +108,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                             </div>
                             <div className="flex justify-between">
                                 <span>Cantidad:</span>
-                                <span className="font-medium">x{formatQuantity(item.quantity)}</span>
+                                <span className="font-medium">x{formatQuantity(item.quantity)} {getMeasurementShortLabel(getMeasurementModeFromProduct(item))}</span>
                             </div>
                             <div className="flex justify-between font-bold text-base">
                                 <span>Subtotal:</span>
