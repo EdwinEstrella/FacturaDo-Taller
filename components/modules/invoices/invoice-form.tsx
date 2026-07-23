@@ -128,7 +128,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
     const [notes, setNotes] = useState<string>(initialData?.notes || "")
     const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || "CASH")
     const [amountTendered, setAmountTendered] = useState<number>(0)
-    const [applyTax, setApplyTax] = useState<boolean>(initialData?.applyTax ?? true)
+    const [applyTax, setApplyTax] = useState<boolean>(
+        initialData?.applyTax !== undefined 
+            ? initialData.applyTax 
+            : initialData 
+                ? (initialData.tax > 0) 
+                : true
+    )
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -587,8 +593,16 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, docu
                                     />
                                     <Label htmlFor="ncf">Requiere Comprobante Fiscal (NCF)</Label>
                                 </div>
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="apply-tax-invoice"
+                                        checked={applyTax}
+                                        onCheckedChange={(c) => setApplyTax(!!c)}
+                                    />
+                                    <Label htmlFor="apply-tax-invoice">Aplicar ITBIS (18%) en esta factura</Label>
+                                </div>
                                 <p className="text-xs text-muted-foreground">
-                                    El ITBIS se calcula automáticamente según los productos gravados.
+                                    El ITBIS se calcula automáticamente según los productos gravados si está activado.
                                 </p>
                             </div>
                         )}
