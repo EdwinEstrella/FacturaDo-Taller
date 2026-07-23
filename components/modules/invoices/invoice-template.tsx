@@ -62,10 +62,9 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
             `}</style>
 
             {invoice.status === 'PAID' && (
-                <div className="watermark absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 -rotate-[35deg] pointer-events-none z-0" style={{ opacity: 0.15 }}>
-                    <div className="text-5xl font-black text-emerald-600 border-8 border-emerald-600 px-4 py-2 rounded-xl whitespace-nowrap uppercase tracking-widest">
-                        Pagado
-                    </div>
+                <div className="watermark absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0" style={{ opacity: 0.6, marginTop: '2rem' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/pagado.png" alt="Sello Pagado" className="w-[180px] object-contain mix-blend-multiply" />
                 </div>
             )}
 

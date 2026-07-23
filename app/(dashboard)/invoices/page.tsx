@@ -159,7 +159,15 @@ export default function InvoicesPage() {
                                         <TableCell className="font-mono">#{invoice.sequenceNumber}</TableCell>
                                         <TableCell>{formatDateTimeDO(invoice.createdAt)}</TableCell>
                                         <TableCell>{invoice.clientName || invoice.client?.name || "Consumidor Final"}</TableCell>
-                                        <TableCell>{invoice.status}</TableCell>
+                                        <TableCell>
+                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                invoice.status === "PAID" ? "bg-green-100 text-green-800" :
+                                                invoice.status === "PENDING" ? "bg-yellow-100 text-yellow-800" :
+                                                "bg-gray-100 text-gray-800"
+                                            }`}>
+                                                {invoice.status === "PAID" ? "Pagado" : invoice.status === "PENDING" ? "Pendiente" : invoice.status}
+                                            </span>
+                                        </TableCell>
                                         <TableCell className="text-right font-bold">{formatCurrency(Number(invoice.total))}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
