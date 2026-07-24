@@ -1,6 +1,6 @@
 export type ProductUnitType = "UNIT" | "MEASURE"
 
-export type MeasurementUnit = "FEET" | "CENTIMETERS" | "INCHES"
+export type MeasurementUnit = "FEET" | "CENTIMETERS" | "INCHES" | "METERS"
 
 export type ProductMeasurementMode = "UNIT" | MeasurementUnit
 
@@ -13,11 +13,12 @@ export const PRODUCT_MEASUREMENT_OPTIONS: Array<{ value: ProductMeasurementMode;
   { value: "UNIT", label: "Por unidad", shortLabel: "u" },
   { value: "FEET", label: "Por pies", shortLabel: "ft" },
   { value: "CENTIMETERS", label: "Por centímetros", shortLabel: "cm" },
+  { value: "METERS", label: "Por metros", shortLabel: "m" },
   { value: "INCHES", label: "Por pulgadas", shortLabel: "in" },
 ]
 
 export function isMeasurementUnit(value: unknown): value is MeasurementUnit {
-  return value === "FEET" || value === "CENTIMETERS" || value === "INCHES"
+  return value === "FEET" || value === "CENTIMETERS" || value === "INCHES" || value === "METERS"
 }
 
 export function getMeasurementModeFromProduct(product?: ProductMeasurementLike | null): ProductMeasurementMode {
