@@ -67,7 +67,7 @@ interface Product {
     price: number
     sku: string | null
     unitType: "UNIT" | "MEASURE"
-    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | null
+    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     variants?: any[]
 }

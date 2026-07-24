@@ -21,7 +21,7 @@ const ProductSchema = z.object({
     sku: z.string().optional(),
     variants: z.string().optional(),
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
-    measurementMode: z.enum(["UNIT", "FEET", "CENTIMETERS", "INCHES"]).default("UNIT"),
+    measurementMode: z.enum(["UNIT", "FEET", "CENTIMETERS", "INCHES", "METERS"]).default("UNIT"),
 }).superRefine((data, ctx) => {
     if (data.measurementMode === "UNIT" && !Number.isInteger(data.stock)) {
         ctx.addIssue({

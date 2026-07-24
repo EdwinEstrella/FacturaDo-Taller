@@ -26,7 +26,7 @@ export interface Product {
     sku: string | null
     category: "MATERIAL" | "ARTICULO" | "SERVICIO"
     unitType: "UNIT" | "MEASURE"
-    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | null
+    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService: boolean
     hasVariants: boolean
     variants?: ProductVariant[]
@@ -230,7 +230,7 @@ export interface ProductUpdate {
     sku?: string | null
     category?: "MATERIAL" | "ARTICULO" | "SERVICIO"
     unitType?: "UNIT" | "MEASURE"
-    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | null
+    measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService?: boolean
     hasVariants?: boolean
 }
