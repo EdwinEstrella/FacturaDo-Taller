@@ -212,7 +212,7 @@ export async function createInvoice(data: InvoiceFormData) {
                 balance: balance,
                 tax: validated.data.tax || 0,
                 discount: validated.data.discount || 0,
-                hasNcf: validated.data.hasNcf || false,
+                hasNcf: Number(validated.data.tax || 0) > 0,
                 createdById: user.id,
                 sequenceNumber: nextSequence
             }])
@@ -345,13 +345,13 @@ export async function getInvoiceById(id: string) {
     }
 
     // Enrich items with product unit info for display
-    const normalizedItems = (invoice.items || []).map((item: InvoiceItem) => ({
+    const normalizedItems: InvoiceItem[] = (invoice.items || []).map((item: InvoiceItem) => ({
         ...item,
         quantity: Number(item.quantity),
         price: Number(item.price)
     }))
     
-    const productIds = [...new Set(normalizedItems.map((i: any) => i.productId).filter(Boolean))] as string[]
+    const productIds = [...new Set(normalizedItems.map(i => i.productId).filter(Boolean))] as string[]
     let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
     
     if (productIds.length > 0) {
@@ -368,7 +368,7 @@ export async function getInvoiceById(id: string) {
         }
     }
 
-    const enrichedItems = normalizedItems.map((item: any) => ({
+    const enrichedItems = normalizedItems.map(item => ({
         ...item,
         unitType: item.productId ? productsMap[item.productId]?.unitType : 'UNIT',
         measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
@@ -550,7 +550,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                 notes: notes,
                 tax: validated.data.tax || 0,
                 discount: validated.data.discount || 0,
-                hasNcf: validated.data.hasNcf || false,
+                hasNcf: Number(validated.data.tax || 0) > 0,
             })
             .eq('id', id)
 

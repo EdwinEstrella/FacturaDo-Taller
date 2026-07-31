@@ -151,7 +151,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
             setDeliveryDate(dataToUse.deliveryDate ? new Date(dataToUse.deliveryDate) : undefined)
             setNotes(dataToUse.notes || "")
             setPaymentMethod(dataToUse.paymentMethod || "CASH")
-            setHasNcf(dataToUse.hasNcf || false)
             setApplyTax(
                 dataToUse.applyTax !== undefined 
                     ? dataToUse.applyTax 
@@ -254,8 +253,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         }))
     }
 
-    const [hasNcf, setHasNcf] = useState<boolean>(dataToUse?.hasNcf || false)
-
     // Mapa de productos para saber si son servicios / exentos de ITBIS
     const productMap = useMemo(() => {
         const map = new Map<string, SerializedProduct | Product>()
@@ -295,7 +292,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         setNotes("")
         setPaymentMethod("CASH")
         setAmountTendered(0)
-        setHasNcf(false)
         setApplyTax(true)
     }
 
@@ -340,7 +336,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         deliveryDate,
                         notes,
                         tax: taxAmount,
-                        hasNcf,
+                        hasNcf: taxAmount > 0,
                     })
                 }
             } else {
@@ -370,7 +366,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         notes,
                         amountPaid: paymentMethod === "CREDIT" ? 0 : (amountTendered > 0 ? amountTendered : undefined),
                         tax: taxAmount,
-                        hasNcf,
+                        hasNcf: taxAmount > 0,
                         sourceQuoteId: sourceQuote ? sourceQuote.id : undefined,
                     })
                 }
@@ -612,14 +608,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                             <div className="space-y-3 pt-2">
                                 <div className="flex items-center space-x-2">
                                     <Checkbox
-                                        id="ncf"
-                                        checked={hasNcf}
-                                        onCheckedChange={(c) => setHasNcf(!!c)}
-                                    />
-                                    <Label htmlFor="ncf">Requiere Comprobante Fiscal (NCF)</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
                                         id="apply-tax-invoice"
                                         checked={applyTax}
                                         onCheckedChange={(c) => setApplyTax(!!c)}
@@ -627,7 +615,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                     <Label htmlFor="apply-tax-invoice">Aplicar ITBIS (18%) en esta factura</Label>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    El ITBIS se calcula automáticamente según los productos gravados si está activado.
+                                    Al cobrar ITBIS se asignará automáticamente el próximo comprobante fiscal B01.
                                 </p>
                             </div>
                         )}

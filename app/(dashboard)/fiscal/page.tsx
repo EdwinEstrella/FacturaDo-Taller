@@ -26,7 +26,7 @@ export default async function FiscalPage() {
                             await updateFiscalSequence(type, value)
                         }}>
                             <div className="grid w-full items-center gap-1.5">
-                                <Label htmlFor="B01">Crédito Fiscal (B01)</Label>
+                                <Label htmlFor="B01">Próximo Crédito Fiscal (B01)</Label>
                                 <div className="flex space-x-2">
                                     <Input name="value" defaultValue={getValue("B01")} placeholder="B0100000001" />
                                     <Input type="hidden" name="type" value="B01" />

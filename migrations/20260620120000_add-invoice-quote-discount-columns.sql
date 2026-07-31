@@ -22,7 +22,7 @@ WITH invoice_subtotals AS (
       0
     ) AS discount
   FROM public."Invoice" invoice
-  LEFT JOIN invoice_subtotals ON invoice_subtotals."invoiceId" = invoice.id::text
+  LEFT JOIN invoice_subtotals ON invoice_subtotals."invoiceId" = invoice.id
 )
 UPDATE public."Invoice" invoice
 SET discount = invoice_discounts.discount
