@@ -3,23 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
-import { Filter, Printer } from "lucide-react"
+import { Printer, X } from "lucide-react"
 
 interface InvoiceFiltersProps {
     onFilter: (filters: {
@@ -28,17 +12,18 @@ interface InvoiceFiltersProps {
         minAmount?: string
         maxAmount?: string
         period?: string
+        status?: 'PAID' | 'PENDING' | 'CANCELLED'
     }) => void
     onPrint: () => void
 }
 
 export function InvoiceFilters({ onFilter, onPrint }: InvoiceFiltersProps) {
-    const [open, setOpen] = useState(false)
     const [startDate, setStartDate] = useState("")
     const [endDate, setEndDate] = useState("")
     const [minAmount, setMinAmount] = useState("")
     const [maxAmount, setMaxAmount] = useState("")
     const [period, setPeriod] = useState("")
+    const [status, setStatus] = useState("ALL")
 
     const handleApply = () => {
         onFilter({
@@ -47,8 +32,8 @@ export function InvoiceFilters({ onFilter, onPrint }: InvoiceFiltersProps) {
             minAmount: minAmount || undefined,
             maxAmount: maxAmount || undefined,
             period: period || undefined,
+            status: status === "ALL" ? undefined : status as 'PAID' | 'PENDING' | 'CANCELLED',
         })
-        setOpen(false)
     }
 
     const handleClear = () => {
@@ -57,123 +42,119 @@ export function InvoiceFilters({ onFilter, onPrint }: InvoiceFiltersProps) {
         setMinAmount("")
         setMaxAmount("")
         setPeriod("")
+        setStatus("ALL")
         onFilter({})
-        setOpen(false)
     }
 
     const handlePeriodChange = (value: string) => {
         setPeriod(value)
-        // Si selecciona un periodo, limpiar las fechas manuales
-        if (value) {
-            setStartDate("")
-            setEndDate("")
-        }
+        setStartDate("")
+        setEndDate("")
+        onFilter({
+            minAmount: minAmount || undefined,
+            maxAmount: maxAmount || undefined,
+            period: value,
+            status: status === "ALL" ? undefined : status as 'PAID' | 'PENDING' | 'CANCELLED',
+        })
     }
 
+    const handleStatusChange = (value: string) => {
+        setStatus(value)
+        onFilter({
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
+            minAmount: minAmount || undefined,
+            maxAmount: maxAmount || undefined,
+            period: period || undefined,
+            status: value === "ALL" ? undefined : value as 'PAID' | 'PENDING' | 'CANCELLED',
+        })
+    }
+
+    const hasActiveFilters = Boolean(startDate || endDate || minAmount || maxAmount || period || status !== "ALL")
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <div className="flex gap-2">
-                <DialogTrigger asChild>
-                    <Button variant="outline">
-                        <Filter className="h-4 w-4 mr-2" />
-                        Filtros
-                    </Button>
-                </DialogTrigger>
-                <Button variant="outline" onClick={onPrint}>
-                    <Printer className="h-4 w-4 mr-2" />
-                    Imprimir Reporte
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+            <span className="text-sm font-medium">Período:</span>
+            {[
+                ["today", "Hoy"],
+                ["week", "Semana"],
+                ["month", "Mes"],
+                ["year", "Año"],
+            ].map(([value, label]) => (
+                <Button
+                    key={value}
+                    variant={period === value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePeriodChange(value)}
+                >
+                    {label}
                 </Button>
+            ))}
+
+            <span className="ml-2 text-sm font-medium">Estado:</span>
+            {[
+                ["PENDING", "Pendientes"],
+                ["PAID", "Pagadas"],
+                ["CANCELLED", "Canceladas"],
+            ].map(([value, label]) => (
+                <Button
+                    key={value}
+                    variant={status === value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleStatusChange(status === value ? "ALL" : value)}
+                >
+                    {label}
+                </Button>
+            ))}
+
+            <div className="flex flex-wrap items-center gap-2 border-l pl-2">
+                <Input
+                    aria-label="Fecha desde"
+                    className="h-8 w-[145px]"
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => {
+                        setStartDate(event.target.value)
+                        setPeriod("")
+                    }}
+                />
+                <Input
+                    aria-label="Fecha hasta"
+                    className="h-8 w-[145px]"
+                    type="date"
+                    value={endDate}
+                    onChange={(event) => {
+                        setEndDate(event.target.value)
+                        setPeriod("")
+                    }}
+                />
+                <Input
+                    aria-label="Monto mínimo"
+                    className="h-8 w-24"
+                    type="number"
+                    placeholder="Mínimo"
+                    value={minAmount}
+                    onChange={(event) => setMinAmount(event.target.value)}
+                />
+                <Input
+                    aria-label="Monto máximo"
+                    className="h-8 w-24"
+                    type="number"
+                    placeholder="Máximo"
+                    value={maxAmount}
+                    onChange={(event) => setMaxAmount(event.target.value)}
+                />
+                <Button size="sm" onClick={handleApply}>Aplicar</Button>
             </div>
-            <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle>Filtrar Facturas</DialogTitle>
-                    <DialogDescription>
-                        Aplica filtros para buscar facturas específicas
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label>Periodo</Label>
-                        <Select value={period} onValueChange={handlePeriodChange}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecciona un periodo..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="today">Hoy</SelectItem>
-                                <SelectItem value="week">Esta Semana</SelectItem>
-                                <SelectItem value="month">Este Mes</SelectItem>
-                                <SelectItem value="year">Este Año</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Rango de Fechas</Label>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="startDate" className="text-xs">Desde</Label>
-                                <Input
-                                    id="startDate"
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => {
-                                        setStartDate(e.target.value)
-                                        setPeriod("")
-                                    }}
-                                    disabled={!!period}
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="endDate" className="text-xs">Hasta</Label>
-                                <Input
-                                    id="endDate"
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => {
-                                        setEndDate(e.target.value)
-                                        setPeriod("")
-                                    }}
-                                    disabled={!!period}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Rango de Montos</Label>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="minAmount" className="text-xs">Mínimo</Label>
-                                <Input
-                                    id="minAmount"
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={minAmount}
-                                    onChange={(e) => setMinAmount(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="maxAmount" className="text-xs">Máximo</Label>
-                                <Input
-                                    id="maxAmount"
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={maxAmount}
-                                    onChange={(e) => setMaxAmount(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={handleClear}>
-                        Limpiar
-                    </Button>
-                    <Button onClick={handleApply}>
-                        Aplicar Filtros
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+            {hasActiveFilters && (
+                <Button variant="ghost" size="icon" onClick={handleClear} title="Limpiar filtros" aria-label="Limpiar filtros">
+                    <X className="h-4 w-4" />
+                </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={onPrint}>
+                <Printer className="mr-2 h-4 w-4" />
+                Imprimir
+            </Button>
+        </div>
     )
 }

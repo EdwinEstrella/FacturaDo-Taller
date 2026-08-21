@@ -41,15 +41,18 @@ export default function InvoicesPage() {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true)
-            const [invoicesData, userData, settingsData] = await Promise.all([
-                getInvoices(),
-                getCurrentUser(),
-                getCompanySettings()
-            ])
-            setFilteredInvoices(invoicesData)
-            setUser(userData)
-            setSettings(settingsData)
-            setLoading(false)
+            try {
+                const [invoicesData, userData, settingsData] = await Promise.all([
+                    getInvoices(),
+                    getCurrentUser(),
+                    getCompanySettings()
+                ])
+                setFilteredInvoices(invoicesData)
+                setUser(userData)
+                setSettings(settingsData)
+            } finally {
+                setLoading(false)
+            }
         }
         loadData()
     }, [])
@@ -60,6 +63,7 @@ export default function InvoicesPage() {
         minAmount?: string
         maxAmount?: string
         period?: string
+        status?: 'PAID' | 'PENDING' | 'CANCELLED'
     }) => {
         setCurrentFilters(filters)
         const filtered = await filterInvoices({
@@ -68,6 +72,7 @@ export default function InvoicesPage() {
             minAmount: filters.minAmount ? parseFloat(filters.minAmount) : undefined,
             maxAmount: filters.maxAmount ? parseFloat(filters.maxAmount) : undefined,
             period: filters.period as 'today' | 'week' | 'month' | 'year' | undefined,
+            status: filters.status,
         })
         setFilteredInvoices(filtered)
 
@@ -77,6 +82,7 @@ export default function InvoicesPage() {
             minAmount: filters.minAmount ? parseFloat(filters.minAmount) : undefined,
             maxAmount: filters.maxAmount ? parseFloat(filters.maxAmount) : undefined,
             period: filters.period as 'today' | 'week' | 'month' | 'year' | undefined,
+            status: filters.status,
         })
         setStats(statsData)
     }
@@ -115,7 +121,7 @@ export default function InvoicesPage() {
                     <InvoiceFilters onFilter={handleFilter} onPrint={handlePrint} />
 
                     {/* Stats Summary */}
-                    {(currentFilters.startDate || currentFilters.endDate || currentFilters.period || currentFilters.minAmount) && (
+                    {(currentFilters.startDate || currentFilters.endDate || currentFilters.period || currentFilters.minAmount || currentFilters.maxAmount || currentFilters.status) && (
                         <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg border">
                             <div className="text-center">
                                 <p className="text-2xl font-bold text-blue-600">{stats.count}</p>

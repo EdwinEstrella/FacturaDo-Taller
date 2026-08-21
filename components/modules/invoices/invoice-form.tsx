@@ -472,7 +472,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                             {initialClients.map((client) => (
                                                 <CommandItem
                                                     key={client.id}
-                                                    value={`${client.name} ${client.rnc || ""}`}
+                                                    value={client.id}
+                                                    keywords={[client.name, client.rnc || ""]}
                                                     onSelect={() => {
                                                         setSelectedClientId(client.id)
                                                         setOpenClient(false)

@@ -24,6 +24,7 @@ interface InvoiceFilters {
     minAmount?: number
     maxAmount?: number
     period?: 'today' | 'week' | 'month' | 'year'
+    status?: 'PAID' | 'PENDING' | 'CANCELLED'
 }
 
 export async function filterClients(filters: ClientFilters): Promise<Client[]> {
@@ -137,6 +138,10 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
 
     if (filters.maxAmount !== undefined) {
         query = query.lte('total', filters.maxAmount)
+    }
+
+    if (filters.status) {
+        query = query.eq('status', filters.status)
     }
 
     const { data, error } = await query
