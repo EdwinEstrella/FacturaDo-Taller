@@ -26,23 +26,34 @@ export async function getFiscalSequences() {
 export async function updateFiscalSequence(type: string, current: string) {
     await requireAuth();
 
+    const normalizedType = type.toUpperCase()
+    const normalizedCurrent = current.toUpperCase()
+
+    if (!['B01', 'B02'].includes(normalizedType)) {
+        throw new Error("Tipo de comprobante fiscal inválido")
+    }
+
+    if (!new RegExp(`^${normalizedType}\\d{8}$`).test(normalizedCurrent)) {
+        throw new Error(`El NCF debe tener el formato ${normalizedType} seguido de 8 dígitos`)
+    }
+
     const insforge = createServerClient()
 
     const { data: existing } = await insforge.database
         .from('Setting')
         .select('key')
-        .eq('key', `NCF_${type}`)
+        .eq('key', `NCF_${normalizedType}`)
         .single()
 
     if (existing) {
         await insforge.database
             .from('Setting')
-            .update({ value: current })
-            .eq('key', `NCF_${type}`)
+            .update({ value: normalizedCurrent })
+            .eq('key', `NCF_${normalizedType}`)
     } else {
         await insforge.database
             .from('Setting')
-            .insert([{ key: `NCF_${type}`, value: current }])
+            .insert([{ key: `NCF_${normalizedType}`, value: normalizedCurrent }])
     }
 
     revalidatePath("/fiscal")

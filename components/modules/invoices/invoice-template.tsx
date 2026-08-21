@@ -27,6 +27,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     const discount = calculateDerivedInvoiceDiscount(invoice)
     const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
     const balance = Number(invoice.balance || 0)
+    const fiscalType = invoice.ncf?.startsWith("B01") ? "Crédito Fiscal" : (invoice.ncfType || "Consumo")
 
     // Helper for Santo Domingo timezone date
     const formatDate = (date: Date | string) => {
@@ -85,7 +86,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                 <p><strong>Fecha:</strong> {formatDate(invoice.createdAt)} {formatTime(invoice.createdAt)}</p>
                 <p><strong>Cliente:</strong> {invoice.clientName || "Consumidor Final"}</p>
                 {invoice.client?.rnc && <p><strong>RNC/Ced:</strong> {invoice.client.rnc}</p>}
-                <p><strong>Tipo:</strong> {invoice.ncfType || "Consumo"}</p>
+                <p><strong>Tipo:</strong> {fiscalType}</p>
                 {invoice.ncf && <p><strong>NCF:</strong> {invoice.ncf}</p>}
                 {invoice.createdBy && <p className="text-[10px] mt-1 italic">Atendido por: {invoice.createdBy.name}</p>}
                 {invoice.dispatchInfo?.technician && <p className="text-[10px] italic">Despachado por: {invoice.dispatchInfo.technician.name}</p>}
