@@ -3,16 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
-import { Filter, Printer } from "lucide-react"
+import { Printer, X } from "lucide-react"
 
 interface ClientFiltersProps {
     onFilter: (filters: {
@@ -25,7 +16,6 @@ interface ClientFiltersProps {
 }
 
 export function ClientFilters({ onFilter, onPrint }: ClientFiltersProps) {
-    const [open, setOpen] = useState(false)
     const [name, setName] = useState("")
     const [rnc, setRnc] = useState("")
     const [startDate, setStartDate] = useState("")
@@ -38,7 +28,6 @@ export function ClientFilters({ onFilter, onPrint }: ClientFiltersProps) {
             startDate: startDate || undefined,
             endDate: endDate || undefined,
         })
-        setOpen(false)
     }
 
     const handleClear = () => {
@@ -47,79 +36,51 @@ export function ClientFilters({ onFilter, onPrint }: ClientFiltersProps) {
         setStartDate("")
         setEndDate("")
         onFilter({})
-        setOpen(false)
     }
 
+    const hasActiveFilters = Boolean(name || rnc || startDate || endDate)
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <div className="flex gap-2">
-                <DialogTrigger asChild>
-                    <Button variant="outline">
-                        <Filter className="h-4 w-4 mr-2" />
-                        Filtros
-                    </Button>
-                </DialogTrigger>
-                <Button variant="outline" onClick={onPrint}>
-                    <Printer className="h-4 w-4 mr-2" />
-                    Imprimir Lista
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3">
+            <Input
+                aria-label="Buscar cliente por nombre"
+                className="h-9 w-56"
+                placeholder="Buscar por nombre..."
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+            />
+            <Input
+                aria-label="Buscar cliente por RNC o cédula"
+                className="h-9 w-48"
+                placeholder="RNC o cédula..."
+                value={rnc}
+                onChange={(event) => setRnc(event.target.value)}
+            />
+            <Input
+                aria-label="Clientes creados desde"
+                className="h-9 w-[145px]"
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+            />
+            <Input
+                aria-label="Clientes creados hasta"
+                className="h-9 w-[145px]"
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+            />
+            <Button className="h-9" size="sm" onClick={handleApply}>Aplicar</Button>
+            {hasActiveFilters && (
+                <Button variant="ghost" size="sm" className="h-9" onClick={handleClear} title="Limpiar filtros" aria-label="Limpiar filtros">
+                    <X className="mr-1 h-4 w-4" />
+                    Limpiar
                 </Button>
-            </div>
-            <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle>Filtrar Clientes</DialogTitle>
-                    <DialogDescription>
-                        Aplica filtros para buscar clientes específicos
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Nombre</Label>
-                        <Input
-                            id="name"
-                            placeholder="Buscar por nombre..."
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="rnc">RNC/Cédula</Label>
-                        <Input
-                            id="rnc"
-                            placeholder="Buscar por RNC..."
-                            value={rnc}
-                            onChange={(e) => setRnc(e.target.value)}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="startDate">Desde</Label>
-                            <Input
-                                id="startDate"
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="endDate">Hasta</Label>
-                            <Input
-                                id="endDate"
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={handleClear}>
-                        Limpiar
-                    </Button>
-                    <Button onClick={handleApply}>
-                        Aplicar Filtros
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+            )}
+            <Button variant="outline" size="sm" className="h-9" onClick={onPrint}>
+                <Printer className="mr-2 h-4 w-4" />
+                Imprimir
+            </Button>
+        </div>
     )
 }

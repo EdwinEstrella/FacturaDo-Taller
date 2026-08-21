@@ -1,14 +1,13 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { getQuotes } from "@/actions/quote-actions"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 import { PageLoading } from "@/components/ui/loading"
+import { X } from "lucide-react"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type QuoteAny = any
@@ -17,27 +16,50 @@ function QuotesPageContent() {
     const [quotes, setQuotes] = useState<QuoteAny[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    const searchParams = useSearchParams()
-    const query = searchParams.get("q") ?? ""
+    const [query, setQuery] = useState("")
+    const [status, setStatus] = useState("ALL")
 
     const triggerRefresh = () => setRefreshTrigger(prev => prev + 1)
 
     useEffect(() => {
+        let active = true
+
         const load = async () => {
             setLoading(true)
-            const data = await getQuotes()
-            // filtro simple en cliente por ahora: cliente o estado o total en texto
-            const filtered = query
-                ? data.filter((q: QuoteAny) => {
-                    const text = `${q.clientName || q.client?.name || ""} ${q.status || ""} ${q.isDraft ? "borrador draft" : ""} ${q.total}`.toLowerCase()
-                    return text.includes(query.toLowerCase())
-                })
-                : data
-            setQuotes(filtered)
-            setLoading(false)
+            try {
+                const data = await getQuotes()
+                if (active) setQuotes(data)
+            } finally {
+                if (active) setLoading(false)
+            }
         }
         void load()
-    }, [query, refreshTrigger])
+
+        return () => {
+            active = false
+        }
+    }, [refreshTrigger])
+
+    const visibleQuotes = useMemo(() => {
+        const normalizedQuery = query.trim().toLowerCase()
+
+        return quotes.filter((quote: QuoteAny) => {
+            if (status === "DRAFT" && !quote.isDraft) return false
+            if (status !== "ALL" && status !== "DRAFT" && quote.status !== status) return false
+
+            if (!normalizedQuery) return true
+
+            const text = `${quote.clientName || quote.client?.name || ""} ${quote.status || ""} ${quote.isDraft ? "borrador draft" : ""} ${quote.total}`.toLowerCase()
+            return text.includes(normalizedQuery)
+        })
+    }, [query, quotes, status])
+
+    const clearFilters = () => {
+        setQuery("")
+        setStatus("ALL")
+    }
+
+    const hasActiveFilters = Boolean(query || status !== "ALL")
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -52,32 +74,46 @@ function QuotesPageContent() {
                 </div>
             </div>
 
-            <form className="flex gap-4 items-end border p-4 rounded-lg bg-gray-50" action={""}>
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="searchQuotes">Buscar</Label>
-                    <Input
-                        id="searchQuotes"
-                        name="q"
-                        placeholder="Buscar por cliente, estado o monto..."
-                        defaultValue={query}
-                    />
-                </div>
-                <Button type="submit" variant="outline">Filtrar</Button>
-            </form>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+                <Input
+                    aria-label="Buscar cotización"
+                    className="h-9 w-72"
+                    placeholder="Buscar cliente, estado o monto..."
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                />
+                {[
+                    ["PENDING", "Pendientes"],
+                    ["ACCEPTED", "Aceptadas"],
+                    ["REJECTED", "Rechazadas"],
+                    ["DRAFT", "Borradores"],
+                ].map(([value, label]) => (
+                    <Button
+                        key={value}
+                        variant={status === value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setStatus(status === value ? "ALL" : value)}
+                    >
+                        {label}
+                    </Button>
+                ))}
+                {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} title="Limpiar filtros" aria-label="Limpiar filtros">
+                        <X className="mr-1 h-4 w-4" />
+                        Limpiar
+                    </Button>
+                )}
+            </div>
 
             {loading ? (
                 <PageLoading message="Cargando cotizaciones..." />
             ) : (
-                <QuoteList quotes={quotes} onRefresh={triggerRefresh} />
+                <QuoteList quotes={visibleQuotes} onRefresh={triggerRefresh} />
             )}
         </div>
     )
 }
 
 export default function QuotesPage() {
-    return (
-        <Suspense fallback={null}>
-            <QuotesPageContent />
-        </Suspense>
-    )
+    return <QuotesPageContent />
 }
