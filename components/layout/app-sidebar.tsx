@@ -460,7 +460,7 @@ function DetailSidebar({ activeSection, user, onCollapseChange }: {
                             <div className="font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-900 truncate max-w-[120px]">
                                 {user?.name || "Usuario"}
                             </div>
-                            <div className="text-[10px] text-neutral-500 capitalize">{user?.role?.toLowerCase()}</div>
+                            <div className="text-[10px] text-black capitalize">{user?.role?.toLowerCase()}</div>
                         </div>
 
                         <button
@@ -518,7 +518,7 @@ function MenuItem({
             style={{ transitionTimingFunction: softSpringEasing }}
         >
             <div
-                className={`rounded-lg cursor-pointer transition-all duration-500 flex items-center relative ${isActive ? "bg-neutral-100 text-neutral-900" : "hover:bg-neutral-50 text-neutral-600 hover:text-neutral-900"
+                className={`rounded-lg cursor-pointer transition-all duration-500 flex items-center relative ${isActive ? "bg-neutral-100 text-neutral-900" : "hover:bg-neutral-50 text-black hover:text-black"
                     } ${isCollapsed ? "w-10 min-w-10 h-10 justify-center p-4" : "w-full h-10 px-4 py-2"}`}
                 style={{ transitionTimingFunction: softSpringEasing }}
                 onClick={handleClick}
@@ -566,7 +566,7 @@ function SubMenuItem({ item, onItemClick }: { item: MenuItemT; onItemClick?: () 
             <div
                 className={cn(
                     "h-8 w-full rounded-lg cursor-pointer transition-colors flex items-center px-3 py-1",
-                    isActive ? "bg-neutral-100 text-blue-600 font-medium" : "hover:bg-neutral-50 text-neutral-500"
+                    isActive ? "bg-neutral-100 text-blue-600 font-medium" : "hover:bg-neutral-50 text-black"
                 )}
             >
                 <div className="flex-1 min-w-0">
@@ -600,7 +600,7 @@ function MenuSection({
                 style={{ transitionTimingFunction: softSpringEasing }}
             >
                 <div className="flex items-center h-10 px-4">
-                    <div className="font-['Lexend:Regular',_sans-serif] text-[12px] uppercase text-neutral-400 font-bold tracking-wider">
+                    <div className="font-['Lexend:Regular',_sans-serif] text-[12px] uppercase text-black font-bold tracking-wider">
                         {section.title}
                     </div>
                 </div>

@@ -186,7 +186,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
       onMouseLeave={() => setIsCollapsed(true)}
     >
       <motion.div
-        className={`relative z-40 flex text-muted-foreground h-full shrink-0 flex-col bg-white dark:bg-black transition-all`}
+        className={`relative z-40 flex text-black h-full shrink-0 flex-col bg-white dark:bg-black transition-all`}
         variants={contentVariants}
       >
         <motion.div variants={staggerVariants} className="flex h-full flex-col">
@@ -223,7 +223,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                         <div key={idx} className="mb-2 w-full">
                             {!isCollapsed && (
                                 <motion.div variants={variants} className="px-2 py-1.5 mt-2">
-                                    <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                                    <p className="text-[10px] uppercase font-bold tracking-wider text-black">
                                         {section.title}
                                     </p>
                                 </motion.div>
@@ -321,7 +321,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
                           <span className="text-sm font-medium truncate">
                             {user?.name || "Usuario"}
                           </span>
-                          <span className="text-xs text-muted-foreground capitalize">
+                          <span className="text-xs text-black capitalize">
                             {user?.role?.toLowerCase() || "Seller"}
                           </span>
                         </div>
