@@ -1,18 +1,7 @@
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
 import { getProducts } from "@/actions/product-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
-import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
-import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
-import { Badge } from "@/components/ui/badge"
+import { ProductList } from "@/components/modules/products/product-list"
 import type { Product } from "@/types"
 
 interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
@@ -44,54 +33,7 @@ export default async function ProductsPage() {
                     </div>
                 )}
             </div>
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Categoría</TableHead>
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Precio</TableHead>
-                            <TableHead>Stock</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {serializedProducts.map((product) => (
-                            <TableRow key={product.id}>
-                                <TableCell className="font-medium">{product.name}</TableCell>
-                                <TableCell>
-                                    <Badge variant="outline">{product.category}</Badge>
-                                </TableCell>
-                                <TableCell>{product.sku || "-"}</TableCell>
-                                <TableCell>{formatCurrency(product.price)}</TableCell>
-                                <TableCell>
-                                    {product.isService ? (
-                                        <span className="text-muted-foreground italic">Servicio</span>
-                                    ) : (
-                                        <span className={product.stock <= product.minStock ? "text-red-500 font-bold" : ""}>
-                                            {formatQuantity(product.stock)} {getMeasurementShortLabel(getMeasurementModeFromProduct(product))}
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right flex justify-end gap-2">
-                                    {canManageProducts && (
-                                        <>
-                                            <ProductDialog product={product} />
-                                            <DeleteProductWrapper productId={product.id} productName={product.name} />
-                                        </>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                        {serializedProducts.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24">No hay productos registrados.</TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            <ProductList products={serializedProducts} canManageProducts={canManageProducts} />
         </div>
     )
 }
