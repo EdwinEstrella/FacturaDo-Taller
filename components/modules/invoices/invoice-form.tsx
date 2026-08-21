@@ -892,7 +892,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
 
             {/* Preview Dialog */}
             <Dialog open={showPreview} onOpenChange={setShowPreview}>
-                <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[90vh] w-[95vw] max-w-6xl gap-0 overflow-hidden p-0">
+                <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[90vh] w-[95vw] max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[calc(100vw-4rem)]">
                     <DialogHeader className="shrink-0 border-b px-6 py-5">
                         <DialogTitle className="flex items-center gap-2">
                             <Eye className="h-5 w-5" />
@@ -908,11 +908,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                             <div className="min-h-0 min-w-0 overflow-y-auto px-6 py-5">
                                 {previewDocument && (
                                     <div className="flex justify-center pb-4">
-                                        <div className="[zoom:0.55]">
-                                            {isQuoteMode
-                                                ? <QuoteOdooTemplate quote={previewDocument} />
-                                                : <InvoiceOdooTemplate invoice={previewDocument} />}
-                                        </div>
+                                        {isQuoteMode
+                                            ? <QuoteOdooTemplate quote={previewDocument} />
+                                            : <InvoiceOdooTemplate invoice={previewDocument} />}
                                     </div>
                                 )}
                             </div>
