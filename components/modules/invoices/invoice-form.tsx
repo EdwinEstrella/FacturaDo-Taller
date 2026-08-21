@@ -907,10 +907,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         <>
                             <div className="min-h-0 min-w-0 overflow-y-auto px-6 py-5">
                                 {previewDocument && (
-                                    <div className="min-w-[210mm] pb-4">
-                                        {isQuoteMode
-                                            ? <QuoteOdooTemplate quote={previewDocument} />
-                                            : <InvoiceOdooTemplate invoice={previewDocument} />}
+                                    <div className="flex justify-center pb-4">
+                                        <div className="[zoom:0.55]">
+                                            {isQuoteMode
+                                                ? <QuoteOdooTemplate quote={previewDocument} />
+                                                : <InvoiceOdooTemplate invoice={previewDocument} />}
+                                        </div>
                                     </div>
                                 )}
                             </div>
