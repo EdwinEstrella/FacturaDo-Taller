@@ -17,6 +17,10 @@ const QuoteItemSchema = z.object({
     quantity: z.number().positive(),
     price: z.number().min(0),
     variantId: z.string().nullable().optional(),
+    characteristics: z.array(z.object({
+        label: z.string().trim().min(1),
+        value: z.string().trim().min(1),
+    })).max(50).default([]),
 })
 
 const QuoteSchema = z.object({
@@ -206,7 +210,8 @@ export async function createQuote(data: QuoteFormData) {
             productName: item.productName,
             quantity: item.quantity,
             price: item.price,
-            variantId: item.variantId || null
+            variantId: item.variantId || null,
+            characteristics: item.characteristics,
         }))
 
         const { error: itemsError } = await insforge.database
@@ -432,6 +437,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
             quantity: item.quantity,
             price: item.price,
             variantId: item.variantId || null,
+            characteristics: item.characteristics,
         }))
 
         const { error: itemsError } = await insforge.database
@@ -617,7 +623,8 @@ export async function updateQuote(id: string, data: QuoteFormData) {
             productName: item.productName,
             quantity: item.quantity,
             price: item.price,
-            variantId: item.variantId || null
+            variantId: item.variantId || null,
+            characteristics: item.characteristics,
         }))
 
         const { error: itemsError } = await insforge.database

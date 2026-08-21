@@ -171,7 +171,14 @@ export function QuoteOdooTemplate({ quote, settings }: QuoteOdooTemplateProps) {
               {quote.items.map((item: any, index: number) => (
                 <tr key={item.id} className="odd:bg-[#f7f7f7] even:bg-white">
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{index + 1}.</td>
-                  <td className="border border-[#c8cfd5] px-2 py-[9px] align-top font-semibold">{item.productName}</td>
+                  <td className="border border-[#c8cfd5] px-2 py-[9px] align-top font-semibold">
+                    {item.productName}
+                    {item.characteristics?.map((characteristic: { label: string; value: string }, characteristicIndex: number) => (
+                      <div key={characteristicIndex} className="mt-1 text-[10px] font-normal">
+                        {characteristic.label}: {characteristic.value}
+                      </div>
+                    ))}
+                  </td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)} {getMeasurementShortLabel(getMeasurementModeFromProduct(item))}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">{formatCurrency(Number(item.price))}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">{formatCurrency(Number(item.price) * item.quantity)}</td>

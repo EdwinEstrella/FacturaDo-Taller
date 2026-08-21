@@ -175,6 +175,11 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
                   <td className="border border-[#c8cfd5] px-2 py-[9px] align-top font-semibold">
                     {item.productName}
                     {item.description && <div className="mt-1 text-[10px] font-normal">{item.description}</div>}
+                    {item.characteristics?.map((characteristic: { label: string; value: string }, characteristicIndex: number) => (
+                      <div key={characteristicIndex} className="mt-1 text-[10px] font-normal">
+                        {characteristic.label}: {characteristic.value}
+                      </div>
+                    ))}
                   </td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-center align-top">{formatQuantity(item.quantity)} {getMeasurementShortLabel(getMeasurementModeFromProduct(item))}</td>
                   <td className="border border-[#c8cfd5] px-2 py-[9px] text-right align-top">

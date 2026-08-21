@@ -102,6 +102,11 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                         <div className="font-semibold text-sm mb-1 leading-tight">
                             {item.productName}
                         </div>
+                        {item.characteristics?.map((characteristic: { label: string; value: string }, characteristicIndex: number) => (
+                            <div key={characteristicIndex} className="text-xs">
+                                {characteristic.label}: {characteristic.value}
+                            </div>
+                        ))}
                         <div className="text-xs mt-1 space-y-1">
                             <div className="flex justify-between">
                                 <span>Precio Unit:</span>

@@ -30,8 +30,8 @@ import {
 } from "@/lib/product-measurements"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
-import type { Product } from "@/types"
-import { Edit, X } from "lucide-react"
+import type { Product, ProductCharacteristic } from "@/types"
+import { Edit, Plus, X } from "lucide-react"
 
 interface Variant {
     id?: string
@@ -42,6 +42,10 @@ interface Variant {
     sku: string
     cost: number
     margin?: number
+}
+
+interface CharacteristicInput extends ProductCharacteristic {
+    clientKey: string
 }
 
 function calculateMargin(cost: number, price: number) {
@@ -61,6 +65,13 @@ function getInitialVariants(product?: Omit<Product, 'price' | 'cost'> & { price:
         price: Number(variant.price || 0),
         stock: Number(variant.stock || 0),
         margin: calculateMargin(Number(variant.cost || 0), Number(variant.price || 0))
+    }))
+}
+
+function getInitialCharacteristics(product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string }) {
+    return (product?.characteristics || []).map((characteristic) => ({
+        ...characteristic,
+        clientKey: crypto.randomUUID(),
     }))
 }
 
@@ -111,6 +122,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     }
 
     const [variants, setVariants] = useState<Variant[]>(() => getInitialVariants(product))
+    const [characteristics, setCharacteristics] = useState<CharacteristicInput[]>(() => getInitialCharacteristics(product))
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (nextOpen) {
@@ -125,6 +137,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
         setPrice(nextPrice)
         setMargin(calculateMargin(nextCost, nextPrice))
         setVariants(getInitialVariants(product))
+        setCharacteristics(getInitialCharacteristics(product))
         }
 
         setOpen(nextOpen)
@@ -162,6 +175,20 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
         setVariants(newVariants)
     }
 
+    const addCharacteristic = () => {
+        setCharacteristics([...characteristics, { clientKey: crypto.randomUUID(), label: "", value: "" }])
+    }
+
+    const removeCharacteristic = (index: number) => {
+        setCharacteristics(characteristics.filter((_, currentIndex) => currentIndex !== index))
+    }
+
+    const updateCharacteristic = (index: number, field: keyof ProductCharacteristic, value: string) => {
+        setCharacteristics(characteristics.map((characteristic, currentIndex) => (
+            currentIndex === index ? { ...characteristic, [field]: value } : characteristic
+        )))
+    }
+
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
@@ -180,6 +207,13 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                 </DialogHeader>
                 <form action={async (formData) => {
                     formData.set("variants", JSON.stringify(variants))
+                    const completedCharacteristics: ProductCharacteristic[] = []
+                    for (const { label, value } of characteristics) {
+                        if (label.trim() && value.trim()) {
+                            completedCharacteristics.push({ label, value })
+                        }
+                    }
+                    formData.set("characteristics", JSON.stringify(completedCharacteristics))
                     // Ensure price/cost are set from state if controlled
                     // But input fields with name attribute will override?
                     // Best to use hidden inputs or ensure inputs have correct values
@@ -290,6 +324,47 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="description" className="text-right">Descripción</Label>
                             <Textarea id="description" name="description" defaultValue={product?.description || ""} className="col-span-3" />
+                        </div>
+
+                        <div className="border-t pt-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-sm font-semibold">Características</h4>
+                                    <p className="text-xs text-muted-foreground">Agrega medidas o detalles, por ejemplo: Ancho - 90 cm.</p>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" onClick={addCharacteristic}>
+                                    <Plus className="mr-1 h-4 w-4" />
+                                    Agregar
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                {characteristics.map((characteristic, index) => (
+                                    <div key={characteristic.clientKey} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                        <Input
+                                            aria-label={`Característica ${index + 1}`}
+                                            value={characteristic.label}
+                                            onChange={(event) => updateCharacteristic(index, "label", event.target.value)}
+                                            placeholder="Característica (ej. Ancho)"
+                                        />
+                                        <Input
+                                            aria-label={`Valor de característica ${index + 1}`}
+                                            value={characteristic.value}
+                                            onChange={(event) => updateCharacteristic(index, "value", event.target.value)}
+                                            placeholder="Valor (ej. 90 cm)"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive"
+                                            onClick={() => removeCharacteristic(index)}
+                                            aria-label={`Eliminar característica ${index + 1}`}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Variations Section */}

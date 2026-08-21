@@ -4,7 +4,7 @@
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
 import { measurementModeToPersistence, type ProductMeasurementMode } from "@/lib/product-measurements"
-import type { ProductUpdate, ProductVariant } from "@/types"
+import type { ProductCharacteristic, ProductUpdate, ProductVariant } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "@/actions/auth-actions"
@@ -20,6 +20,7 @@ const ProductSchema = z.object({
     minStock: z.coerce.number().int().min(0).optional(),
     sku: z.string().optional(),
     variants: z.string().optional(),
+    characteristics: z.string().optional(),
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
     measurementMode: z.enum(["UNIT", "FEET", "CENTIMETERS", "INCHES", "METERS"]).default("UNIT"),
 }).superRefine((data, ctx) => {
@@ -31,6 +32,15 @@ const ProductSchema = z.object({
         })
     }
 })
+
+const ProductCharacteristicsSchema = z.array(z.object({
+    label: z.string().trim().min(1),
+    value: z.string().trim().min(1),
+})).max(50)
+
+function parseCharacteristics(value: string | undefined): ProductCharacteristic[] {
+    return ProductCharacteristicsSchema.parse(JSON.parse(value || "[]"))
+}
 
 export async function createProduct(prevState: unknown, formData: FormData) {
     await requireAuth();
@@ -51,6 +61,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
         category: formData.get("category"),
         measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
+        characteristics: formData.get("characteristics"),
     })
 
     if (!validatedFields.success) {
@@ -62,8 +73,9 @@ export async function createProduct(prevState: unknown, formData: FormData) {
     const insforge = createServerClient()
 
     try {
-        const { category, variants, measurementMode, ...rest } = validatedFields.data
+        const { category, variants, measurementMode, characteristics, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
+        const parsedCharacteristics = parseCharacteristics(characteristics)
         const hasVariants = parsedVariants.length > 0
         const { unitType, measurementUnit } = measurementModeToPersistence(measurementMode as ProductMeasurementMode)
 
@@ -83,11 +95,12 @@ export async function createProduct(prevState: unknown, formData: FormData) {
             measurementUnit,
             isService: category === "SERVICIO",
             hasVariants,
+            characteristics: parsedCharacteristics,
         }
 
         const { data: product, error: productError } = await insforge.database
             .from('Product')
-            .insert(productData)
+            .insert([productData])
             .select()
             .single()
 
@@ -182,6 +195,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
         category: formData.get("category"),
         measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
+        characteristics: formData.get("characteristics"),
     })
 
     if (!validatedFields.success) {
@@ -191,8 +205,9 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
     const insforge = createServerClient()
 
     try {
-        const { category, variants, measurementMode, ...rest } = validatedFields.data
+        const { category, variants, measurementMode, characteristics, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
+        const parsedCharacteristics = parseCharacteristics(characteristics)
         const hasVariants = parsedVariants.length > 0
         const { unitType, measurementUnit } = measurementModeToPersistence(measurementMode as ProductMeasurementMode)
 
@@ -212,6 +227,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
             measurementUnit,
             isService: category === "SERVICIO",
             hasVariants,
+            characteristics: parsedCharacteristics,
         }
 
         // Update main product
@@ -366,7 +382,7 @@ export async function quickCreateProduct(data: {
 
         const { data: product, error } = await insforge.database
             .from('Product')
-            .insert(productData)
+            .insert([productData])
             .select()
             .single()
 

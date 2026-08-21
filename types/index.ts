@@ -29,9 +29,15 @@ export interface Product {
     measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService: boolean
     hasVariants: boolean
+    characteristics?: ProductCharacteristic[]
     variants?: ProductVariant[]
     createdAt: string
     updatedAt: string
+}
+
+export interface ProductCharacteristic {
+    label: string
+    value: string
 }
 
 export interface ProductVariant {
@@ -53,6 +59,7 @@ export interface InvoiceItem {
     quantity: number
     price: string | number
     variantId?: string | null
+    characteristics?: ProductCharacteristic[]
     createdAt: string
 }
 
@@ -87,6 +94,7 @@ export interface QuoteItem {
     quantity: number
     price: string | number
     variantId?: string | null
+    characteristics?: ProductCharacteristic[]
 }
 
 export interface Dispatch {
@@ -233,6 +241,7 @@ export interface ProductUpdate {
     measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService?: boolean
     hasVariants?: boolean
+    characteristics?: ProductCharacteristic[]
 }
 
 export interface UserUpdate {

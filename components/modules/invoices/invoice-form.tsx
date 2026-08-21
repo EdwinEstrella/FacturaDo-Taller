@@ -16,15 +16,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import { Check, ChevronsUpDown, Trash2, Eye } from "lucide-react"
+import { Check, ChevronsUpDown, Trash2, Eye, Plus, X } from "lucide-react"
 import {
     getMeasurementLabel,
     getMeasurementModeFromProduct,
@@ -36,11 +28,13 @@ import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote, updateQuote } from "@/actions/quote-actions"
 import { createInstallationsForInvoice } from "@/actions/installation-actions"
-import type { Client, Product, ProductVariant } from "@/types"
+import type { Client, Product, ProductCharacteristic, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
+import { InvoiceOdooTemplate } from "@/components/modules/invoices/invoice-odoo-template"
+import { QuoteOdooTemplate } from "@/components/modules/quotes/quote-odoo-template"
 import {
     Select,
     SelectContent,
@@ -75,6 +69,7 @@ interface InvoiceItemState {
     variantId?: string
     variantName?: string
     requiresInstallation?: boolean
+    characteristics?: ProductCharacteristic[]
 }
 
 function getDefaultMeasurementMode(product?: SerializedProduct | Product) {
@@ -112,6 +107,7 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
         lineId: item.lineId || item.id || createLineId(),
         quantity: Number(item.quantity || 0),
         measurementMode: getDefaultMeasurementMode(productsById.get(item.productId)),
+        characteristics: item.characteristics || [],
     }))
 }
 
@@ -187,7 +183,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                     price: variant ? variant.price : Number(product.price),
                     quantity: 1,
                     measurementMode: getDefaultMeasurementMode(product),
-                    requiresInstallation
+                    requiresInstallation,
+                    characteristics: [{ label: "Característica", value: "" }],
                 }
 
                 if (variant) {
@@ -253,6 +250,35 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         }))
     }
 
+    const addCharacteristic = (lineId: string) => {
+        setItems((currentItems) => currentItems.map((item) => (
+            item.lineId === lineId
+                ? { ...item, characteristics: [...(item.characteristics || []), { label: "Característica", value: "" }] }
+                : item
+        )))
+    }
+
+    const updateCharacteristic = (lineId: string, index: number, field: keyof ProductCharacteristic, value: string) => {
+        setItems((currentItems) => currentItems.map((item) => {
+            if (item.lineId !== lineId) return item
+
+            return {
+                ...item,
+                characteristics: (item.characteristics || []).map((characteristic, currentIndex) => (
+                    currentIndex === index ? { ...characteristic, [field]: value } : characteristic
+                )),
+            }
+        }))
+    }
+
+    const removeCharacteristic = (lineId: string, index: number) => {
+        setItems((currentItems) => currentItems.map((item) => (
+            item.lineId === lineId
+                ? { ...item, characteristics: (item.characteristics || []).filter((_, currentIndex) => currentIndex !== index) }
+                : item
+        )))
+    }
+
     // Mapa de productos para saber si son servicios / exentos de ITBIS
     const productMap = useMemo(() => {
         const map = new Map<string, SerializedProduct | Product>()
@@ -308,7 +334,20 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         startTransition(async () => {
             let res;
 
-            const parsedItems = items.map(i => ({ ...i, quantity: Number(i.quantity || 0) }))
+            const parsedItems = items.map((item) => {
+                const characteristics: ProductCharacteristic[] = []
+                for (const characteristic of item.characteristics || []) {
+                    if (characteristic.value.trim()) {
+                        characteristics.push({ label: characteristic.label || "Característica", value: characteristic.value })
+                    }
+                }
+
+                return {
+                    ...item,
+                    quantity: Number(item.quantity || 0),
+                    characteristics,
+                }
+            })
 
             if (isEdit) {
                 // Edit Mode
@@ -428,6 +467,27 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     }
 
     const selectedClient = initialClients.find(c => c.id === selectedClientId)
+    const previewDocument = selectedClient ? {
+        clientId: selectedClient.id,
+        clientName: selectedClient.name,
+        client: selectedClient,
+        items: items.map((item) => ({
+            ...item,
+            quantity: Number(item.quantity || 0),
+            characteristics: (item.characteristics || []).filter((characteristic) => characteristic.value.trim()),
+        })),
+        total,
+        balance: Math.max(total - amountTendered, 0),
+        status: amountTendered >= total ? "PAID" : "PENDING",
+        shippingCost,
+        tax: taxAmount,
+        discount: activeDiscount,
+        deliveryDate: deliveryDate?.toISOString(),
+        notes,
+        createdAt: new Date().toISOString(),
+        sequenceNumber: initialData?.sequenceNumber || "VISTA PREVIA",
+        applyTax,
+    } : null
 
     return (
         <div className="grid gap-6 md:grid-cols-2">
@@ -643,25 +703,41 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         <h3 className="font-semibold mb-4">Detalle</h3>
                         <div className="space-y-2">
                             {items.map(item => (
-                                <div key={item.lineId} className="flex items-center justify-between border-b pb-2">
-                                    <div className="flex-1">
-                                        <p className="font-medium">{item.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(Number(item.quantity || 0))} {getMeasurementShortLabel(item.measurementMode)}</p>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <Input
-                                            type="number"
-                                            step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
-                                            min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
-                                            value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.lineId, e.target.value)}
-                                            className="w-24 h-8"
-                                        />
-                                        <div className="font-bold min-w-28 text-right px-2">
-                                            {formatCurrency(item.price * Number(item.quantity || 0))}
+                                <div key={item.lineId} className="border-b pb-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1">
+                                            <p className="font-medium">{item.productName}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(Number(item.quantity || 0))} {getMeasurementShortLabel(item.measurementMode)}</p>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeItem(item.lineId)}>
-                                            <Trash2 className="h-4 w-4 text-red-500" />
+                                        <div className="flex items-center space-x-2">
+                                            <Input
+                                                type="number"
+                                                step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
+                                                min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
+                                                value={item.quantity}
+                                                onChange={(e) => updateQuantity(item.lineId, e.target.value)}
+                                                className="w-24 h-8"
+                                            />
+                                            <div className="font-bold min-w-28 text-right px-2">
+                                                {formatCurrency(item.price * Number(item.quantity || 0))}
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeItem(item.lineId)}>
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 w-full space-y-2 rounded-md bg-muted/40 p-2">
+                                        {(item.characteristics || []).map((characteristic, index) => (
+                                            <div key={`${item.lineId}-${index}`} className="flex gap-2">
+                                                <Input value={characteristic.value} onChange={(event) => updateCharacteristic(item.lineId, index, "value", event.target.value)} placeholder="Características" className="h-8 flex-1 text-xs" />
+                                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => removeCharacteristic(item.lineId, index)} aria-label={`Eliminar característica ${index + 1}`}>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        <Button type="button" variant="ghost" size="sm" className="h-7 px-1 text-xs" onClick={() => addCharacteristic(item.lineId)}>
+                                            <Plus className="mr-1 h-3 w-3" />
+                                            Más
                                         </Button>
                                     </div>
                                 </div>
@@ -830,100 +906,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                     {selectedClient && (
                         <>
                             <div className="min-h-0 min-w-0 overflow-y-auto px-6 py-5">
-                                <div className="space-y-6">
-                                    {/* Client Info */}
-                                    <div className="rounded-lg bg-gray-50 p-4">
-                                        <h3 className="mb-3 text-lg font-semibold">Información del Cliente</h3>
-                                        <div className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-4">
-                                            <div>
-                                                <span className="font-medium">Nombre:</span> {selectedClient.name}
-                                            </div>
-                                            <div>
-                                                <span className="font-medium">RNC/Cédula:</span> {selectedClient.rnc}
-                                            </div>
-                                            <div>
-                                                <span className="font-medium">Teléfono:</span> {selectedClient.phone}
-                                            </div>
-                                            <div>
-                                                <span className="font-medium">Email:</span> {selectedClient.email}
-                                            </div>
-                                            <div className="sm:col-span-2">
-                                                <span className="font-medium">Dirección:</span> {selectedClient.address}
-                                            </div>
-                                        </div>
+                                {previewDocument && (
+                                    <div className="min-w-[210mm] pb-4">
+                                        {isQuoteMode
+                                            ? <QuoteOdooTemplate quote={previewDocument} />
+                                            : <InvoiceOdooTemplate invoice={previewDocument} />}
                                     </div>
-
-                                    {/* Invoice Items */}
-                                    <div className="min-w-0">
-                                        <h3 className="mb-3 text-lg font-semibold">Detalle de Productos/Servicios</h3>
-                                        <div className="overflow-hidden rounded-lg border bg-white">
-                                            <Table className="min-w-[720px] md:table-fixed">
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead className="whitespace-normal">Descripción</TableHead>
-                                                        <TableHead className="w-24 text-right">Cantidad</TableHead>
-                                                        <TableHead className="w-32 text-right">Precio Unitario</TableHead>
-                                                        <TableHead className="w-32 text-right">Subtotal</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {items.map((item) => (
-                                                        <TableRow key={item.lineId}>
-                                                            <TableCell className="align-top whitespace-normal break-words">{item.productName}</TableCell>
-                                                            <TableCell className="w-24 text-right align-top">{formatQuantity(item.quantity)} {getMeasurementShortLabel(item.measurementMode)}</TableCell>
-                                                            <TableCell className="w-32 text-right align-top">{formatCurrency(item.price)}</TableCell>
-                                                            <TableCell className="w-32 text-right align-top font-medium">
-                                                                {formatCurrency(item.price * Number(item.quantity || 0))}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    </div>
-
-                                    {/* Totals */}
-                                    <div className="ml-auto w-full max-w-sm space-y-2 rounded-lg bg-blue-50 p-4">
-                                        <div className="flex justify-between text-sm">
-                                            <span>Subtotal:</span>
-                                            <span>{formatCurrency(subtotal)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span>Envío:</span>
-                                            <span>{formatCurrency(shippingCost)}</span>
-                                        </div>
-                                        {activeDiscount > 0 && (
-                                            <div className="flex justify-between text-sm text-emerald-700">
-                                                <span>Discount:</span>
-                                                <span>-{formatCurrency(activeDiscount)}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between text-sm text-red-600">
-                                            <span>{applyTax ? "ITBIS (18%):" : "ITBIS desactivado:"}</span>
-                                            <span>{formatCurrency(taxAmount)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between border-t border-blue-200 pt-2 text-xl font-bold">
-                                            <span>Total a Pagar:</span>
-                                            <span className="text-blue-600">{formatCurrency(total)}</span>
-                                        </div>
-                                        {paymentMethod !== "CREDIT" && amountTendered > 0 && (
-                                            <div className={cn(
-                                                "flex justify-between pt-2 text-sm font-medium",
-                                                paymentMethod === "CASH" ? "text-green-700" : "text-blue-700"
-                                            )}>
-                                                <span>Abono / Recibido: {formatCurrency(amountTendered)}</span>
-                                                {paymentMethod === "CASH" && <span>Devuelta: {formatCurrency(change)}</span>}
-                                                {paymentMethod !== "CASH" && amountTendered < total && <span>Pendiente: {formatCurrency(total - amountTendered)}</span>}
-                                            </div>
-                                        )}
-                                        {notes && (
-                                            <div className="border-t border-blue-200 pt-2 text-sm">
-                                                <div className="font-medium">Notes:</div>
-                                                <div className="whitespace-pre-line text-muted-foreground">{notes}</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* Actions */}

@@ -18,6 +18,10 @@ const InvoiceItemSchema = z.object({
     quantity: z.number().positive(),
     price: z.number().min(0),
     variantId: z.string().nullable().optional(),
+    characteristics: z.array(z.object({
+        label: z.string().trim().min(1),
+        value: z.string().trim().min(1),
+    })).max(50).default([]),
 })
 
 const InvoiceSchema = z.object({
@@ -230,7 +234,8 @@ export async function createInvoice(data: InvoiceFormData) {
             productName: item.productName,
             quantity: item.quantity,
             price: item.price,
-            variantId: item.variantId || null
+            variantId: item.variantId || null,
+            characteristics: item.characteristics,
         }))
 
         const { error: itemsError } = await insforge.database
@@ -566,7 +571,8 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                     productName: item.productName,
                     quantity: item.quantity,
                     price: item.price,
-                    variantId: item.variantId || null
+                    variantId: item.variantId || null,
+                    characteristics: item.characteristics,
                 }])
         }
 
