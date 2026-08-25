@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
-import { DeleteProductWrapper } from "@/components/modules/products/delete-product-wrapper"
+import { DeleteProductButton } from "@/components/modules/products/delete-button"
 import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { formatCurrency, formatQuantity } from "@/lib/utils"
 import type { Product } from "@/types"
@@ -94,7 +94,7 @@ export function ProductList({ products, canManageProducts }: ProductListProps) {
                                     {canManageProducts && (
                                         <>
                                             <ProductDialog product={product} />
-                                            <DeleteProductWrapper productId={product.id} productName={product.name} />
+                                            <DeleteProductButton id={product.id} name={product.name} />
                                         </>
                                     )}
                                 </TableCell>
