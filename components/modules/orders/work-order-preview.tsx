@@ -9,9 +9,25 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { FileText, Printer } from "lucide-react"
-import { useRef } from "react"
+import { Component, useRef, type ReactNode } from "react"
 import { useReactToPrint } from "react-to-print"
 import { WorkOrderTemplate } from "./work-order-template"
+
+class WorkOrderPreviewErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    state = { hasError: false }
+
+    static getDerivedStateFromError() {
+        return { hasError: true }
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return <p className="p-4 text-sm text-muted-foreground">No se pudo cargar la vista previa del conduce.</p>
+        }
+
+        return this.props.children
+    }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function WorkOrderPreviewDialog({ invoice }: { invoice: any }) {
@@ -34,7 +50,9 @@ export function WorkOrderPreviewDialog({ invoice }: { invoice: any }) {
 
                 <div className="border p-4 bg-gray-50 overflow-auto">
                     <div ref={contentRef}>
-                        <WorkOrderTemplate invoice={invoice} />
+                        <WorkOrderPreviewErrorBoundary>
+                            <WorkOrderTemplate invoice={invoice} />
+                        </WorkOrderPreviewErrorBoundary>
                     </div>
                 </div>
 

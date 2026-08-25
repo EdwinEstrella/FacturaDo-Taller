@@ -186,7 +186,7 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
       onMouseLeave={() => setIsCollapsed(true)}
     >
       <motion.div
-        className={`relative z-40 flex text-black h-full shrink-0 flex-col bg-white dark:bg-black transition-all`}
+        className={`relative z-40 flex text-muted-foreground h-full shrink-0 flex-col bg-white dark:bg-black transition-all`}
         variants={contentVariants}
       >
         <motion.div variants={staggerVariants} className="flex h-full flex-col">

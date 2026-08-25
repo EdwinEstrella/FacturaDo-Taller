@@ -1,14 +1,12 @@
 import Image from "next/image"
 import type { Invoice, InvoiceItem, Client } from "@/types"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 
 interface WorkOrder {
     id: string
     status: string
     notes?: string | null
-    createdAt: Date
-    updatedAt: Date
+    createdAt?: string | Date | null
+    updatedAt?: string | Date | null
 }
 
 interface InvoiceWithWorkOrder extends Omit<Invoice, 'clientName' | 'sequenceNumber'> {
@@ -25,6 +23,12 @@ interface WorkOrderTemplateProps {
 
 export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
     if (!invoice?.workOrder) return null
+
+    const dateValue = invoice.workOrder.createdAt ?? invoice.createdAt
+    const workOrderDate = dateValue ? new Date(dateValue) : null
+    const formattedWorkOrderDate = workOrderDate && Number.isFinite(workOrderDate.getTime())
+        ? `${String(workOrderDate.getDate()).padStart(2, "0")}/${String(workOrderDate.getMonth() + 1).padStart(2, "0")}/${workOrderDate.getFullYear()}`
+        : "No disponible"
 
     return (
         <div className="font-mono text-sm w-full max-w-[210mm] mx-auto p-4 bg-white text-black">
@@ -45,7 +49,7 @@ export function WorkOrderTemplate({ invoice }: WorkOrderTemplateProps) {
                     </div>
                     <div className="text-right">
                         <p className="font-bold">Factura Ref: #{invoice.sequenceNumber}</p>
-                        <p>Fecha: {format(new Date(invoice.workOrder.createdAt), "dd/MM/yyyy", { locale: es })}</p>
+                        <p>Fecha: {formattedWorkOrderDate}</p>
                     </div>
                 </div>
             </div>
