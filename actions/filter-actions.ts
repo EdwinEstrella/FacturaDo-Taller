@@ -90,7 +90,11 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
             *,
             client:Client(*),
             items:InvoiceItem(*),
-            workOrder:WorkOrder(*)
+            workOrder:WorkOrder(*),
+            dispatchInfo:Dispatch(
+                *,
+                technician:users(*)
+            )
         `)
         .order('createdAt', { ascending: false })
 
@@ -150,13 +154,33 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
         console.error(error)
         return []
     }
+    
+    const allItems = (data || []).flatMap(inv => inv.items || [])
+    const productIds = [...new Set(allItems.reduce<string[]>((acc, i: any) => {
+        if (i.productId) acc.push(i.productId)
+        return acc
+    }, []))]
+    
+    let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
+    if (productIds.length > 0) {
+        const { data: products } = await insforge.database
+            .from('Product')
+            .select('id, unitType, measurementUnit')
+            .in('id', productIds)
+            
+        if (products) {
+            productsMap = Object.fromEntries(products.map(p => [p.id, p]))
+        }
+    }
 
     return (data || []).map(invoice => ({
         ...invoice,
         total: Number(invoice.total),
-        items: (invoice.items || []).map((item: InvoiceItem) => ({
+        items: (invoice.items || []).map((item: any) => ({
             ...item,
-            price: Number(item.price)
+            price: Number(item.price),
+            unitType: item.productId ? productsMap[item.productId]?.unitType : 'UNIT',
+            measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
         }))
     }))
 }

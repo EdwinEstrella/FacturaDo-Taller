@@ -18,7 +18,7 @@ import { InvoiceFilters } from "@/components/modules/invoices/invoice-filters"
 import { InvoiceReportPrint } from "@/components/modules/reports/invoice-report-print"
 import { CreateWorkOrderDialog } from "@/components/modules/orders/create-order-dialog"
 import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-preview"
-import { WorkOrderPreviewDialog } from "@/components/modules/orders/work-order-preview"
+import { DispatchSlipPreviewDialog } from "@/components/modules/invoices/dispatch-slip-preview"
 import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
 import { Pencil } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
@@ -187,9 +187,7 @@ export default function InvoicesPage() {
 
                                                 <InvoicePreviewDialog invoice={invoice} settings={settings || undefined} />
 
-                                                {invoice.workOrder && (
-                                                    <WorkOrderPreviewDialog invoice={invoice} />
-                                                )}
+                                                <DispatchSlipPreviewDialog invoice={invoice} settings={settings || undefined} />
 
                                                 {!invoice.workOrder && (
                                                     <CreateWorkOrderDialog invoiceId={invoice.id} />

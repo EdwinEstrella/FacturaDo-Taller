@@ -300,13 +300,35 @@ export async function getInvoices() {
             *,
             client:Client(*),
             items:InvoiceItem(*),
-            workOrder:WorkOrder(*)
+            workOrder:WorkOrder(*),
+            dispatchInfo:Dispatch(
+                *,
+                technician:users(*)
+            )
         `)
         .order('createdAt', { ascending: false })
 
     if (error) {
         console.error(error)
         return []
+    }
+    
+    const allItems = (invoices || []).flatMap(inv => inv.items || [])
+    const productIds = [...new Set(allItems.reduce<string[]>((acc, i: any) => {
+        if (i.productId) acc.push(i.productId)
+        return acc
+    }, []))]
+    
+    let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
+    if (productIds.length > 0) {
+        const { data: products } = await insforge.database
+            .from('Product')
+            .select('id, unitType, measurementUnit')
+            .in('id', productIds)
+            
+        if (products) {
+            productsMap = Object.fromEntries(products.map(p => [p.id, p]))
+        }
     }
 
     return invoices.map(invoice => ({
@@ -320,7 +342,9 @@ export async function getInvoices() {
         items: (invoice.items || []).map((item: InvoiceItem) => ({
             ...item,
             quantity: Number(item.quantity),
-            price: Number(item.price)
+            price: Number(item.price),
+            unitType: item.productId ? productsMap[item.productId]?.unitType : 'UNIT',
+            measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
         }))
     }))
 }
@@ -356,7 +380,10 @@ export async function getInvoiceById(id: string) {
         price: Number(item.price)
     }))
     
-    const productIds = [...new Set(normalizedItems.map(i => i.productId).filter(Boolean))] as string[]
+    const productIds = [...new Set(normalizedItems.reduce<string[]>((acc, i) => {
+        if (i.productId) acc.push(i.productId)
+        return acc
+    }, []))]
     let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
     
     if (productIds.length > 0) {
@@ -366,10 +393,7 @@ export async function getInvoiceById(id: string) {
             .in('id', productIds)
             
         if (products) {
-            productsMap = products.reduce((acc, p) => ({
-                ...acc,
-                [p.id]: p
-            }), {})
+            productsMap = Object.fromEntries(products.map(p => [p.id, p]))
         }
     }
 
