@@ -26,6 +26,7 @@ import { registerPayment } from "@/actions/receivables-actions"
 import { toast } from "sonner"
 import { DollarSign } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useShiftGuard } from "@/components/modules/cash-close/closed-shift-dialog"
 
 interface SerializedInvoice {
     id: string
@@ -37,6 +38,7 @@ interface SerializedInvoice {
 export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const [open, setOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
+    const { requireShift } = useShiftGuard()
 
     const balance = Number(invoice.balance || invoice.total) // Fallback for old invoices?
     const [amount, setAmount] = useState(balance)
@@ -47,6 +49,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const router = useRouter()
 
     const handleConfirm = () => {
+        if (!requireShift()) return
         if (!amount || amount <= 0) return toast.error("Monto inválido")
         if (amount > balance + 0.01) return toast.error("El monto excede el balance")
 
@@ -65,15 +68,30 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
                 setOpen(false)
                 router.refresh()
             } else {
-                toast.error("Error: " + res.error)
+                if (res.error?.includes("turno de caja") || res.error?.includes("apertura de caja")) {
+                    setOpen(false)
+                    requireShift()
+                } else {
+                    toast.error("Error: " + res.error)
+                }
             }
         })
     }
 
+    const handleTriggerClick = (e: React.MouseEvent) => {
+        if (!requireShift()) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
+    }
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(val) => {
+            if (val && !requireShift()) return
+            setOpen(val)
+        }}>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
+                <Button onClick={handleTriggerClick} size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
                     <DollarSign className="mr-2 h-4 w-4" />
                     Registrar Abono
                 </Button>

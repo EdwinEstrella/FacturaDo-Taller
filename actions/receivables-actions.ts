@@ -30,6 +30,17 @@ export async function registerPayment(data: PaymentFormData) {
     const { invoiceId, amount, method, reference, notes, date } = validated.data
     const insforge = createServerClient()
 
+    // Verificar si hay un turno de caja abierto
+    const { data: openShifts } = await insforge.database
+        .from('CashShift')
+        .select('id')
+        .eq('status', 'OPEN')
+        .limit(1)
+
+    if (!openShifts || openShifts.length === 0) {
+        return { success: false, error: "No se puede registrar cobro: Debe abrir un turno de caja primero." }
+    }
+
     try {
         // Get invoice
         const { data: invoice } = await insforge.database

@@ -80,7 +80,16 @@ export async function getPettyCashSummary() {
         totalCashSalesToday: canViewDiscrepancy ? totalCashSalesToday : 0,
         expectedBalance: canViewDiscrepancy ? expectedBalance : currentBalance,
         discrepancy: canViewDiscrepancy ? discrepancy : 0,
-        canViewDiscrepancy
+        canViewDiscrepancy,
+        currentPeriodOpener: {
+            name: lastClosing?.closedByName || "Administración / Inicial",
+            date: lastClosing?.closedAt || null
+        },
+        currentUser: {
+            id: user?.id || "",
+            name: user?.name || user?.username || "Usuario",
+            role: user?.role || "SELLER"
+        }
     }
 }
 
@@ -124,6 +133,11 @@ export async function closePettyCash(formData: FormData) {
 
     const closingBalance = Number(openingBalance) + totalIncome - totalExpense
 
+    const openedByName = lastClosing?.closedByName || user.name || user.username
+    const openedBy = lastClosing?.closedBy || user.id
+    const openedAt = lastClosing?.closedAt || new Date().toISOString()
+    const closedAt = new Date().toISOString()
+
     // Create closing
     const { data: closing, error: closingError } = await insforge.database
         .from('PettyCashClosing')
@@ -133,8 +147,12 @@ export async function closePettyCash(formData: FormData) {
             totalExpense,
             closingBalance,
             notes,
+            openedBy,
+            openedByName,
+            openedAt,
             closedBy: user.id,
-            closedByName: user.name
+            closedByName: user.name || user.username,
+            closedAt
         }])
         .select()
         .single()
@@ -165,6 +183,17 @@ export async function addPettyCashIncome(formData: FormData) {
 
     const insforge = createServerClient()
 
+    // Verificar si hay un turno de caja abierto
+    const { data: openShifts } = await insforge.database
+        .from('CashShift')
+        .select('id')
+        .eq('status', 'OPEN')
+        .limit(1)
+
+    if (!openShifts || openShifts.length === 0) {
+        throw new Error("No se pueden registrar movimientos: Debe abrir un turno de caja primero.")
+    }
+
     await insforge.database
         .from('Transaction')
         .insert([{
@@ -176,6 +205,7 @@ export async function addPettyCashIncome(formData: FormData) {
         }])
 
     revalidatePath("/petty-cash")
+    revalidatePath("/daily-close")
 }
 
 export async function addPettyCashExpense(formData: FormData) {
@@ -190,6 +220,17 @@ export async function addPettyCashExpense(formData: FormData) {
 
     const insforge = createServerClient()
 
+    // Verificar si hay un turno de caja abierto
+    const { data: openShifts } = await insforge.database
+        .from('CashShift')
+        .select('id')
+        .eq('status', 'OPEN')
+        .limit(1)
+
+    if (!openShifts || openShifts.length === 0) {
+        throw new Error("No se pueden registrar movimientos: Debe abrir un turno de caja primero.")
+    }
+
     await insforge.database
         .from('Transaction')
         .insert([{
@@ -201,4 +242,5 @@ export async function addPettyCashExpense(formData: FormData) {
         }])
 
     revalidatePath("/petty-cash")
+    revalidatePath("/daily-close")
 }

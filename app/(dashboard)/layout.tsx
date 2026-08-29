@@ -1,16 +1,21 @@
-import { getCurrentUser } from "@/actions/auth-actions"
+import { getActiveShiftStatus } from "@/actions/cash-shift-actions"
 import { DashboardShell } from "@/components/layout/dashboard-shell"
+
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
-    // Optimización: fetch del usuario una sola vez
-    const user = await getCurrentUser()
+    const shiftStatus = await getActiveShiftStatus()
 
     return (
-        <DashboardShell user={user}>
+        <DashboardShell
+            user={shiftStatus.currentUser}
+            hasActiveShift={shiftStatus.hasActiveShift}
+            lastClosedShift={shiftStatus.lastClosedShift}
+        >
             {children}
         </DashboardShell>
     )

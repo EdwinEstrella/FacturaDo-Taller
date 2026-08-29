@@ -1,7 +1,6 @@
 "use server"
 
-
-import { requireAuth } from "@/actions/auth-actions";
+import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { isMeasuredMode } from "@/lib/product-measurements"
 import type { InvoiceItem } from "@/types"
@@ -9,8 +8,6 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 import { addClientHistoryEntry } from "./client-history-actions"
-
-
 
 const InvoiceItemSchema = z.object({
     productId: z.string(),
@@ -169,6 +166,17 @@ export async function createInvoice(data: InvoiceFormData) {
 
     const insforge = createServerClient()
 
+    // Verificar si hay un turno de caja abierto (Bloqueo Bistro / POS)
+    const { data: openShifts } = await insforge.database
+        .from('CashShift')
+        .select('id')
+        .eq('status', 'OPEN')
+        .limit(1)
+
+    if (!openShifts || openShifts.length === 0) {
+        return { success: false, error: "No se puede facturar: Es obligatorio realizar la apertura de caja primero." }
+    }
+
     try {
         await validateInventoryAvailability(insforge, data.items)
     } catch (error) {
@@ -198,7 +206,7 @@ export async function createInvoice(data: InvoiceFormData) {
             .order('sequenceNumber', { ascending: false })
             .limit(1)
             .single()
-            
+
         const nextSequence = (latestInvoice?.sequenceNumber || 0) + 1
 
         // Create Invoice
@@ -379,19 +387,18 @@ export async function getInvoiceById(id: string) {
         quantity: Number(item.quantity),
         price: Number(item.price)
     }))
-    
     const productIds = [...new Set(normalizedItems.reduce<string[]>((acc, i) => {
         if (i.productId) acc.push(i.productId)
         return acc
     }, []))]
     let productsMap: Record<string, { unitType: string; measurementUnit: string | null }> = {}
-    
+
     if (productIds.length > 0) {
         const { data: products } = await insforge.database
             .from('Product')
             .select('id, unitType, measurementUnit')
             .in('id', productIds)
-            
+
         if (products) {
             productsMap = Object.fromEntries(products.map(p => [p.id, p]))
         }

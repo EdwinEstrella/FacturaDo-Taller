@@ -42,6 +42,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { useShiftGuard } from "@/components/modules/cash-close/closed-shift-dialog"
 
 interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
     price: number
@@ -52,9 +53,9 @@ interface InvoiceFormProps {
     initialProducts: SerializedProduct[] | Product[]
     initialClients: Client[]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    initialData?: any // Optional initial data for editing
+    initialData?: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sourceQuote?: any // Optional quote data for converting to invoice
+    sourceQuote?: any
     documentType?: "INVOICE" | "QUOTE"
 }
 
@@ -112,8 +113,7 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
 }
 
 export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType }: InvoiceFormProps) {
-    // Handling form state changes for HMR sync
-
+    const { requireShift } = useShiftGuard()
     const dataToUse = initialData || sourceQuote
     const isEdit = !!initialData
 
@@ -126,20 +126,44 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const [shippingCost, setShippingCost] = useState<number>(dataToUse?.shippingCost || 0)
     const [discount, setDiscount] = useState<number>(() => getInitialDiscount(dataToUse))
     const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(dataToUse?.deliveryDate ? new Date(dataToUse.deliveryDate) : undefined)
-    const [notes, setNotes] = useState<string>(dataToUse?.notes || "")
+    const [notes, setNotes] = useState(dataToUse?.notes || "")
     const [paymentMethod, setPaymentMethod] = useState<string>(dataToUse?.paymentMethod || "CASH")
     const [amountTendered, setAmountTendered] = useState<number>(0)
-    const [applyTax, setApplyTax] = useState<boolean>(
-        dataToUse?.applyTax !== undefined 
-            ? dataToUse.applyTax 
-            : dataToUse 
-                ? (dataToUse.tax > 0) 
-                : true
-    )
+    const [applyTax, setApplyTax] = useState<boolean>(() => {
+        if (dataToUse?.applyTax !== undefined) return Boolean(dataToUse.applyTax)
+        if (dataToUse?.hasNcf !== undefined) return Boolean(dataToUse.hasNcf)
+        if (dataToUse?.tax !== undefined) return Number(dataToUse.tax) > 0
+        return true
+    })
 
-    // Force sync when dataToUse changes (resolves Next.js caching / HMR issues when navigating from Quote to Invoice)
+    // Installation Modal State
+    const [installationModal, setInstallationModal] = useState<{
+        open: boolean
+        product: Product | SerializedProduct | null
+        variant: { id: string; name: string; price: number } | null
+    }>({
+        open: false,
+        product: null,
+        variant: null,
+    })
+
+    const router = useRouter()
+    const searchParams = useSearchParams()
+
+    // Determine type: prop > initialData > searchParam > default
+    const type = documentType ||
+        (dataToUse?.status === "DRAFT" || dataToUse?.status === "ACCEPTED" || dataToUse?.status === "REJECTED" ? "QUOTE" :
+            searchParams.get("type") === "quote" ? "QUOTE" : "INVOICE")
+
+    const isQuoteMode = type === "QUOTE"
+
+    // Combobox states
+    const [openClient, setOpenClient] = useState(false)
+    const [openProduct, setOpenProduct] = useState(false)
+
+    // Sync form state when initialData changes
     useEffect(() => {
-        if (dataToUse && dataToUse.id) {
+        if (dataToUse) {
             setItems(hydrateInitialItems(dataToUse.items, initialProducts))
             setSelectedClientId(dataToUse.clientId || "")
             setShippingCost(dataToUse.shippingCost || 0)
@@ -147,102 +171,114 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
             setDeliveryDate(dataToUse.deliveryDate ? new Date(dataToUse.deliveryDate) : undefined)
             setNotes(dataToUse.notes || "")
             setPaymentMethod(dataToUse.paymentMethod || "CASH")
-            setApplyTax(
-                dataToUse.applyTax !== undefined 
-                    ? dataToUse.applyTax 
-                    : (dataToUse.tax > 0)
-            )
+            if (dataToUse.applyTax !== undefined) {
+                setApplyTax(Boolean(dataToUse.applyTax))
+            } else if (dataToUse.hasNcf !== undefined) {
+                setApplyTax(Boolean(dataToUse.hasNcf))
+            } else if (dataToUse.tax !== undefined) {
+                setApplyTax(Number(dataToUse.tax) > 0)
+            }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataToUse?.id]) // Only depend on the ID to prevent infinite loops from object reference changes
+    }, [dataToUse, initialProducts])
 
-    const searchParams = useSearchParams()
-    const router = useRouter()
-    
-    const type = documentType || (searchParams.get("type") === "QUOTE" ? "QUOTE" : "INVOICE")
-    const isQuoteMode = type === "QUOTE"
+    // Función interna para agregar item (con o sin instalación)
+    const doAddItem = (
+        product: Product | SerializedProduct,
+        variant?: { id: string; name: string; price: number },
+        requiresInstallation = false
+    ) => {
+        const lineId = createLineId()
+        const measurementMode = getDefaultMeasurementMode(product)
+        const price = variant ? variant.price : Number(product.price)
+        const name = variant ? `${product.name} - ${variant.name}` : product.name
 
-    // Product Search State
-    const [openProduct, setOpenProduct] = useState(false)
-    const [openClient, setOpenClient] = useState(false)
+        const existingIndex = items.findIndex(item =>
+            item.productId === product.id &&
+            item.variantId === (variant?.id || undefined) &&
+            item.requiresInstallation === requiresInstallation
+        )
 
-    // Installation Modal State
-    const [installationModal, setInstallationModal] = useState<{
-        open: boolean
-        product: SerializedProduct | null
-        variant?: { id: string; name: string; price: number }
-    }>({ open: false, product: null })
-
-    const addItem = (product: SerializedProduct, variant?: { id: string; name: string; price: number }, requiresInstallation?: boolean) => {
-        if (requiresInstallation !== undefined) {
-            setItems(prev => {
-                const newItem: InvoiceItemState = {
-                    lineId: createLineId(),
-                    productId: product.id,
-                    productName: variant ? `${product.name} - ${variant.name}` : product.name,
-                    price: variant ? variant.price : Number(product.price),
-                    quantity: 1,
-                    measurementMode: getDefaultMeasurementMode(product),
-                    requiresInstallation,
-                    characteristics: [{ label: "Característica", value: "" }],
-                }
-
-                if (variant) {
-                    newItem.variantId = variant.id
-                    newItem.variantName = variant.name
-                }
-
-                return [...prev, newItem]
-            })
-            setOpenProduct(false)
+        if (existingIndex > -1) {
+            const updated = [...items]
+            const currentQuantity = Number(updated[existingIndex].quantity || 0)
+            const delta = isMeasuredMode(measurementMode) ? 1 : 1
+            updated[existingIndex].quantity = currentQuantity + delta
+            setItems(updated)
         } else {
-            // Mostrar modal preguntando si requiere instalación
-            setInstallationModal({ open: true, product, variant })
+            setItems([...items, {
+                lineId,
+                productId: product.id,
+                productName: name,
+                price: price,
+                quantity: 1,
+                measurementMode,
+                variantId: variant?.id,
+                variantName: variant?.name,
+                requiresInstallation,
+                characteristics: [{ label: "Característica", value: "" }],
+            }])
         }
+
+        setOpenProduct(false)
+    }
+
+    const addItem = (product: Product | SerializedProduct, variant?: { id: string; name: string; price: number }) => {
+        // En modo cotización, no preguntamos por instalación
+        if (isQuoteMode) {
+            doAddItem(product, variant, false)
+            return
+        }
+
+        // Si es servicio, no requiere instalación física
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const asAny = product as any
+        if (asAny.isService || asAny.category === "SERVICIO") {
+            doAddItem(product, variant, false)
+            return
+        }
+
+        // Abrir modal de confirmación de instalación
+        setInstallationModal({
+            open: true,
+            product,
+            variant: variant || null,
+        })
     }
 
     const handleInstallationYes = () => {
         if (installationModal.product) {
-            addItem(installationModal.product, installationModal.variant, true)
+            doAddItem(installationModal.product, installationModal.variant || undefined, true)
         }
-        setInstallationModal({ open: false, product: null })
+        setInstallationModal({ open: false, product: null, variant: null })
     }
 
     const handleInstallationNo = () => {
         if (installationModal.product) {
-            addItem(installationModal.product, installationModal.variant, false)
+            doAddItem(installationModal.product, installationModal.variant || undefined, false)
         }
-        setInstallationModal({ open: false, product: null })
+        setInstallationModal({ open: false, product: null, variant: null })
     }
 
     const handleInstallationCancel = () => {
-        setInstallationModal({ open: false, product: null })
-        setOpenProduct(false)
+        setInstallationModal({ open: false, product: null, variant: null })
     }
 
     const removeItem = (lineId: string) => {
-        setItems(prev => prev.filter(p => p.lineId !== lineId))
+        setItems(items.filter(item => item.lineId !== lineId))
     }
 
-    const updateQuantity = (lineId: string, q: string | number) => {
-        if (q === "") {
-            setItems(prev => prev.map(p => {
-                return p.lineId === lineId ? { ...p, quantity: q } : p
-            }))
-            return
-        }
+    const updateQuantity = (lineId: string, value: string) => {
+        setItems(items.map(p => {
+            if (p.lineId !== lineId) return p
 
-        const numValue = Number(q)
-        if (numValue < 0) return
-
-        setItems(prev => prev.map(p => {
-            const isTarget = p.lineId === lineId
-
-            if (!isTarget) {
-                return p
+            if (value === "") {
+                return { ...p, quantity: "" }
             }
 
-            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(numValue)) {
+            const q = Number(value)
+            if (Number.isNaN(q)) return p
+
+            if (!isMeasuredMode(p.measurementMode) && !Number.isInteger(q)) {
                 return p
             }
 
@@ -283,7 +319,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const productMap = useMemo(() => {
         const map = new Map<string, SerializedProduct | Product>()
         for (const p of initialProducts as SerializedProduct[]) {
-            // SerializedProduct es compatible con Product en los campos que usamos
             map.set(p.id as string, p)
         }
         return map
@@ -293,10 +328,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         return items.reduce((sum, item) => sum + (item.price * Number(item.quantity || 0)), 0)
     }, [items])
 
-    // Solo aplicamos ITBIS a productos que NO son servicios
     const taxableSubtotal = items.reduce((acc, item) => {
         const product = productMap.get(item.productId)
-        // Se considera servicio si isService es true o la categoría es "SERVICIO"
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const asAny = product as any | undefined
         const isService = asAny?.isService || asAny?.category === "SERVICIO"
@@ -324,10 +357,13 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const handlePreview = () => {
         if (!selectedClientId) return toast.error("Seleccione un cliente")
         if (items.length === 0) return toast.error("Agregue productos")
+        if (type !== "QUOTE" && !requireShift()) return
         setShowPreview(true)
     }
 
     const submitDocument = (saveAsDraft = false) => {
+        if (type !== "QUOTE" && !requireShift()) return
+
         const selectedClient = initialClients.find(c => c.id === selectedClientId)
         if (!selectedClient) return toast.error("Cliente inválido")
 
@@ -350,7 +386,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
             })
 
             if (isEdit) {
-                // Edit Mode
                 if (type === "QUOTE") {
                     res = await updateQuote(initialData.id, {
                         clientId: selectedClientId,
@@ -379,7 +414,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                     })
                 }
             } else {
-                // Create Mode
                 if (type === "QUOTE") {
                     res = await createQuote({
                         clientId: selectedClientId,
@@ -412,7 +446,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
             }
 
             if (res.success) {
-                // Crear instalaciones para items que las requieren (solo en facturas, no cotizaciones)
                 if (!isEdit && !isQuoteMode) {
                     const invoiceId = 'invoiceId' in res ? res.invoiceId as string : undefined
 
@@ -449,7 +482,12 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                 router.push(isQuoteMode ? "/quotes" : "/invoices")
                 router.refresh()
             } else {
-                toast.error("Error: " + res.error)
+                if (res.error?.includes("turno de caja") || res.error?.includes("apertura de caja")) {
+                    setShowPreview(false)
+                    requireShift()
+                } else {
+                    toast.error("Error: " + res.error)
+                }
             }
         })
     }
@@ -497,7 +535,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         <h3 className="font-semibold text-lg">
                             {isEdit ? (isQuoteMode ? "Editar Cotización" : "Editar Factura") : (type === "QUOTE" ? "Nueva Cotización" : "Nueva Factura")}
                         </h3>
-                        
+
                         <div className={cn("p-2 rounded text-sm mb-2", isQuoteMode ? "bg-yellow-100" : "bg-blue-100")}>
                             {isQuoteMode 
                                 ? "Modo: Cotización (no descuenta stock, no consume NCF y no afecta contabilidad)"
@@ -572,7 +610,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                         <CommandEmpty>No encontrado.</CommandEmpty>
                                         <CommandGroup>
                                             {(initialProducts as SerializedProduct[]).map((product) => {
-                                                // Si tiene variantes, mostrar las variantes en lugar del producto
                                                 if (product.hasVariants && product.variants && product.variants.length > 0) {
                                                     return (
                                                         <div key={product.id}>
@@ -595,7 +632,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                                     )
                                                 }
 
-                                                // Producto sin variantes
                                                 return (
                                                     <CommandItem
                                                         key={product.id}
