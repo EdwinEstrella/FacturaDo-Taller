@@ -153,7 +153,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     // Determine type: prop > initialData > searchParam > default
     const type = documentType ||
         (dataToUse?.status === "DRAFT" || dataToUse?.status === "ACCEPTED" || dataToUse?.status === "REJECTED" ? "QUOTE" :
-            searchParams.get("type") === "quote" ? "QUOTE" : "INVOICE")
+            searchParams.get("type")?.toUpperCase() === "QUOTE" ? "QUOTE" : "INVOICE")
 
     const isQuoteMode = type === "QUOTE"
 
