@@ -19,7 +19,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/utils"
-import { Eye, Printer } from "lucide-react"
+import { Eye, Printer, ShoppingCart, DollarSign, Minus } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import type { CashShiftRecord } from "@/actions/cash-shift-actions"
@@ -37,13 +37,25 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                     Detalle
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <div className="flex items-center justify-between pr-6">
-                        <DialogTitle className="text-xl">Turno #{shift.shiftNumber}</DialogTitle>
-                        <Badge className={isClosed ? "bg-gray-600" : "bg-emerald-600"}>
-                            {isClosed ? "CERRADO" : "EN CURSO"}
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                            <DialogTitle className="text-xl">Turno #{shift.shiftNumber}</DialogTitle>
+                            <Badge className={isClosed ? "bg-gray-600" : "bg-emerald-600"}>
+                                {isClosed ? "CERRADO" : "EN CURSO"}
+                            </Badge>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.print()}
+                            className="gap-1.5"
+                            title="Imprimir reporte"
+                        >
+                            <Printer className="h-3.5 w-3.5" />
+                            Imprimir
+                        </Button>
                     </div>
                     <DialogDescription>
                         Apertura: {openedAtFormatted} por <strong>{shift.openedByName || "Usuario"}</strong>
@@ -59,8 +71,8 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                             <p className="font-bold">{formatCurrency(Number(shift.openingBalance))}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-muted-foreground">Facturado</p>
-                            <p className="font-bold">{formatCurrency(Number(shift.totalBilled))}</p>
+                            <p className="text-xs text-muted-foreground">Facturado (Ventas)</p>
+                            <p className="font-bold text-blue-700">{formatCurrency(Number(shift.totalBilled))}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted-foreground">Cobrado Total</p>
@@ -75,7 +87,7 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                             <p className="font-bold text-blue-700">{formatCurrency(Number(shift.expectedCash))}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-muted-foreground">Efectivo Físico</p>
+                            <p className="text-xs text-muted-foreground">Efectivo Físico Arqueado</p>
                             <p className="font-bold">{formatCurrency(Number(shift.actualCash))}</p>
                         </div>
                         <div className="col-span-2">
@@ -100,16 +112,92 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                         </div>
                     )}
 
-                    {/* Tablas de Detalle */}
+                    {/* 1. FACTURAS / VENTAS DEL TURNO (TODO LO QUE VENDÍ) */}
+                    <div className="border rounded-md p-3">
+                        <h4 className="font-semibold text-sm mb-2 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                                <ShoppingCart className="h-4 w-4 text-blue-600" />
+                                <span>Facturas Emitidas / Ventas ({shift.invoicesData?.length || 0})</span>
+                            </span>
+                            <span className="font-mono text-blue-700">
+                                Total: {formatCurrency(Number(shift.totalBilled))}
+                            </span>
+                        </h4>
+                        <div className="max-h-56 overflow-y-auto border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="text-xs">Factura #</TableHead>
+                                        <TableHead className="text-xs">Hora</TableHead>
+                                        <TableHead className="text-xs">Cliente</TableHead>
+                                        <TableHead className="text-xs">Condición</TableHead>
+                                        <TableHead className="text-xs">Estado</TableHead>
+                                        <TableHead className="text-xs text-right">Total Facturado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {(shift.invoicesData || []).length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-3">
+                                                Sin registros de facturación en este turno
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        (shift.invoicesData || []).map((inv, idx) => (
+                                            <TableRow key={idx} className="text-xs">
+                                                <TableCell className="font-mono font-bold text-blue-700">
+                                                    #{String(inv.sequenceNumber).padStart(6, '0')}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {inv.createdAt ? format(new Date(inv.createdAt), "HH:mm") : "-"}
+                                                </TableCell>
+                                                <TableCell className="max-w-[150px] truncate" title={inv.clientName || "Consumidor Final"}>
+                                                    {inv.clientName || "Consumidor Final"}
+                                                </TableCell>
+                                                <TableCell className="uppercase">{inv.paymentMethod || 'CASH'}</TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={`text-[9px] uppercase ${
+                                                            inv.status === 'PAID'
+                                                                ? 'bg-green-100 text-green-800'
+                                                                : 'bg-amber-100 text-amber-800'
+                                                        }`}
+                                                    >
+                                                        {inv.status === 'PAID' ? 'PAGADA' : inv.status === 'PENDING' ? 'PENDIENTE' : (inv.status || 'EMITIDA')}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono font-semibold">
+                                                    {formatCurrency(inv.total)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+
+                    {/* 2. COBROS Y 3. GASTOS */}
                     <div className="grid md:grid-cols-2 gap-4">
                         {/* Cobros */}
                         <div className="border rounded-md p-3">
-                            <h4 className="font-semibold text-sm mb-2">Cobros Realizados ({shift.paymentsData?.length || 0})</h4>
-                            <div className="max-h-48 overflow-y-auto">
+                            <h4 className="font-semibold text-sm mb-2 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                    <DollarSign className="h-4 w-4 text-green-600" />
+                                    <span>Cobros en Caja ({shift.paymentsData?.length || 0})</span>
+                                </span>
+                                <span className="font-mono text-green-700">
+                                    {formatCurrency(Number(shift.totalCollected))}
+                                </span>
+                            </h4>
+                            <div className="max-h-56 overflow-y-auto border rounded-md">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="text-xs">Hora</TableHead>
+                                            <TableHead className="text-xs">Factura</TableHead>
+                                            <TableHead className="text-xs">Cliente</TableHead>
                                             <TableHead className="text-xs">Método</TableHead>
                                             <TableHead className="text-xs text-right">Monto</TableHead>
                                         </TableRow>
@@ -117,12 +205,18 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                                     <TableBody>
                                         {(shift.paymentsData || []).length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={3} className="text-center text-xs text-muted-foreground">Sin registros</TableCell>
+                                                <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-3">Sin cobros registrados</TableCell>
                                             </TableRow>
                                         ) : (
                                             (shift.paymentsData || []).map((p, idx) => (
                                                 <TableRow key={idx} className="text-xs">
                                                     <TableCell>{p.date ? format(new Date(p.date), "HH:mm") : "-"}</TableCell>
+                                                    <TableCell className="font-mono font-semibold text-blue-700">
+                                                        {p.invoiceSequenceNumber ? `#${String(p.invoiceSequenceNumber).padStart(6, '0')}` : "-"}
+                                                    </TableCell>
+                                                    <TableCell className="max-w-[120px] truncate" title={p.clientName || "Consumidor Final"}>
+                                                        {p.clientName || "Consumidor Final"}
+                                                    </TableCell>
                                                     <TableCell className="uppercase">{p.method || 'CASH'}</TableCell>
                                                     <TableCell className="text-right font-mono font-medium text-green-700">+{formatCurrency(p.amount)}</TableCell>
                                                 </TableRow>
@@ -135,8 +229,16 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
 
                         {/* Gastos */}
                         <div className="border rounded-md p-3">
-                            <h4 className="font-semibold text-sm mb-2">Gastos Registrados ({shift.expensesData?.length || 0})</h4>
-                            <div className="max-h-48 overflow-y-auto">
+                            <h4 className="font-semibold text-sm mb-2 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                    <Minus className="h-4 w-4 text-red-600" />
+                                    <span>Gastos de Caja ({shift.expensesData?.length || 0})</span>
+                                </span>
+                                <span className="font-mono text-red-600">
+                                    -{formatCurrency(Number(shift.totalExpenses))}
+                                </span>
+                            </h4>
+                            <div className="max-h-56 overflow-y-auto border rounded-md">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -148,13 +250,13 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                                     <TableBody>
                                         {(shift.expensesData || []).length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={3} className="text-center text-xs text-muted-foreground">Sin registros</TableCell>
+                                                <TableCell colSpan={3} className="text-center text-xs text-muted-foreground py-3">Sin gastos registrados</TableCell>
                                             </TableRow>
                                         ) : (
                                             (shift.expensesData || []).map((e, idx) => (
                                                 <TableRow key={idx} className="text-xs">
                                                     <TableCell>{e.date ? format(new Date(e.date), "HH:mm") : "-"}</TableCell>
-                                                    <TableCell className="truncate max-w-[140px]">{e.description}</TableCell>
+                                                    <TableCell className="truncate max-w-[160px]" title={e.description || ""}>{e.description}</TableCell>
                                                     <TableCell className="text-right font-mono font-medium text-red-600">-{formatCurrency(e.amount)}</TableCell>
                                                 </TableRow>
                                             ))

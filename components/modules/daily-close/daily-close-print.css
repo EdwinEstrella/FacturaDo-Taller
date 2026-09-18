@@ -325,6 +325,41 @@
         max-height: none !important;
         overflow: visible !important;
     }
+
+    /* Permitir que contenedores de tablas se expandan en impresión */
+    .max-h-48,
+    .max-h-60,
+    .max-h-72,
+    .max-h-80,
+    .max-h-96,
+    .overflow-y-auto,
+    .print-table-container {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Secciones del reporte de impresión */
+    .print-section {
+        border: 1px solid #000 !important;
+        padding: 5px !important;
+        margin-bottom: 6px !important;
+        page-break-inside: auto !important;
+        background: white !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .print-section-title {
+        display: block !important;
+        font-size: 10pt !important;
+        font-weight: bold !important;
+        margin: 0 0 4px 0 !important;
+        padding-bottom: 2px !important;
+        border-bottom: 1.5px solid #000 !important;
+        text-transform: uppercase !important;
+        color: #000 !important;
+        page-break-after: avoid !important;
+    }
 }
 
 /* Ocultar elementos de impresión en pantalla */
@@ -332,6 +367,7 @@
 .print-summary-cards,
 .print-footer,
 .print-signature,
-.print-signature-line {
+.print-signature-line,
+.print-section-title {
     display: none;
 }

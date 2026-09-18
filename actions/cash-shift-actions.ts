@@ -22,6 +22,7 @@ export interface PaymentData {
     date: string
     reference?: string | null
     invoiceSequenceNumber?: number | null
+    clientName?: string | null
 }
 
 export interface ExpenseData {
@@ -127,6 +128,41 @@ export async function getActiveShiftStatus() {
     }
 }
 
+type DatabaseClient = ReturnType<typeof createServerClient>
+
+async function resolvePaymentsWithInvoiceInfo(
+    insforge: DatabaseClient,
+    rawPayments: Array<{ id: string; invoiceId: string; amount: number | string; method: string | null; date: string; reference?: string | null }>
+): Promise<PaymentData[]> {
+    const paymentInvoiceIds = Array.from(new Set((rawPayments || []).map(p => p.invoiceId).filter(Boolean)))
+    let invoiceInfoMap = new Map<string, { seq: number; clientName: string | null }>()
+
+    if (paymentInvoiceIds.length > 0) {
+        const { data: invList } = await insforge.database
+            .from('Invoice')
+            .select('id, sequenceNumber, clientName')
+            .in('id', paymentInvoiceIds)
+
+        if (invList) {
+            invoiceInfoMap = new Map(invList.map(i => [i.id, { seq: Number(i.sequenceNumber), clientName: i.clientName || null }]))
+        }
+    }
+
+    return (rawPayments || []).map(p => {
+        const inv = p.invoiceId ? invoiceInfoMap.get(p.invoiceId) : null
+        return {
+            id: p.id,
+            invoiceId: p.invoiceId,
+            amount: Number(p.amount),
+            method: p.method || 'CASH',
+            date: p.date,
+            reference: p.reference || null,
+            invoiceSequenceNumber: inv?.seq || null,
+            clientName: inv?.clientName || null
+        }
+    })
+}
+
 /**
  * Obtiene el turno/ciclo actual abierto y calcula sus métricas en tiempo real.
  */
@@ -208,21 +244,6 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
             .order('date', { ascending: false })
     ])
 
-    // Resolver números de secuencia de facturas para los pagos
-    const paymentInvoiceIds = Array.from(new Set((rawPayments || []).map(p => p.invoiceId).filter(Boolean)))
-    let invoiceSeqMap = new Map<string, number>()
-
-    if (paymentInvoiceIds.length > 0) {
-        const { data: invList } = await insforge.database
-            .from('Invoice')
-            .select('id, sequenceNumber')
-            .in('id', paymentInvoiceIds)
-
-        if (invList) {
-            invoiceSeqMap = new Map(invList.map(i => [i.id, i.sequenceNumber]))
-        }
-    }
-
     const formattedInvoices: InvoiceData[] = (rawInvoices || []).map(inv => ({
         id: inv.id,
         sequenceNumber: Number(inv.sequenceNumber),
@@ -233,15 +254,7 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
         status: inv.status
     }))
 
-    const formattedPayments: PaymentData[] = (rawPayments || []).map(p => ({
-        id: p.id,
-        invoiceId: p.invoiceId,
-        amount: Number(p.amount),
-        method: p.method || 'CASH',
-        date: p.date,
-        reference: p.reference || null,
-        invoiceSequenceNumber: invoiceSeqMap.get(p.invoiceId) || null
-    }))
+    const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)
 
     const formattedExpenses: ExpenseData[] = (rawExpenses || []).map(e => ({
         id: e.id,
@@ -418,14 +431,7 @@ export async function closeCashShift(payload: CloseShiftPayload) {
             status: inv.status
         }))
 
-        const formattedPayments: PaymentData[] = (rawPayments || []).map(p => ({
-            id: p.id,
-            invoiceId: p.invoiceId,
-            amount: Number(p.amount),
-            method: p.method || 'CASH',
-            date: p.date,
-            reference: p.reference || null
-        }))
+        const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)
 
         const formattedExpenses: ExpenseData[] = (rawExpenses || []).map(e => ({
             id: e.id,

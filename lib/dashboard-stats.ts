@@ -161,6 +161,46 @@ export async function getInvoiceComparison(): Promise<ComparisonResult & { text:
     }
 }
 
+interface PeriodSummary {
+    invoiceCount: number
+    invoiceTotal: number
+    quoteCount: number
+    quoteTotal: number
+}
+
+/**
+ * Obtiene el resumen de facturas y cotizaciones creadas dentro de un rango de fechas.
+ * Se usa en la página de Analíticas, donde el período por defecto es el mes actual.
+ */
+export async function getAnalyticsSummary(from: Date, to: Date): Promise<PeriodSummary> {
+    const insforge = createServerClient()
+    const fromIso = from.toISOString()
+    const toIso = to.toISOString()
+
+    const [invoicesResult, quotesResult] = await Promise.all([
+        insforge.database
+            .from('Invoice')
+            .select('total')
+            .gte('createdAt', fromIso)
+            .lte('createdAt', toIso),
+        insforge.database
+            .from('Quote')
+            .select('total')
+            .gte('createdAt', fromIso)
+            .lte('createdAt', toIso),
+    ])
+
+    const invoices = (invoicesResult.data || []) as { total: string | number }[]
+    const quotes = (quotesResult.data || []) as { total: string | number }[]
+
+    return {
+        invoiceCount: invoices.length,
+        invoiceTotal: invoices.reduce((sum, i) => sum + Number(i.total ?? 0), 0),
+        quoteCount: quotes.length,
+        quoteTotal: quotes.reduce((sum, q) => sum + Number(q.total ?? 0), 0),
+    }
+}
+
 /**
  * Obtiene el historial de ingresos de los últimos 6 meses para el gráfico
  */

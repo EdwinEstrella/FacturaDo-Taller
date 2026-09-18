@@ -13,17 +13,29 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClientAction, updateClient } from "@/actions/client-actions"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-// import { useFormStatus } from "react-dom" // Not working well with reset logic sometimes, using simple state or try/catch wrapper
-import { Pencil, Plus } from "lucide-react"
+import { Pencil, Plus, Loader2 } from "lucide-react"
 import type { Client } from "@/types"
 
 export function ClientDialog({ client }: { client?: Client }) {
     const [open, setOpen] = useState(false)
     const [isPending, setIsPending] = useState(false)
     const [phone, setPhone] = useState(client?.phone || "")
+    const isSubmittingRef = useRef(false)
     const router = useRouter()
+
+    useEffect(() => {
+        if (!open) {
+            setIsPending(false)
+            isSubmittingRef.current = false
+            if (!client) {
+                setPhone("")
+            }
+        } else {
+            setPhone(client?.phone || "")
+        }
+    }, [open, client])
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '') // Remove non-digits
@@ -39,24 +51,43 @@ export function ClientDialog({ client }: { client?: Client }) {
         setPhone(formatted)
     }
 
-    // Form Action wrapper
-    async function handleSubmit(formData: FormData) {
-        setIsPending(true)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let res: any;
+    // Submit handler with strict synchronous double-submit locking
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault()
 
-        if (client) {
-            res = await updateClient(client.id, null, formData)
-        } else {
-            res = await createClientAction(null, formData)
+        if (isSubmittingRef.current || isPending) {
+            return
         }
 
-        setIsPending(false)
-        if (res?.success) {
-            setOpen(false)
-            router.refresh()
-        } else {
-            alert(JSON.stringify(res?.errors || res?.message))
+        isSubmittingRef.current = true
+        setIsPending(true)
+
+        try {
+            const formData = new FormData(e.currentTarget)
+            formData.set("phone", phone)
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let res: any
+
+            if (client) {
+                res = await updateClient(client.id, null, formData)
+            } else {
+                res = await createClientAction(null, formData)
+            }
+
+            if (res?.success) {
+                setOpen(false)
+                router.refresh()
+            } else {
+                const errorMsg = res?.message || (res?.errors ? Object.values(res.errors).flat().join("\n") : "Error al procesar cliente")
+                alert(errorMsg)
+            }
+        } catch (err) {
+            console.error("Error submitting client:", err)
+            alert("Ocurrió un error al guardar el cliente")
+        } finally {
+            isSubmittingRef.current = false
+            setIsPending(false)
         }
     }
 
@@ -80,13 +111,13 @@ export function ClientDialog({ client }: { client?: Client }) {
                         {client ? "Modifique los datos del cliente." : "Crear un nuevo perfil de cliente."}
                     </DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit}>
+                <form onSubmit={handleSubmit}>
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="name" className="text-right">
-                                Nombre
+                                Nombre *
                             </Label>
-                            <Input id="name" name="name" defaultValue={client?.name} className="col-span-3" required />
+                            <Input id="name" name="name" defaultValue={client?.name} className="col-span-3" required autoFocus />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="rnc" className="text-right">
@@ -128,7 +159,13 @@ export function ClientDialog({ client }: { client?: Client }) {
                     </div>
                     <DialogFooter>
                         <Button type="submit" disabled={isPending}>
-                            {isPending ? "Guardando..." : "Guardar"}
+                            {isPending ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...
+                                </>
+                            ) : (
+                                "Guardar"
+                            )}
                         </Button>
                     </DialogFooter>
                 </form>
