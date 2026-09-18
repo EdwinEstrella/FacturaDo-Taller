@@ -6,12 +6,31 @@ import { CashCloseReport, type CashCloseReportData } from "@/components/modules/
 
 export const dynamic = 'force-dynamic'
 
+/** Parse a "denom:qty,denom:qty" string into a { [denom]: qty } map, keeping only positive counts. */
+function parseCounts(value?: string): Record<string, number> {
+    const out: Record<string, number> = {}
+    if (!value) return out
+    for (const part of value.split(',')) {
+        const [d, q] = part.split(':')
+        const denom = Number(d)
+        const qty = Number(q)
+        if (denom > 0 && qty > 0) out[String(denom)] = qty
+    }
+    return out
+}
+
+function sumCounts(map: Record<string, number>): number {
+    return Object.entries(map).reduce((acc, [denom, qty]) => acc + Number(denom) * Number(qty), 0)
+}
+
 export default async function PrintCashClosePage({
     params,
+    searchParams,
 }: {
     params: Promise<{ shiftId: string }>
+    searchParams: Promise<{ rd?: string; usd?: string; eur?: string; cn?: string }>
 }) {
-    const { shiftId } = await params
+    const [{ shiftId }, sp] = await Promise.all([params, searchParams])
     const shiftResult = await getCashShiftById(shiftId)
 
     if (!shiftResult.success || !shiftResult.shift) return notFound()
@@ -51,9 +70,17 @@ export default async function PrintCashClosePage({
             arqueoRegistered: true,
         }
     } else {
-        // Open shift preview: compute live figures. The physical count is done at close.
+        // Open shift preview: compute live figures. The physical count comes from the screen (query params).
         const summary = await getCurrentShiftSummary()
         const live = summary && summary.shift && summary.shift.id === shiftId ? summary : null
+
+        const breakdownRD = parseCounts(sp.rd)
+        const breakdownUSD = parseCounts(sp.usd)
+        const breakdownEUR = parseCounts(sp.eur)
+        const totalRD = sumCounts(breakdownRD)
+        const hasCounts =
+            Object.keys(breakdownRD).length + Object.keys(breakdownUSD).length + Object.keys(breakdownEUR).length > 0
+        const expectedCash = live ? live.expectedCash : 0
 
         data = {
             shiftNumber: shift.shiftNumber,
@@ -67,21 +94,21 @@ export default async function PrintCashClosePage({
             cashCollected: live ? live.cashCollected : 0,
             otherCollected: live ? live.otherCollected : 0,
             totalExpenses: live ? live.totalExpenses : 0,
-            expectedCash: live ? live.expectedCash : 0,
-            actualCash: 0,
-            discrepancy: 0,
-            billBreakdownRD: {},
-            billBreakdownUSD: {},
-            billBreakdownEUR: {},
-            totalRD: 0,
-            totalUSD: 0,
-            totalEUR: 0,
+            expectedCash,
+            actualCash: totalRD,
+            discrepancy: hasCounts ? totalRD - expectedCash : 0,
+            billBreakdownRD: breakdownRD,
+            billBreakdownUSD: breakdownUSD,
+            billBreakdownEUR: breakdownEUR,
+            totalRD,
+            totalUSD: sumCounts(breakdownUSD),
+            totalEUR: sumCounts(breakdownEUR),
             invoices: live ? live.invoices : [],
             payments: live ? live.payments : [],
             expenses: live ? live.expenses : [],
             openingNotes: shift.openingNotes || null,
-            closeNotes: null,
-            arqueoRegistered: false,
+            closeNotes: sp.cn || null,
+            arqueoRegistered: hasCounts,
         }
     }
 
@@ -91,7 +118,7 @@ export default async function PrintCashClosePage({
                 <CashCloseReport data={data} />
             </div>
             <Script id="print-cash-close" strategy="afterInteractive">
-                {`window.print();`}
+                {`if (window.self === window.top) { window.print(); }`}
             </Script>
         </div>
     )

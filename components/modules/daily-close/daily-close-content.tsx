@@ -116,6 +116,52 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
         if (currency === 'EUR') setCountsEUR(prev => ({ ...prev, [denom]: count }))
     }
 
+    // Serialize the counted bills so the print route can render them in the arqueo (only non-zero).
+    const buildCountsQuery = () => {
+        const enc = (counts: Record<number, number>) =>
+            Object.entries(counts)
+                .filter(([, qty]) => Number(qty) > 0)
+                .map(([denom, qty]) => `${denom}:${qty}`)
+                .join(",")
+
+        const params = new URLSearchParams()
+        const rd = enc(countsRD)
+        if (rd) params.set("rd", rd)
+        if (hasUSD) { const usd = enc(countsUSD); if (usd) params.set("usd", usd) }
+        if (hasEUR) { const eur = enc(countsEUR); if (eur) params.set("eur", eur) }
+        if (closeNotes.trim()) params.set("cn", closeNotes.trim())
+
+        const qs = params.toString()
+        return qs ? `?${qs}` : ""
+    }
+
+    // Print via a hidden iframe: same page, no new tab, and isolated from the dashboard shell.
+    const printReport = (query = "") => {
+        if (!shift) return
+        const url = `/daily-close/print/${shift.id}${query}`
+        const existing = document.getElementById("cc-print-frame")
+        if (existing) existing.remove()
+
+        const iframe = document.createElement("iframe")
+        iframe.id = "cc-print-frame"
+        iframe.style.position = "fixed"
+        iframe.style.right = "0"
+        iframe.style.bottom = "0"
+        iframe.style.width = "0"
+        iframe.style.height = "0"
+        iframe.style.border = "0"
+        iframe.onload = () => {
+            try {
+                iframe.contentWindow?.focus()
+                iframe.contentWindow?.print()
+            } catch {
+                /* noop */
+            }
+        }
+        iframe.src = url
+        document.body.appendChild(iframe)
+    }
+
     // Acción: Abrir Turno
     const handleOpenShift = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -163,10 +209,11 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
 
         if (result.success) {
             setCloseSuccess(true)
-            // Navigate to the dedicated, clean print route (auto-prints there). router.push isn't
-            // subject to popup blocking the way window.open after an await can be.
+            // Print in place (hidden iframe) — no new tab. The shift is now CLOSED, so the route
+            // renders the saved snapshot (including the counted bills), ignoring the query.
             setTimeout(() => {
-                router.push(`/daily-close/print/${shift.id}`)
+                printReport()
+                router.refresh()
             }, 600)
         } else {
             setCloseError(result.error || "Error al cerrar el turno")
@@ -398,7 +445,7 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                 <div className="flex items-center gap-2">
                     <Button
                         variant="outline"
-                        onClick={() => window.open(`/daily-close/print/${shift.id}`, "_blank")}
+                        onClick={() => printReport(buildCountsQuery())}
                         className="border-gray-300 text-gray-700 hover:bg-gray-100 font-medium"
                         title="Imprimir Reporte del Cuadre"
                     >

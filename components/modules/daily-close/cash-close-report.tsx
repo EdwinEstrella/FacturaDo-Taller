@@ -104,6 +104,12 @@ export function CashCloseReport({ data }: { data: CashCloseReportData }) {
                 .ccr-inv { border: 1px solid #000; margin-bottom: 6px; page-break-inside: avoid; }
                 .ccr-inv-head { display: flex; justify-content: space-between; gap: 8px; background: #f0f0f0; padding: 3px 6px; border-bottom: 1px solid #000; font-size: 9px; }
                 .ccr-inv-head strong { font-family: ui-monospace, monospace; }
+                .tag-paid { font-weight: 700; }
+                .tag-credit { font-weight: 700; border: 1px solid #000; padding: 0 3px; }
+                .ccr-inv-totals { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 3px 6px; border-top: 1px solid #ccc; font-size: 9px; }
+                .ccr-inv-totals > div { display: flex; justify-content: space-between; gap: 16px; min-width: 55mm; }
+                .ccr-inv-totals .tot { font-weight: 700; font-size: 10px; border-top: 1px solid #000; margin-top: 2px; padding-top: 2px; }
+                .ccr-ventas-split { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; padding: 5px 8px; border: 1px solid #000; font-size: 10px; }
                 .ccr-cuadre { border: 1px solid #000; padding: 6px 8px; }
                 .ccr-cuadre .line { display: flex; justify-content: space-between; padding: 1px 0; }
                 .ccr-cuadre .total { border-top: 1px solid #000; margin-top: 3px; padding-top: 3px; font-weight: 700; font-size: 11px; }
@@ -138,45 +144,77 @@ export function CashCloseReport({ data }: { data: CashCloseReportData }) {
             {data.invoices.length === 0 ? (
                 <p className="muted">Sin facturas emitidas en este turno.</p>
             ) : (
-                data.invoices.map((inv) => (
-                    <div key={inv.id} className="ccr-inv">
-                        <div className="ccr-inv-head">
-                            <span>
-                                <strong>#{String(inv.sequenceNumber).padStart(6, "0")}</strong>
-                                {" · "}{formatTime(inv.createdAt)}
-                                {" · "}{inv.clientName || "Consumidor Final"}
-                                {" · "}{inv.paymentMethod || "CASH"}
-                                {" · "}{inv.status === "PAID" ? "PAGADA" : inv.status === "PENDING" ? "PENDIENTE" : (inv.status || "EMITIDA")}
-                            </span>
-                            <strong>{formatCurrency(inv.total)}</strong>
+                data.invoices.map((inv) => {
+                    const subtotal = (inv.items || []).reduce((s, it) => s + it.price * it.quantity, 0)
+                    const discount = inv.discount || 0
+                    const tax = inv.tax || 0
+                    const shipping = inv.shippingCost || 0
+                    const isCredit = inv.status !== "PAID"
+
+                    return (
+                        <div key={inv.id} className="ccr-inv">
+                            <div className="ccr-inv-head">
+                                <span>
+                                    <strong>#{String(inv.sequenceNumber).padStart(6, "0")}</strong>
+                                    {" · "}{formatTime(inv.createdAt)}
+                                    {" · "}{inv.clientName || "Consumidor Final"}
+                                    {" · "}{inv.paymentMethod || "CASH"}
+                                    {" · "}
+                                    <span className={isCredit ? "tag-credit" : "tag-paid"}>
+                                        {inv.status === "PAID" ? "PAGADA (CONTADO)" : "A CRÉDITO (FIADO)"}
+                                    </span>
+                                </span>
+                                <strong>{formatCurrency(inv.total)}</strong>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Producto / Servicio</th>
+                                        <th className="num" style={{ width: "12%" }}>Cant.</th>
+                                        <th className="num" style={{ width: "18%" }}>Precio</th>
+                                        <th className="num" style={{ width: "20%" }}>Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {inv.items && inv.items.length > 0 ? (
+                                        inv.items.map((it, idx) => (
+                                            <tr key={idx}>
+                                                <td>{it.productName}</td>
+                                                <td className="num">{formatQuantity(it.quantity)}</td>
+                                                <td className="num">{formatCurrency(it.price)}</td>
+                                                <td className="num">{formatCurrency(it.price * it.quantity)}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan={4} className="muted" style={{ textAlign: "center" }}>Sin desglose de ítems</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                            {/* Totales de la factura: dejan ver el descuento y hacen que los ítems cuadren con el total */}
+                            <div className="ccr-inv-totals">
+                                <div><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+                                {discount > 0 && <div><span>Descuento</span><span>-{formatCurrency(discount)}</span></div>}
+                                {tax > 0 && <div><span>ITBIS</span><span>{formatCurrency(tax)}</span></div>}
+                                {shipping > 0 && <div><span>Envío</span><span>{formatCurrency(shipping)}</span></div>}
+                                <div className="tot"><span>Total</span><span>{formatCurrency(inv.total)}</span></div>
+                            </div>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Producto / Servicio</th>
-                                    <th className="num" style={{ width: "12%" }}>Cant.</th>
-                                    <th className="num" style={{ width: "18%" }}>Precio</th>
-                                    <th className="num" style={{ width: "20%" }}>Subtotal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {inv.items && inv.items.length > 0 ? (
-                                    inv.items.map((it, idx) => (
-                                        <tr key={idx}>
-                                            <td>{it.productName}</td>
-                                            <td className="num">{formatQuantity(it.quantity)}</td>
-                                            <td className="num">{formatCurrency(it.price)}</td>
-                                            <td className="num">{formatCurrency(it.price * it.quantity)}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan={4} className="muted" style={{ textAlign: "center" }}>Sin desglose de ítems</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                ))
+                    )
+                })
             )}
+
+            {/* Ventas al contado vs a crédito (una venta a crédito no entra a la caja) */}
+            {data.invoices.length > 0 && (() => {
+                const contado = data.invoices.filter((i) => i.status === "PAID").reduce((s, i) => s + i.total, 0)
+                const credito = data.invoices.filter((i) => i.status !== "PAID").reduce((s, i) => s + i.total, 0)
+                return (
+                    <div className="ccr-ventas-split">
+                        <span>Ventas al contado (pagadas): <strong>{formatCurrency(contado)}</strong></span>
+                        <span>Ventas a crédito / fiado: <strong>{formatCurrency(credito)}</strong></span>
+                        <span>Total facturado: <strong>{formatCurrency(data.totalBilled)}</strong></span>
+                    </div>
+                )
+            })()}
 
             {/* Cobros y gastos */}
             <div className="ccr-cols">

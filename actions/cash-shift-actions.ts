@@ -18,6 +18,10 @@ export interface InvoiceData {
     createdAt: string
     clientName: string | null
     status?: string
+    // Amounts needed so the report reconciles items to the net total (discount was being hidden).
+    discount?: number
+    tax?: number
+    shippingCost?: number
     // Line items ("what was sold/done to collect the money"). Loaded for the daily-close report.
     items?: InvoiceItemData[]
 }
@@ -231,7 +235,7 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
     ] = await Promise.all([
         insforge.database
             .from('Invoice')
-            .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status')
+            .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status, discount, tax, shippingCost')
             .gte('createdAt', openedAt)
             .lte('createdAt', now)
             .order('createdAt', { ascending: false }),
@@ -280,6 +284,9 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
         createdAt: inv.createdAt,
         clientName: inv.clientName || null,
         status: inv.status,
+        discount: Number(inv.discount) || 0,
+        tax: Number(inv.tax) || 0,
+        shippingCost: Number(inv.shippingCost) || 0,
         items: itemsByInvoice[inv.id] || []
     }))
 
@@ -432,7 +439,7 @@ export async function closeCashShift(payload: CloseShiftPayload) {
         ] = await Promise.all([
             insforge.database
                 .from('Invoice')
-                .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status')
+                .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status, discount, tax, shippingCost')
                 .gte('createdAt', openedAt)
                 .lte('createdAt', closedAt),
 
@@ -478,6 +485,9 @@ export async function closeCashShift(payload: CloseShiftPayload) {
             createdAt: inv.createdAt,
             clientName: inv.clientName || null,
             status: inv.status,
+            discount: Number(inv.discount) || 0,
+            tax: Number(inv.tax) || 0,
+            shippingCost: Number(inv.shippingCost) || 0,
             items: closeItemsByInvoice[inv.id] || []
         }))
 
