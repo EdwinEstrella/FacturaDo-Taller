@@ -4,6 +4,12 @@ import { requireAuth, getCurrentUser } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { revalidatePath } from "next/cache"
 
+export interface InvoiceItemData {
+    productName: string
+    quantity: number
+    price: number
+}
+
 export interface InvoiceData {
     id: string
     sequenceNumber: number
@@ -12,6 +18,8 @@ export interface InvoiceData {
     createdAt: string
     clientName: string | null
     status?: string
+    // Line items ("what was sold/done to collect the money"). Loaded for the daily-close report.
+    items?: InvoiceItemData[]
 }
 
 export interface PaymentData {
@@ -244,6 +252,26 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
             .order('date', { ascending: false })
     ])
 
+    // Load line items for the shift's invoices so the close report can show what was sold to collect the money.
+    const invoiceIds = Array.from(new Set((rawInvoices || []).map(inv => inv.id).filter(Boolean)))
+    const itemsByInvoice: Record<string, InvoiceItemData[]> = {}
+
+    if (invoiceIds.length > 0) {
+        const { data: rawItems } = await insforge.database
+            .from('InvoiceItem')
+            .select('invoiceId, productName, quantity, price')
+            .in('invoiceId', invoiceIds)
+
+        for (const it of (rawItems || []) as Array<{ invoiceId: string; productName: string | null; quantity: number | string; price: number | string }>) {
+            const list = itemsByInvoice[it.invoiceId] || (itemsByInvoice[it.invoiceId] = [])
+            list.push({
+                productName: it.productName || 'Ítem',
+                quantity: Number(it.quantity) || 0,
+                price: Number(it.price) || 0,
+            })
+        }
+    }
+
     const formattedInvoices: InvoiceData[] = (rawInvoices || []).map(inv => ({
         id: inv.id,
         sequenceNumber: Number(inv.sequenceNumber),
@@ -251,7 +279,8 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
         paymentMethod: inv.paymentMethod || 'CASH',
         createdAt: inv.createdAt,
         clientName: inv.clientName || null,
-        status: inv.status
+        status: inv.status,
+        items: itemsByInvoice[inv.id] || []
     }))
 
     const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)
@@ -421,6 +450,26 @@ export async function closeCashShift(payload: CloseShiftPayload) {
                 .eq('type', 'EXPENSE')
         ])
 
+        // Load line items so the persisted snapshot (and history report) shows what was sold to collect.
+        const closeInvoiceIds = Array.from(new Set((rawInvoices || []).map(inv => inv.id).filter(Boolean)))
+        const closeItemsByInvoice: Record<string, InvoiceItemData[]> = {}
+
+        if (closeInvoiceIds.length > 0) {
+            const { data: rawItems } = await insforge.database
+                .from('InvoiceItem')
+                .select('invoiceId, productName, quantity, price')
+                .in('invoiceId', closeInvoiceIds)
+
+            for (const it of (rawItems || []) as Array<{ invoiceId: string; productName: string | null; quantity: number | string; price: number | string }>) {
+                const list = closeItemsByInvoice[it.invoiceId] || (closeItemsByInvoice[it.invoiceId] = [])
+                list.push({
+                    productName: it.productName || 'Ítem',
+                    quantity: Number(it.quantity) || 0,
+                    price: Number(it.price) || 0,
+                })
+            }
+        }
+
         const formattedInvoices: InvoiceData[] = (rawInvoices || []).map(inv => ({
             id: inv.id,
             sequenceNumber: Number(inv.sequenceNumber),
@@ -428,7 +477,8 @@ export async function closeCashShift(payload: CloseShiftPayload) {
             paymentMethod: inv.paymentMethod || 'CASH',
             createdAt: inv.createdAt,
             clientName: inv.clientName || null,
-            status: inv.status
+            status: inv.status,
+            items: closeItemsByInvoice[inv.id] || []
         }))
 
         const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)

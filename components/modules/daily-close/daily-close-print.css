@@ -2,7 +2,8 @@
 @media print {
     @page {
         size: letter;
-        margin: 8mm;
+        /* margin 0 hace que el navegador NO imprima su encabezado/pie (fecha, título, URL, página) */
+        margin: 0;
     }
 
     /* Reset */
@@ -11,6 +12,15 @@
         padding: 0 !important;
         width: 100% !important;
         background: white !important;
+    }
+
+    /* Margen interno propio del reporte (reemplaza el margen de página del navegador) */
+    body {
+        padding: 12mm 10mm !important;
+    }
+
+    .flex-1 {
+        padding: 0 !important;
     }
 
     /* Ocultar elementos que no se imprimen */
@@ -59,11 +69,67 @@
         color: #000 !important;
     }
 
-    /* Cuadros de resumen estilo Caja Chica */
-    .print-summary-cards {
+    .print-header-meta {
+        display: flex !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+        gap: 3px 16px !important;
+        font-size: 9pt !important;
+        color: #000 !important;
+        margin-top: 4px !important;
+    }
+
+    /* Detalle de ventas: bloques de factura con ítems */
+    .print-invoice-list {
+        display: block !important;
+    }
+
+    .print-invoice-block {
+        border: 1px solid #000 !important;
+        border-radius: 0 !important;
+        margin-bottom: 6px !important;
+        page-break-inside: avoid !important;
+    }
+
+    .print-invoice-head {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 8px !important;
+        background: #f0f0f0 !important;
+        border-bottom: 1px solid #000 !important;
+        padding: 3px 6px !important;
+        font-size: 9pt !important;
+    }
+
+    .print-invoice-head span {
+        color: #000 !important;
+    }
+
+    .print-invoice-block table {
+        font-size: 8.5pt !important;
+    }
+
+    .print-invoice-block td,
+    .print-invoice-block th {
+        border: 1px solid #ccc !important;
+        padding: 1px 4px !important;
+    }
+
+    /* Notas del turno */
+    .print-notes p {
+        font-size: 9pt !important;
+        color: #000 !important;
+        margin: 1px 0 !important;
+    }
+
+    /* Cuadros de resumen estilo Caja Chica.
+       Se usa .print-summary-cards.grid para ganarle a la regla utilitaria .grid (misma cascada). */
+    .print-summary-cards,
+    .print-summary-cards.grid {
         display: flex !important;
         flex-direction: row !important;
-        gap: 10px !important;
+        gap: 8px !important;
         margin-bottom: 10px !important;
     }
 
@@ -110,8 +176,10 @@
         color: #000 !important;
     }
 
-    /* Ocultar filas con conteo en cero */
-    .hide-zero {
+    /* Ocultar filas con conteo en cero.
+       Se usa .print-bill-row.hide-zero para ganarle a la regla utilitaria .flex. */
+    .hide-zero,
+    .print-bill-row.hide-zero {
         display: none !important;
     }
 
@@ -119,6 +187,12 @@
     .print-bill-row {
         font-size: 10pt !important;
         margin-bottom: 0 !important;
+    }
+
+    /* Evitar que la etiqueta de denominación (RD$ 100/200/500) se parta en dos líneas */
+    .print-bill-row > span {
+        white-space: nowrap !important;
+        width: auto !important;
     }
 
     /* Inputs como texto plano - COMPACTO */

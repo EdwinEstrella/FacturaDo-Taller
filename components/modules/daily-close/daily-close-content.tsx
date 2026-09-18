@@ -10,7 +10,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -163,9 +163,10 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
 
         if (result.success) {
             setCloseSuccess(true)
+            // Navigate to the dedicated, clean print route (auto-prints there). router.push isn't
+            // subject to popup blocking the way window.open after an await can be.
             setTimeout(() => {
-                window.print()
-                router.refresh()
+                router.push(`/daily-close/print/${shift.id}`)
             }, 600)
         } else {
             setCloseError(result.error || "Error al cerrar el turno")
@@ -397,7 +398,7 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                 <div className="flex items-center gap-2">
                     <Button
                         variant="outline"
-                        onClick={() => window.print()}
+                        onClick={() => window.open(`/daily-close/print/${shift.id}`, "_blank")}
                         className="border-gray-300 text-gray-700 hover:bg-gray-100 font-medium"
                         title="Imprimir Reporte del Cuadre"
                     >
@@ -461,9 +462,14 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
 
             {/* Print Header - Solo visible al imprimir */}
             <div className="print-only-header">
-                <h1>REPORTE DE CUADRE Y CIERRE DE CAJA — TURNO #{shift.shiftNumber}</h1>
-                <p>Apertura: {format(openedDate, "dd/MM/yyyy HH:mm", { locale: es })} — Emisión/Cierre: {format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}</p>
-                <p>Cajero / Responsable: {shift.openedByName || currentUser.name || "Usuario"} | Estado: {shift.status === 'CLOSED' ? 'CERRADO' : 'EN CURSO'}</p>
+                <h1>Cierre de Caja</h1>
+                <div className="print-header-meta">
+                    <span>Turno #{shift.shiftNumber}</span>
+                    <span>Cajero: {shift.openedByName || currentUser.name || "Usuario"}</span>
+                    <span>
+                        {format(openedDate, "dd/MM/yyyy HH:mm", { locale: es })} — {format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}
+                    </span>
+                </div>
             </div>
 
             {/* Cuadros de resumen estilo Ticket de Impresión - Solo imprimir */}
@@ -714,10 +720,10 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                     </p>
                 </div>
 
-                {/* 1. VENTAS / FACTURAS DEL TURNO (TODO LO QUE VENDÍ) */}
+                {/* 1. VENTAS DEL TURNO CON DETALLE DE ÍTEMS (QUÉ SE VENDIÓ PARA COBRAR) */}
                 <div className="border rounded-xl p-4 bg-white shadow-sm print-section">
                     <div className="print-section-title">
-                        1. Facturación y Ventas del Turno (Todo lo Vendido)
+                        1. Detalle de Ventas del Turno (Qué se Vendió)
                     </div>
                     <h4 className="font-bold text-base mb-3 flex items-center justify-between no-print">
                         <span className="flex items-center gap-2">
@@ -728,63 +734,82 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                             Total Facturado: {formatCurrency(totalBilled)}
                         </span>
                     </h4>
-                    <div className="max-h-72 overflow-y-auto border rounded-md print-table-container">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="py-2 font-bold">Factura #</TableHead>
-                                    <TableHead className="py-2 font-bold">Hora</TableHead>
-                                    <TableHead className="py-2 font-bold">Cliente</TableHead>
-                                    <TableHead className="py-2 font-bold">Condición</TableHead>
-                                    <TableHead className="py-2 font-bold">Estado</TableHead>
-                                    <TableHead className="py-2 font-bold text-right">Total Facturado</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {invoices.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center text-xs text-gray-500 py-4">
-                                            No se han emitido facturas en este turno
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    invoices.map((inv) => (
-                                        <TableRow key={inv.id} className="text-xs">
-                                            <TableCell className="font-mono font-bold text-blue-700">
+
+                    {invoices.length === 0 ? (
+                        <p className="text-center text-xs text-gray-500 py-4 border rounded-md">
+                            No se han emitido facturas en este turno
+                        </p>
+                    ) : (
+                        <div className="space-y-3 print-invoice-list">
+                            {invoices.map((inv) => (
+                                <div key={inv.id} className="border rounded-lg overflow-hidden print-invoice-block">
+                                    {/* Cabecera de la factura */}
+                                    <div className="flex items-center justify-between gap-2 flex-wrap bg-gray-50 px-3 py-2 text-sm print-invoice-head">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono font-bold text-blue-700">
                                                 #{String(inv.sequenceNumber).padStart(6, '0')}
-                                            </TableCell>
-                                            <TableCell>
+                                            </span>
+                                            <span className="text-gray-500">
                                                 {format(new Date(inv.createdAt), "HH:mm", { locale: es })}
-                                            </TableCell>
-                                            <TableCell className="font-medium max-w-[180px] truncate" title={inv.clientName || "Consumidor Final"}>
+                                            </span>
+                                            <span className="font-medium max-w-[200px] truncate" title={inv.clientName || "Consumidor Final"}>
                                                 {inv.clientName || "Consumidor Final"}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="text-[10px] uppercase">
-                                                    {inv.paymentMethod || 'CASH'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className={`text-[10px] uppercase ${
-                                                        inv.status === 'PAID'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-amber-100 text-amber-800'
-                                                    }`}
-                                                >
-                                                    {inv.status === 'PAID' ? 'PAGADA' : inv.status === 'PENDING' ? 'PENDIENTE' : (inv.status || 'EMITIDA')}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right font-mono font-bold text-gray-900">
-                                                {formatCurrency(inv.total)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                            </span>
+                                            <Badge variant="outline" className="text-[10px] uppercase">
+                                                {inv.paymentMethod || 'CASH'}
+                                            </Badge>
+                                            <Badge
+                                                variant="secondary"
+                                                className={`text-[10px] uppercase ${
+                                                    inv.status === 'PAID'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-amber-100 text-amber-800'
+                                                }`}
+                                            >
+                                                {inv.status === 'PAID' ? 'PAGADA' : inv.status === 'PENDING' ? 'PENDIENTE' : (inv.status || 'EMITIDA')}
+                                            </Badge>
+                                        </div>
+                                        <span className="font-mono font-bold text-gray-900">{formatCurrency(inv.total)}</span>
+                                    </div>
+
+                                    {/* Ítems de la factura: producto/servicio, cantidad, precio, subtotal */}
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="py-1 font-bold">Producto / Servicio</TableHead>
+                                                <TableHead className="py-1 font-bold text-right">Cant.</TableHead>
+                                                <TableHead className="py-1 font-bold text-right">Precio</TableHead>
+                                                <TableHead className="py-1 font-bold text-right">Subtotal</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {inv.items && inv.items.length > 0 ? (
+                                                inv.items.map((it, idx) => (
+                                                    <TableRow key={idx} className="text-xs">
+                                                        <TableCell className="max-w-[240px] truncate" title={it.productName}>
+                                                            {it.productName}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono">{formatQuantity(it.quantity)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatCurrency(it.price)}</TableCell>
+                                                        <TableCell className="text-right font-mono font-semibold">
+                                                            {formatCurrency(it.price * it.quantity)}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={4} className="text-center text-[11px] text-gray-400 py-2">
+                                                        Sin desglose de ítems
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="pt-2 text-xs text-muted-foreground flex justify-between font-mono">
                         <span>Total de Facturas: {invoices.length}</span>
                         <span className="font-bold text-gray-900">Total Vendido: {formatCurrency(totalBilled)}</span>
@@ -913,6 +938,24 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                     </div>
                 </div>
             </div>
+
+            {/* NOTAS DEL TURNO (apertura y cierre) - se imprimen si existen */}
+            {(shift.openingNotes || closeNotes.trim()) && (
+                <div className="border rounded-xl p-4 bg-white shadow-sm print-section print-notes">
+                    <div className="print-section-title">Notas del Turno</div>
+                    <h4 className="font-bold text-base mb-2 no-print">Notas del Turno</h4>
+                    {shift.openingNotes && (
+                        <p className="text-sm text-gray-700">
+                            <strong>Apertura:</strong> {shift.openingNotes}
+                        </p>
+                    )}
+                    {closeNotes.trim() && (
+                        <p className="text-sm text-gray-700 mt-1">
+                            <strong>Cierre:</strong> {closeNotes}
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* SECCIÓN PARA CERRAR EL TURNO */}
             <div className="border rounded-xl p-6 bg-gray-50 no-print space-y-4">

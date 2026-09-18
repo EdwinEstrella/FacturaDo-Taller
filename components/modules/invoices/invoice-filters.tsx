@@ -22,7 +22,8 @@ export function InvoiceFilters({ onFilter, onPrint }: InvoiceFiltersProps) {
     const [endDate, setEndDate] = useState("")
     const [minAmount, setMinAmount] = useState("")
     const [maxAmount, setMaxAmount] = useState("")
-    const [period, setPeriod] = useState("")
+    // Default to the current month so the initial view stays light and matches the page's initial load.
+    const [period, setPeriod] = useState("month")
     const [status, setStatus] = useState("ALL")
 
     const handleApply = () => {

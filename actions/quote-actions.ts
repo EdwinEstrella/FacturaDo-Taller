@@ -235,12 +235,32 @@ export async function createQuote(data: QuoteFormData) {
     }
 }
 
-export async function getQuotes() {
+interface GetQuotesOptions {
+    // Month to load, formatted as 'yyyy-MM'. Defaults to the current month.
+    month?: string
+    // When true, ignores the date range and returns every quote.
+    all?: boolean
+}
+
+function resolveMonthRange(month?: string): { start: string; end: string } {
+    // month is 'yyyy-MM'; fall back to the current month when missing or malformed.
+    const match = month?.match(/^(\d{4})-(\d{2})$/)
+    const now = new Date()
+    const year = match ? Number(match[1]) : now.getFullYear()
+    const monthIndex = match ? Number(match[2]) - 1 : now.getMonth()
+
+    const start = new Date(year, monthIndex, 1, 0, 0, 0, 0)
+    const end = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999)
+
+    return { start: start.toISOString(), end: end.toISOString() }
+}
+
+export async function getQuotes(options: GetQuotesOptions = {}) {
     await requireAuth();
 
     const insforge = createServerClient()
 
-    // First, check and mark expired quotes
+    // First, check and mark expired quotes (kept global, independent of the display filter)
     const now = new Date().toISOString()
 
     await insforge.database
@@ -252,10 +272,18 @@ export async function getQuotes() {
 
     // Get quotes, items, and clients separately (Quote table lacks FKs in PostgREST,
     // so nested queries like items:QuoteItem(*) fail with PGRST200)
-    const { data: quotes, error } = await insforge.database
+    let quotesQuery = insforge.database
         .from('Quote')
         .select('*')
         .order('createdAt', { ascending: false })
+
+    // By default only load the current month so we don't pull the whole history.
+    if (!options.all) {
+        const { start, end } = resolveMonthRange(options.month)
+        quotesQuery = quotesQuery.gte('createdAt', start).lte('createdAt', end)
+    }
+
+    const { data: quotes, error } = await quotesQuery
 
     if (error) {
         console.error(error)

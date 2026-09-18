@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getInvoices } from "@/actions/invoice-actions"
 import { filterInvoices, getInvoiceStats } from "@/actions/filter-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
 import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
@@ -36,18 +35,21 @@ export default function InvoicesPage() {
     const [settings, setSettings] = useState<CompanySettings | null>(null)
     const [showPrint, setShowPrint] = useState(false)
     const [loading, setLoading] = useState(true)
-    const [currentFilters, setCurrentFilters] = useState<Record<string, string>>({})
+    // Default to the current month so we don't pull the whole invoice history on load.
+    const [currentFilters, setCurrentFilters] = useState<Record<string, string>>({ period: 'month' })
 
     useEffect(() => {
         const loadData = async () => {
             setLoading(true)
             try {
-                const [invoicesData, userData, settingsData] = await Promise.all([
-                    getInvoices(),
+                const [invoicesData, statsData, userData, settingsData] = await Promise.all([
+                    filterInvoices({ period: 'month' }),
+                    getInvoiceStats({ period: 'month' }),
                     getCurrentUser(),
                     getCompanySettings()
                 ])
                 setFilteredInvoices(invoicesData)
+                setStats(statsData)
                 setUser(userData)
                 setSettings(settingsData)
             } finally {

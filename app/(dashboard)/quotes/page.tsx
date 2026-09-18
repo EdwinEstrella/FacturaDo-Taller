@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { format } from "date-fns"
 import { getQuotes } from "@/actions/quote-actions"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,9 @@ function QuotesPageContent() {
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [query, setQuery] = useState("")
     const [status, setStatus] = useState("ALL")
+    // Default to the current month so we don't pull the whole quote history on load.
+    const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"))
+    const [showAll, setShowAll] = useState(false)
 
     const triggerRefresh = () => setRefreshTrigger(prev => prev + 1)
 
@@ -27,7 +31,7 @@ function QuotesPageContent() {
         const load = async () => {
             setLoading(true)
             try {
-                const data = await getQuotes()
+                const data = await getQuotes({ month, all: showAll })
                 if (active) setQuotes(data)
             } finally {
                 if (active) setLoading(false)
@@ -38,7 +42,7 @@ function QuotesPageContent() {
         return () => {
             active = false
         }
-    }, [refreshTrigger])
+    }, [refreshTrigger, month, showAll])
 
     const visibleQuotes = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase()
@@ -75,6 +79,25 @@ function QuotesPageContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">Mes</span>
+                    <Input
+                        aria-label="Mes"
+                        type="month"
+                        className="h-9 w-40"
+                        value={month}
+                        disabled={showAll}
+                        onChange={(event) => setMonth(event.target.value)}
+                    />
+                    <Button
+                        variant={showAll ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowAll((prev) => !prev)}
+                        title="Cargar todas las cotizaciones sin filtrar por mes"
+                    >
+                        Todas
+                    </Button>
+                </div>
                 <Input
                     aria-label="Buscar cotización"
                     className="h-9 w-72"
