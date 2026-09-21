@@ -113,7 +113,7 @@ export default async function PrintCashClosePage({
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 flex justify-center py-6 print:bg-white print:py-0">
+        <div data-print-format="ticket" className="min-h-screen bg-gray-100 flex justify-center py-6 print:bg-white print:py-0">
             <div className="bg-white shadow print:shadow-none">
                 <CashCloseReport data={data} />
             </div>

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Printer } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -22,6 +23,45 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<CompanySettings>(initialSettings)
     const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+
+    // Estado para impresoras de escritorio
+    const [printers, setPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([])
+    const [printerConfig, setPrinterConfig] = useState<{ thermalPrinter: string; a4Printer: string }>({
+        thermalPrinter: "",
+        a4Printer: "",
+    })
+    const [savingPrinters, setSavingPrinters] = useState(false)
+    const [isDesktop, setIsDesktop] = useState(false)
+
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.electron?.getPrinters) {
+            setIsDesktop(true)
+            window.electron.getPrinters().then((list) => {
+                if (list) setPrinters(list)
+            })
+            window.electron.getPrinterConfig?.().then((cfg) => {
+                if (cfg) {
+                    setPrinterConfig({
+                        thermalPrinter: cfg.thermalPrinter || "",
+                        a4Printer: cfg.a4Printer || "",
+                    })
+                }
+            })
+        }
+    }, [])
+
+    const handleSavePrinters = async () => {
+        if (!window.electron?.savePrinterConfig) return
+        setSavingPrinters(true)
+        try {
+            await window.electron.savePrinterConfig(printerConfig)
+            toast.success("Configuración de impresoras guardada correctamente")
+        } catch {
+            toast.error("Error al guardar la configuración de impresoras")
+        } finally {
+            setSavingPrinters(false)
+        }
+    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
@@ -249,6 +289,86 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
                             </p>
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Printer className="h-5 w-5 text-primary" />
+                        <CardTitle>Impresoras del Sistema (Impresión Silenciosa)</CardTitle>
+                    </div>
+                    <CardDescription>
+                        Configura la impresora térmica y la impresora A4. Solo si las seleccionas aquí, los documentos se imprimirán de forma silenciosa sin abrir el cuadro de diálogo de Windows. Si las dejas en &quot;Ninguna&quot;, se abrirá el diálogo habitual.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {isDesktop ? (
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="thermalPrinter" className="font-semibold text-sm">
+                                    Impresora Térmica (Tickets / Rollo 80mm)
+                                </Label>
+                                <select
+                                    id="thermalPrinter"
+                                    value={printerConfig.thermalPrinter}
+                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, thermalPrinter: e.target.value }))}
+                                    className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                >
+                                    <option value="">Ninguna (Abrir cuadro de diálogo de Windows)</option>
+                                    {printers.map((p) => (
+                                        <option key={p.name} value={p.name}>
+                                            {p.displayName || p.name} {p.isDefault ? "(Predeterminada)" : ""}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Aplica a tickets de venta, cuadres de caja y recibos de caja chica.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="a4Printer" className="font-semibold text-sm">
+                                    Impresora A4 (Documentos / Cotizaciones / Facturas A4)
+                                </Label>
+                                <select
+                                    id="a4Printer"
+                                    value={printerConfig.a4Printer}
+                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, a4Printer: e.target.value }))}
+                                    className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                >
+                                    <option value="">Ninguna (Abrir cuadro de diálogo de Windows)</option>
+                                    {printers.map((p) => (
+                                        <option key={p.name} value={p.name}>
+                                            {p.displayName || p.name} {p.isDefault ? "(Predeterminada)" : ""}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Aplica a facturas A4 completas, reportes y cotizaciones.
+                                </p>
+                            </div>
+
+                            <div className="md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t">
+                                <div className="text-xs text-muted-foreground">
+                                    {printerConfig.thermalPrinter || printerConfig.a4Printer ? (
+                                        <span className="text-emerald-600 font-medium">
+                                            ✓ Impresión silenciosa activa para las impresoras seleccionadas
+                                        </span>
+                                    ) : (
+                                        <span>Modo interactivo: se abrirá el diálogo habitual de impresión</span>
+                                    )}
+                                </div>
+                                <Button onClick={handleSavePrinters} disabled={savingPrinters}>
+                                    {savingPrinters ? "Guardando..." : "Guardar impresoras"}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-muted-foreground bg-muted/40 p-4 rounded-lg border">
+                            La configuración de impresión silenciosa y selección de dispositivos de hardware está disponible cuando ejecutas FacturaDo en su aplicación de escritorio.
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

@@ -8,11 +8,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import { Printer } from "lucide-react"
+import { Printer, FileDown } from "lucide-react"
 import { useRef, useState } from "react"
 import { useReactToPrint } from "react-to-print"
+import { toast } from "sonner"
 import { InvoiceTemplate } from "./invoice-template"
 import { InvoiceOdooTemplate } from "./invoice-odoo-template"
+import { ExportPdfModal } from "@/components/modules/pdf/export-pdf-modal"
 import {
     Select,
     SelectContent,
@@ -28,6 +30,36 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
 
     const initialTemplate: "ticket" | "a4-odoo" = settings?.invoiceTemplate === "a4" ? "a4-odoo" : "ticket"
     const [template, setTemplate] = useState<"ticket" | "a4-odoo">(initialTemplate)
+    const [pdfModalOpen, setPdfModalOpen] = useState(false)
+
+    const handlePrint = async () => {
+        if (typeof window !== "undefined" && window.electron?.getPrinterConfig && contentRef.current) {
+            try {
+                const cfg = await window.electron.getPrinterConfig();
+                const isThermal = template === "ticket";
+                const selectedPrinter = isThermal ? cfg?.thermalPrinter : cfg?.a4Printer;
+
+                if (selectedPrinter && selectedPrinter.trim() !== "") {
+                    toast.info(`Imprimiendo en ${selectedPrinter}...`);
+                    const res = await window.electron.printSilent?.({
+                        html: contentRef.current.innerHTML,
+                        deviceName: selectedPrinter.trim(),
+                        format: isThermal ? "ticket" : "a4",
+                    });
+                    if (res?.success) {
+                        toast.success("Impresión enviada correctamente");
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("Fallo impresión silenciosa:", err);
+            }
+        }
+        // Solo si no está configurada o falló, abre el diálogo habitual
+        if (reactToPrintFn) {
+            reactToPrintFn();
+        }
+    };
 
     return (
         <Dialog>
@@ -68,11 +100,24 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
-                    <Button onClick={() => reactToPrintFn && reactToPrintFn()}>
+                    <Button variant="outline" onClick={() => setPdfModalOpen(true)}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Guardar como PDF
+                    </Button>
+                    <Button onClick={handlePrint}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir
                     </Button>
                 </div>
+
+                <ExportPdfModal
+                    open={pdfModalOpen}
+                    onOpenChange={setPdfModalOpen}
+                    title="Exportar Factura a PDF"
+                    defaultFilename={`Factura-${invoice.sequenceNumber || invoice.id || "documento"}.pdf`}
+                    initialFormat={template === "ticket" ? "ticket" : "a4"}
+                    getHtmlContent={() => contentRef.current?.innerHTML || ""}
+                />
             </DialogContent>
         </Dialog>
     )

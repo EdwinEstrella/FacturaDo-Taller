@@ -26,7 +26,7 @@ export default async function PrintInvoicePage({
     const templateId = template ? (template === "a4" ? "a4" : "ticket") : (settings.invoiceTemplate || "ticket")
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center print:bg-white print:items-start print:justify-start">
+        <div data-print-format={templateId} className="min-h-screen bg-gray-100 flex items-center justify-center print:bg-white print:items-start print:justify-start">
             {templateId === "ticket" ? (
                 <InvoiceTemplate invoice={invoice} settings={settings} />
             ) : (

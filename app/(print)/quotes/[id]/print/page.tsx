@@ -25,7 +25,7 @@ export default async function PrintQuotePage({
     const templateId = template ? (template === "a4" ? "a4" : "ticket") : (settings.invoiceTemplate || "ticket")
 
     return (
-        <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center print:bg-white print:items-start print:justify-start print:p-0 p-4 md:p-8 print:block">
+        <div data-print-format={templateId} className="min-h-screen bg-gray-100 flex flex-col items-center justify-center print:bg-white print:items-start print:justify-start print:p-0 p-4 md:p-8 print:block">
             <style>{`
                 @media print {
                     .no-print { display: none !important; }
@@ -36,11 +36,13 @@ export default async function PrintQuotePage({
             <PrintActions quoteId={id} currentTemplate={templateId} />
 
             {/* Contenido de la cotización */}
-            {templateId === "ticket" ? (
-                <QuoteTemplate quote={quote} settings={settings} />
-            ) : (
-                <QuoteOdooTemplate quote={quote} settings={settings} />
-            )}
+            <div id="printable-quote-content">
+                {templateId === "ticket" ? (
+                    <QuoteTemplate quote={quote} settings={settings} />
+                ) : (
+                    <QuoteOdooTemplate quote={quote} settings={settings} />
+                )}
+            </div>
         </div>
     )
 }

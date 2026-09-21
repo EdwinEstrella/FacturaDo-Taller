@@ -12,6 +12,18 @@ export interface DownloadProgress {
   bytesPerSecond: number;
 }
 
+export interface PrinterInfo {
+  name: string;
+  displayName: string;
+  description: string;
+  isDefault: boolean;
+}
+
+export interface PrinterConfig {
+  thermalPrinter?: string;
+  a4Printer?: string;
+}
+
 export interface ElectronAPI {
   // Config
   saveConfig: (config: any) => Promise<{ success: boolean }>;
@@ -39,6 +51,26 @@ export interface ElectronAPI {
   onDownloadProgress?: (callback: (progress: DownloadProgress) => void) => () => void;
   onUpdateDownloaded?: (callback: (info: UpdateInfo) => void) => () => void;
   onUpdateError?: (callback: (error: string) => void) => () => void;
+
+  // Impresoras e Impresión Silenciosa
+  getPrinters?: () => Promise<PrinterInfo[]>;
+  getPrinterConfig?: () => Promise<PrinterConfig>;
+  savePrinterConfig?: (config: PrinterConfig) => Promise<{ success: boolean }>;
+  printSilent?: (opts: {
+    html: string;
+    deviceName: string;
+    format?: 'ticket' | 'a4';
+    css?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  printCurrentWindow?: (opts: {
+    deviceName: string;
+    format?: 'ticket' | 'a4';
+  }) => Promise<{ success: boolean; error?: string }>;
+  exportToPdf?: (opts: {
+    html: string;
+    format?: 'ticket' | 'a4';
+    filename?: string;
+  }) => Promise<{ success: boolean; filePath?: string; filename?: string; error?: string }>;
 }
 
 declare global {

@@ -325,3 +325,202 @@ ipcMain.handle('restart-app', () => {
   app.relaunch();
   app.exit();
 });
+
+// IPC Handlers para impresoras (térmica y A4 silenciosa)
+let hiddenPrintWin = null;
+
+ipcMain.handle('printers:list', async () => {
+  const win = mainWindow || BrowserWindow.getAllWindows()[0];
+  if (!win) return [];
+  try {
+    const list = await win.webContents.getPrintersAsync();
+    return list.map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      description: p.description || '',
+      isDefault: Boolean(p.isDefault),
+    }));
+  } catch (err) {
+    console.error('[Printers] Error listando impresoras:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('printers:get-config', () => {
+  const cfg = getStoreConfig();
+  return cfg.printers || { thermalPrinter: '', a4Printer: '' };
+});
+
+ipcMain.handle('printers:save-config', async (_event, printerConfig) => {
+  setStoreConfig({ printers: printerConfig });
+  return { success: true };
+});
+
+ipcMain.handle('printers:print-current-window', async (event, { deviceName, format }) => {
+  const senderWc = event.sender;
+  if (!senderWc || senderWc.isDestroyed()) return { success: false, error: 'Ventana destruida' };
+
+  const isThermal = format === 'ticket';
+  const printOptions = {
+    silent: true,
+    deviceName,
+    printBackground: true,
+    margins: { marginType: isThermal ? 'none' : 'default' },
+    ...(isThermal ? { pageSize: { width: 80000, height: 297000 } } : { pageSize: 'A4' }),
+  };
+
+  return new Promise((resolve) => {
+    try {
+      senderWc.print(printOptions, (success, failureReason) => {
+        resolve({ success, error: failureReason });
+      });
+    } catch (err) {
+      resolve({ success: false, error: err.message });
+    }
+  });
+});
+
+ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format, css }) => {
+  if (!hiddenPrintWin || hiddenPrintWin.isDestroyed()) {
+    hiddenPrintWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+  }
+
+  const isThermal = format === 'ticket';
+  const fullHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            margin: ${isThermal ? '0mm' : '10mm'};
+            ${isThermal ? 'size: 80mm auto;' : 'size: A4;'}
+          }
+          body {
+            margin: 0;
+            padding: ${isThermal ? '2mm' : '0'};
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          ${css || ''}
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+    </html>
+  `;
+
+  await hiddenPrintWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+
+  return new Promise((resolve) => {
+    try {
+      hiddenPrintWin.webContents.print(
+        {
+          silent: true,
+          deviceName,
+          printBackground: true,
+          margins: { marginType: isThermal ? 'none' : 'default' },
+          ...(isThermal ? { pageSize: { width: 80000, height: 297000 } } : { pageSize: 'A4' }),
+        },
+        (success, failureReason) => {
+          resolve({ success, error: failureReason });
+        }
+      );
+    } catch (err) {
+      resolve({ success: false, error: err.message });
+    }
+  });
+});
+
+ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename }) => {
+  let pdfWin = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const isThermal = format === 'ticket';
+  const cleanFilename = (filename || 'documento.pdf').endsWith('.pdf') ? filename : `${filename}.pdf`;
+  const downloadsDir = app.getPath('downloads');
+  let finalPath = path.join(downloadsDir, cleanFilename);
+
+  // Evitar sobreescribir archivos existentes
+  const ext = path.extname(cleanFilename);
+  const base = path.basename(cleanFilename, ext);
+  let counter = 1;
+  while (fs.existsSync(finalPath)) {
+    finalPath = path.join(downloadsDir, `${base} (${counter})${ext}`);
+    counter++;
+  }
+
+  const fullHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            margin: ${isThermal ? '2mm' : '8mm'};
+            ${isThermal ? 'size: 80mm auto;' : 'size: A4 portrait;'}
+          }
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            margin: 0;
+            padding: ${isThermal ? '2mm' : '0'};
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            background: white !important;
+            color: #111827 !important;
+          }
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+    </html>
+  `;
+
+  await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+
+  return new Promise((resolve) => {
+    pdfWin.webContents
+      .printToPDF({
+        printBackground: true,
+        margins: { marginType: isThermal ? 'none' : 'default' },
+        ...(isThermal
+          ? { pageSize: { width: 80000, height: 297000 } }
+          : { pageSize: 'A4' }),
+      })
+      .then((pdfBuffer) => {
+        fs.writeFileSync(finalPath, pdfBuffer);
+        pdfWin.destroy();
+        pdfWin = null;
+
+        try {
+          shell.showItemInFolder(finalPath);
+        } catch {}
+
+        resolve({ success: true, filePath: finalPath, filename: path.basename(finalPath) });
+      })
+      .catch((err) => {
+        if (pdfWin && !pdfWin.isDestroyed()) {
+          pdfWin.destroy();
+          pdfWin = null;
+        }
+        resolve({ success: false, error: err.message });
+      });
+  });
+});

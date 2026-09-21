@@ -38,4 +38,45 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('update-error', handler);
     return () => ipcRenderer.removeListener('update-error', handler);
   },
+
+  // Impresoras del Sistema e Impresión Silenciosa
+  getPrinters: () => ipcRenderer.invoke('printers:list'),
+  getPrinterConfig: () => ipcRenderer.invoke('printers:get-config'),
+  savePrinterConfig: (config) => ipcRenderer.invoke('printers:save-config', config),
+  printSilent: (opts) => ipcRenderer.invoke('printers:print-html', opts),
+  printCurrentWindow: (opts) => ipcRenderer.invoke('printers:print-current-window', opts),
+
+  // Exportar a PDF
+  exportToPdf: (opts) => ipcRenderer.invoke('printers:export-pdf', opts),
 });
+
+// Interceptar window.print para impresión silenciosa si está configurada
+if (typeof window !== 'undefined') {
+  const originalWindowPrint = window.print;
+  window.print = async function () {
+    try {
+      const config = await ipcRenderer.invoke('printers:get-config');
+      const url = (window.location.href || '').toLowerCase();
+      const isA4 =
+        url.includes('template=a4') ||
+        Boolean(document.querySelector('[data-print-format="a4"]')) ||
+        Boolean(document.querySelector('.print-container-wrapper'));
+      const isTicket = !isA4;
+
+      const targetPrinter = isTicket ? config?.thermalPrinter : config?.a4Printer;
+      if (targetPrinter && typeof targetPrinter === 'string' && targetPrinter.trim() !== '') {
+        const res = await ipcRenderer.invoke('printers:print-current-window', {
+          deviceName: targetPrinter.trim(),
+          format: isTicket ? 'ticket' : 'a4',
+        });
+        if (res && res.success) {
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[Print Hook] Error en impresión silenciosa:', err);
+    }
+    // Fallback al diálogo normal si no hay impresora configurada o falló
+    originalWindowPrint.call(window);
+  };
+}
