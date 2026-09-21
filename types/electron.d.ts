@@ -61,6 +61,8 @@ export interface ElectronAPI {
     deviceName: string;
     format?: 'ticket' | 'a4';
     css?: string;
+    headTags?: string;
+    baseUrl?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   printCurrentWindow?: (opts: {
     deviceName: string;
@@ -70,6 +72,9 @@ export interface ElectronAPI {
     html: string;
     format?: 'ticket' | 'a4';
     filename?: string;
+    css?: string;
+    headTags?: string;
+    baseUrl?: string;
   }) => Promise<{ success: boolean; filePath?: string; filename?: string; error?: string }>;
 }
 

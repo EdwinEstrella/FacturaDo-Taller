@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FileDown, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { extractPrintData } from "@/lib/print-utils";
 
 interface ExportPdfModalProps {
   open: boolean;
@@ -21,7 +22,9 @@ interface ExportPdfModalProps {
   title?: string;
   defaultFilename: string;
   initialFormat?: "ticket" | "a4";
-  getHtmlContent: () => string;
+  onFormatChange?: (format: "ticket" | "a4") => void;
+  getContentElement?: () => HTMLElement | null;
+  getHtmlContent?: () => string;
 }
 
 export function ExportPdfModal({
@@ -30,16 +33,34 @@ export function ExportPdfModal({
   title = "Guardar como PDF",
   defaultFilename,
   initialFormat = "a4",
+  onFormatChange,
+  getContentElement,
   getHtmlContent,
 }: ExportPdfModalProps) {
   const [filename, setFilename] = useState(defaultFilename);
   const [format, setFormat] = useState<"ticket" | "a4">(initialFormat);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setFilename(defaultFilename);
+      setFormat(initialFormat);
+    }
+  }, [open, defaultFilename, initialFormat]);
+
+  const handleFormatSelect = (newFormat: "ticket" | "a4") => {
+    setFormat(newFormat);
+    onFormatChange?.(newFormat);
+  };
+
   const handleExport = async () => {
     setLoading(true);
     try {
-      const html = getHtmlContent();
+      const element = getContentElement ? getContentElement() : null;
+      const fallbackHtml = getHtmlContent ? getHtmlContent() : "";
+
+      const { html, css, headTags, baseUrl } = extractPrintData(element, fallbackHtml);
+
       if (!html || html.trim().length === 0) {
         toast.error("No se encontró contenido para exportar");
         setLoading(false);
@@ -55,6 +76,9 @@ export function ExportPdfModal({
           html,
           format,
           filename: cleanName,
+          css,
+          headTags,
+          baseUrl,
         });
 
         if (res.success) {
@@ -69,24 +93,64 @@ export function ExportPdfModal({
           });
         }
       } else {
-        // Fallback para navegador web sin Electron
+        // Fallback completo con estilos para navegador web sin Electron
         const printWindow = window.open("", "_blank");
         if (printWindow) {
+          const isThermal = format === "ticket";
           printWindow.document.write(`
             <!DOCTYPE html>
             <html>
               <head>
+                <meta charset="utf-8">
                 <title>${cleanName}</title>
+                <base href="${baseUrl}/">
+                ${headTags}
                 <style>
-                  @page { size: ${format === "ticket" ? "80mm auto" : "A4"}; margin: 10mm; }
-                  body { font-family: sans-serif; margin: 0; padding: 10px; }
+                  @page {
+                    margin: ${isThermal ? "0mm" : "8mm"};
+                    ${isThermal ? "size: 80mm auto;" : "size: A4 portrait;"}
+                  }
+                  *, *::before, *::after { box-sizing: border-box; }
+                  html, body {
+                    margin: 0;
+                    padding: 0;
+                    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    background: white !important;
+                    color: #111827 !important;
+                  }
+                  ${isThermal ? `
+                  body {
+                    width: 80mm;
+                    padding: 2mm;
+                  }
+                  ` : `
+                  .print-container-wrapper {
+                    background: transparent !important;
+                    padding: 0 !important;
+                    margin: 0 auto !important;
+                    width: 100% !important;
+                    min-height: auto !important;
+                  }
+                  .invoice-page, .quote-page {
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    width: 100% !important;
+                    min-height: auto !important;
+                  }
+                  `}
+                  ${css}
                 </style>
               </head>
               <body>
                 ${html}
                 <script>
                   window.onload = function() {
-                    window.print();
+                    setTimeout(() => {
+                      window.print();
+                    }, 300);
                   };
                 </script>
               </body>
@@ -118,7 +182,7 @@ export function ExportPdfModal({
             <div>
               <DialogTitle className="text-base">{title}</DialogTitle>
               <DialogDescription className="text-xs mt-0.5">
-                Genera un documento PDF digital listo para compartir o archivar.
+                Genera un documento PDF digital con diseño y formatos completos.
               </DialogDescription>
             </div>
           </div>
@@ -145,14 +209,14 @@ export function ExportPdfModal({
             <select
               id="pdf-format"
               value={format}
-              onChange={(e) => setFormat(e.target.value as "ticket" | "a4")}
+              onChange={(e) => handleFormatSelect(e.target.value as "ticket" | "a4")}
               className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="a4">Factura / Cotización A4 (Recomendado para enviar)</option>
               <option value="ticket">Ticket 80mm (Formato de rollo térmico)</option>
             </select>
             <p className="text-[11px] text-muted-foreground">
-              En la versión de escritorio, el archivo se guardará automáticamente en tu carpeta de Descargas y se resaltará al completarse.
+              En la versión de escritorio, el archivo se guardará automáticamente en tu carpeta de Descargas con todos los estilos aplicados.
             </p>
           </div>
         </div>

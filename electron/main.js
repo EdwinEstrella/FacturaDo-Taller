@@ -380,35 +380,66 @@ ipcMain.handle('printers:print-current-window', async (event, { deviceName, form
   });
 });
 
-ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format, css }) => {
+ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format, css, headTags, baseUrl }) => {
   if (!hiddenPrintWin || hiddenPrintWin.isDestroyed()) {
     hiddenPrintWin = new BrowserWindow({
       show: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        webSecurity: false,
       },
     });
   }
 
   const isThermal = format === 'ticket';
+  const baseHref = baseUrl ? `<base href="${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}">` : '';
+
   const fullHtml = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
+        ${baseHref}
+        ${headTags || ''}
         <style>
           @page {
-            margin: ${isThermal ? '0mm' : '10mm'};
-            ${isThermal ? 'size: 80mm auto;' : 'size: A4;'}
+            margin: ${isThermal ? '0mm' : '8mm'};
+            ${isThermal ? 'size: 80mm auto;' : 'size: A4 portrait;'}
           }
-          body {
+          *, *::before, *::after {
+            box-sizing: border-box;
+          }
+          html, body {
             margin: 0;
-            padding: ${isThermal ? '2mm' : '0'};
+            padding: 0;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            background: white !important;
+            color: #111827 !important;
           }
+          ${isThermal ? `
+          body {
+            width: 80mm;
+            padding: 2mm;
+          }
+          ` : `
+          .print-container-wrapper {
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
+          .invoice-page, .quote-page {
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
+          `}
           ${css || ''}
         </style>
       </head>
@@ -419,6 +450,27 @@ ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format,
   `;
 
   await hiddenPrintWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+
+  await hiddenPrintWin.webContents.executeJavaScript(`
+    new Promise((resolve) => {
+      const checkReady = () => {
+        const images = Array.from(document.images);
+        const allImagesLoaded = images.every(img => img.complete);
+        const fontsReady = document.fonts ? document.fonts.status === 'loaded' : true;
+        if (allImagesLoaded && fontsReady) {
+          resolve(true);
+        } else {
+          setTimeout(checkReady, 50);
+        }
+      };
+      if (document.readyState === 'complete') {
+        checkReady();
+      } else {
+        window.addEventListener('load', checkReady);
+      }
+      setTimeout(() => resolve(true), 1500);
+    })
+  `);
 
   return new Promise((resolve) => {
     try {
@@ -440,17 +492,21 @@ ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format,
   });
 });
 
-ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename }) => {
+ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename, css, headTags, baseUrl }) => {
   let pdfWin = new BrowserWindow({
     show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false,
     },
   });
 
   const isThermal = format === 'ticket';
-  const cleanFilename = (filename || 'documento.pdf').endsWith('.pdf') ? filename : `${filename}.pdf`;
+  const rawFilename = filename || (isThermal ? 'ticket.pdf' : 'documento.pdf');
+  const sanitized = rawFilename.replace(/[/\\?%*:|"<>]/g, '-').trim();
+  const cleanFilename = sanitized.toLowerCase().endsWith('.pdf') ? sanitized : `${sanitized}.pdf`;
+
   const downloadsDir = app.getPath('downloads');
   let finalPath = path.join(downloadsDir, cleanFilename);
 
@@ -463,28 +519,54 @@ ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename })
     counter++;
   }
 
+  const baseHref = baseUrl ? `<base href="${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}">` : '';
+
   const fullHtml = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
+        ${baseHref}
+        ${headTags || ''}
         <style>
           @page {
-            margin: ${isThermal ? '2mm' : '8mm'};
+            margin: ${isThermal ? '0mm' : '8mm'};
             ${isThermal ? 'size: 80mm auto;' : 'size: A4 portrait;'}
           }
-          * {
+          *, *::before, *::after {
             box-sizing: border-box;
           }
-          body {
+          html, body {
             margin: 0;
-            padding: ${isThermal ? '2mm' : '0'};
+            padding: 0;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: white !important;
             color: #111827 !important;
           }
+          ${isThermal ? `
+          body {
+            width: 80mm;
+            padding: 2mm;
+          }
+          ` : `
+          .print-container-wrapper {
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
+          .invoice-page, .quote-page {
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            min-height: auto !important;
+          }
+          `}
+          ${css || ''}
         </style>
       </head>
       <body>
@@ -493,34 +575,79 @@ ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename })
     </html>
   `;
 
-  await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+  try {
+    await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
 
-  return new Promise((resolve) => {
-    pdfWin.webContents
-      .printToPDF({
-        printBackground: true,
-        margins: { marginType: isThermal ? 'none' : 'default' },
-        ...(isThermal
-          ? { pageSize: { width: 80000, height: 297000 } }
-          : { pageSize: 'A4' }),
-      })
-      .then((pdfBuffer) => {
-        fs.writeFileSync(finalPath, pdfBuffer);
-        pdfWin.destroy();
-        pdfWin = null;
-
-        try {
-          shell.showItemInFolder(finalPath);
-        } catch {}
-
-        resolve({ success: true, filePath: finalPath, filename: path.basename(finalPath) });
-      })
-      .catch((err) => {
-        if (pdfWin && !pdfWin.isDestroyed()) {
-          pdfWin.destroy();
-          pdfWin = null;
+    // Wait for images and fonts to be ready
+    await pdfWin.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const checkReady = () => {
+          const images = Array.from(document.images);
+          const allImagesLoaded = images.every(img => img.complete);
+          const fontsReady = document.fonts ? document.fonts.status === 'loaded' : true;
+          if (allImagesLoaded && fontsReady) {
+            resolve(true);
+          } else {
+            setTimeout(checkReady, 50);
+          }
+        };
+        if (document.readyState === 'complete') {
+          checkReady();
+        } else {
+          window.addEventListener('load', checkReady);
         }
-        resolve({ success: false, error: err.message });
-      });
-  });
+        setTimeout(() => resolve(true), 1500);
+      })
+    `);
+
+    let pdfOptions;
+    if (isThermal) {
+      const heightInPixels = await pdfWin.webContents.executeJavaScript(`
+        Math.max(
+          document.body.scrollHeight,
+          document.documentElement.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.offsetHeight
+        )
+      `).catch(() => 800);
+
+      const heightMicrons = Math.ceil((heightInPixels * 25400) / 96) + 6000;
+
+      pdfOptions = {
+        printBackground: true,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        pageSize: {
+          width: 80000,
+          height: Math.max(heightMicrons, 80000),
+        },
+      };
+    } else {
+      pdfOptions = {
+        printBackground: true,
+        pageSize: 'A4',
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        preferCSSPageSize: true,
+      };
+    }
+
+    const pdfBuffer = await pdfWin.webContents.printToPDF(pdfOptions);
+    fs.writeFileSync(finalPath, pdfBuffer);
+
+    if (pdfWin && !pdfWin.isDestroyed()) {
+      pdfWin.destroy();
+      pdfWin = null;
+    }
+
+    try {
+      shell.showItemInFolder(finalPath);
+    } catch {}
+
+    return { success: true, filePath: finalPath, filename: path.basename(finalPath) };
+  } catch (err) {
+    if (pdfWin && !pdfWin.isDestroyed()) {
+      pdfWin.destroy();
+      pdfWin = null;
+    }
+    return { success: false, error: err.message || String(err) };
+  }
 });

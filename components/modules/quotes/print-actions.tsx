@@ -63,6 +63,8 @@ export function PrintActions({ quoteId, currentTemplate }: PrintActionsProps) {
                 title="Exportar Cotización a PDF"
                 defaultFilename={`Cotizacion-${quoteId}.pdf`}
                 initialFormat={currentTemplate === "ticket" ? "ticket" : "a4"}
+                onFormatChange={(fmt) => changeTemplate(fmt)}
+                getContentElement={() => document.getElementById("printable-quote-content")}
                 getHtmlContent={() => {
                     const el = document.getElementById("printable-quote-content");
                     return el?.innerHTML || "";

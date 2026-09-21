@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { QuoteTemplate } from "./quote-template"
 import { QuoteOdooTemplate } from "./quote-odoo-template"
 import { ExportPdfModal } from "@/components/modules/pdf/export-pdf-modal"
+import { extractPrintData } from "@/lib/print-utils"
 import {
     Select,
     SelectContent,
@@ -42,10 +43,14 @@ export function QuotePreviewDialog({ quote, settings }: { quote: any, settings?:
 
                 if (selectedPrinter && selectedPrinter.trim() !== "") {
                     toast.info(`Imprimiendo en ${selectedPrinter}...`);
+                    const printData = extractPrintData(contentRef.current, contentRef.current.innerHTML);
                     const res = await window.electron.printSilent?.({
-                        html: contentRef.current.innerHTML,
+                        html: printData.html,
                         deviceName: selectedPrinter.trim(),
                         format: isThermal ? "ticket" : "a4",
+                        css: printData.css,
+                        headTags: printData.headTags,
+                        baseUrl: printData.baseUrl,
                     });
                     if (res?.success) {
                         toast.success("Impresión enviada correctamente");
@@ -117,6 +122,8 @@ export function QuotePreviewDialog({ quote, settings }: { quote: any, settings?:
                     title="Exportar Cotización a PDF"
                     defaultFilename={`Cotizacion-${quote.sequenceNumber || quote.id || "documento"}.pdf`}
                     initialFormat={template === "ticket" ? "ticket" : "a4"}
+                    onFormatChange={(fmt) => setTemplate(fmt === "ticket" ? "ticket" : "a4-odoo")}
+                    getContentElement={() => contentRef.current}
                     getHtmlContent={() => contentRef.current?.innerHTML || ""}
                 />
             </DialogContent>
