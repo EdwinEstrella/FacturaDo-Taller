@@ -13,7 +13,8 @@
 /out/
 
 # Production
-/build
+/build/*
+!build/installer.nsh
 
 # Misc
 .DS_Store

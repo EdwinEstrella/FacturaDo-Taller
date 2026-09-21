@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Optimizaciones de producción
+  // Permitir orígenes locales para HMR de Electron en desarrollo
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
+
   // Optimizaciones de producción
   compress: true,
   output: 'standalone',

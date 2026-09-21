@@ -1,6 +1,6 @@
 {
   "name": "facturado",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "description": "FacturaDo Desktop Application",
   "author": "FacturaDo",
@@ -15,12 +15,18 @@
     "node-domexception": "^2.0.1"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -k --names \"next,electron\" -c \"blue,magenta\" \"next dev -p 3000\" \"electron .\"",
+    "dev:web": "next dev",
+    "dev:electron": "npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:electron": "concurrently -k \"npm run dev\" \"wait-on tcp:3000 && electron .\"",
-    "build:electron": "npm run build && electron-builder --win",
+    "icon:build": "node scripts/build-icon.mjs",
+    "build:standalone": "next build && node scripts/prepare-standalone.js",
+    "package": "npm run icon:build && npm run build:standalone && node scripts/clean-env.cjs electron-builder --dir",
+    "dist:win": "npm run icon:build && npm run build:standalone && node scripts/clean-env.cjs electron-builder --win",
+    "release:win": "npm run icon:build && npm run build:standalone && node scripts/clean-env.cjs electron-builder --win --publish always",
+    "build:electron": "npm run dist:win",
     "migrate:passwords": "tsx scripts/migrate-passwords.ts",
     "doctor": "npx react-doctor@latest"
   },
@@ -29,21 +35,54 @@
     "appId": "com.facturado.app",
     "productName": "FacturaDo",
     "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "output": "release",
+      "buildResources": "."
     },
     "files": [
-      "out/**/*",
-      ".next/standalone/**/*",
       "electron/**/*",
       "package.json"
-    ]
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "server",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "afterPack": "./scripts/after-pack-win-icon.cjs",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "artifactName": "FacturaDo-Install.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "warningsAsErrors": false
+    }
   },
   "dependencies": {
     "@carbon/icons-react": "^11.72.0",
@@ -99,6 +138,7 @@
     "electron-builder": "^26.4.0",
     "eslint": "^9",
     "eslint-config-next": "^16.2.6",
+    "rcedit": "^5.0.2",
     "shadcn": "^3.6.3",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
