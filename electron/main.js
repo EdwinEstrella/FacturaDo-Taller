@@ -6,6 +6,7 @@ const http = require('http');
 const net = require('net');
 const { spawn, execSync } = require('child_process');
 const { createDatabase, testConnection, runMigrations } = require('./db-manager');
+const { setupAutoUpdater } = require('./autoUpdater');
 
 // 1. Bloqueo de instancia única (igual que Cyberbistro)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -259,6 +260,7 @@ app.on('ready', async () => {
   try {
     const url = await startNextServer();
     createWindow(url);
+    setupAutoUpdater(() => mainWindow);
   } catch (error) {
     console.error('[Electron] Error al inicializar el servidor:', error);
     app.quit();
