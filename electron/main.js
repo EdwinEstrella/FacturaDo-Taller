@@ -242,16 +242,26 @@ function createWindow(baseUrl) {
     mainWindow.show();
   });
 
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    killServer();
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
   const targetUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   console.log(`[Electron] Cargando aplicación en: ${targetUrl}`);
   mainWindow.loadURL(targetUrl);
 }
 
-// Control de segunda instancia: enfocar ventana existente
+// Control de segunda instancia: enfocar ventana existente o recrearla
 app.on('second-instance', () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
+  } else if (activeServerUrl) {
+    createWindow(activeServerUrl);
   }
 });
 
@@ -327,11 +337,11 @@ ipcMain.handle('restart-app', () => {
 });
 
 // IPC Handlers para impresoras (térmica y A4 silenciosa)
-let hiddenPrintWin = null;
-
 ipcMain.handle('printers:list', async () => {
-  const win = mainWindow || BrowserWindow.getAllWindows()[0];
-  if (!win) return [];
+  const win = (mainWindow && !mainWindow.isDestroyed())
+    ? mainWindow
+    : BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+  if (!win || win.isDestroyed() || !win.webContents || win.webContents.isDestroyed()) return [];
   try {
     const list = await win.webContents.getPrintersAsync();
     return list.map((p) => ({
@@ -381,16 +391,14 @@ ipcMain.handle('printers:print-current-window', async (event, { deviceName, form
 });
 
 ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format, css, headTags, baseUrl }) => {
-  if (!hiddenPrintWin || hiddenPrintWin.isDestroyed()) {
-    hiddenPrintWin = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: false,
-      },
-    });
-  }
+  let printWin = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
+    },
+  });
 
   const isThermal = format === 'ticket';
   const baseHref = baseUrl ? `<base href="${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}">` : '';
@@ -449,47 +457,63 @@ ipcMain.handle('printers:print-html', async (_event, { html, deviceName, format,
     </html>
   `;
 
-  await hiddenPrintWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+  try {
+    await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
 
-  await hiddenPrintWin.webContents.executeJavaScript(`
-    new Promise((resolve) => {
-      const checkReady = () => {
-        const images = Array.from(document.images);
-        const allImagesLoaded = images.every(img => img.complete);
-        const fontsReady = document.fonts ? document.fonts.status === 'loaded' : true;
-        if (allImagesLoaded && fontsReady) {
-          resolve(true);
+    await printWin.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const checkReady = () => {
+          const images = Array.from(document.images);
+          const allImagesLoaded = images.every(img => img.complete);
+          const fontsReady = document.fonts ? document.fonts.status === 'loaded' : true;
+          if (allImagesLoaded && fontsReady) {
+            resolve(true);
+          } else {
+            setTimeout(checkReady, 50);
+          }
+        };
+        if (document.readyState === 'complete') {
+          checkReady();
         } else {
-          setTimeout(checkReady, 50);
+          window.addEventListener('load', checkReady);
         }
-      };
-      if (document.readyState === 'complete') {
-        checkReady();
-      } else {
-        window.addEventListener('load', checkReady);
-      }
-      setTimeout(() => resolve(true), 1500);
-    })
-  `);
+        setTimeout(() => resolve(true), 1500);
+      })
+    `);
 
-  return new Promise((resolve) => {
-    try {
-      hiddenPrintWin.webContents.print(
-        {
-          silent: true,
-          deviceName,
-          printBackground: true,
-          margins: { marginType: isThermal ? 'none' : 'default' },
-          ...(isThermal ? { pageSize: { width: 80000, height: 297000 } } : { pageSize: 'A4' }),
-        },
-        (success, failureReason) => {
-          resolve({ success, error: failureReason });
+    return await new Promise((resolve) => {
+      try {
+        printWin.webContents.print(
+          {
+            silent: true,
+            deviceName,
+            printBackground: true,
+            margins: { marginType: isThermal ? 'none' : 'default' },
+            ...(isThermal ? { pageSize: { width: 80000, height: 297000 } } : { pageSize: 'A4' }),
+          },
+          (success, failureReason) => {
+            if (printWin && !printWin.isDestroyed()) {
+              printWin.destroy();
+              printWin = null;
+            }
+            resolve({ success, error: failureReason });
+          }
+        );
+      } catch (err) {
+        if (printWin && !printWin.isDestroyed()) {
+          printWin.destroy();
+          printWin = null;
         }
-      );
-    } catch (err) {
-      resolve({ success: false, error: err.message });
+        resolve({ success: false, error: err.message });
+      }
+    });
+  } catch (err) {
+    if (printWin && !printWin.isDestroyed()) {
+      printWin.destroy();
+      printWin = null;
     }
-  });
+    return { success: false, error: err.message || String(err) };
+  }
 });
 
 ipcMain.handle('printers:export-pdf', async (_event, { html, format, filename, css, headTags, baseUrl }) => {

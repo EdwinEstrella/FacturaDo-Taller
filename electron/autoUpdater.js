@@ -17,11 +17,11 @@ const updateState = {
 
 function getTargetWindow(getMainWindow) {
   const focused = BrowserWindow.getFocusedWindow();
-  if (focused && !focused.isDestroyed()) return focused;
+  if (focused && !focused.isDestroyed() && !focused.webContents?.isDestroyed()) return focused;
   const main = getMainWindow ? getMainWindow() : null;
-  if (main && !main.isDestroyed()) return main;
+  if (main && !main.isDestroyed() && !main.webContents?.isDestroyed()) return main;
   const all = BrowserWindow.getAllWindows();
-  return all.find((w) => !w.isDestroyed()) ?? null;
+  return all.find((w) => !w.isDestroyed() && !w.webContents?.isDestroyed()) ?? null;
 }
 
 function installDownloadedUpdate() {
@@ -58,9 +58,13 @@ function setupAutoUpdater(getMainWindow) {
   }
 
   const send = (channel, payload) => {
-    const win = getTargetWindow(getMainWindow);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send(channel, payload);
+    try {
+      const win = getTargetWindow(getMainWindow);
+      if (win && !win.isDestroyed() && !win.webContents?.isDestroyed()) {
+        win.webContents.send(channel, payload);
+      }
+    } catch (err) {
+      log.warn(`[AutoUpdater] Error enviando evento ${channel}:`, err);
     }
   };
 
