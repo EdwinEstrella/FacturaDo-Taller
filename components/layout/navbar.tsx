@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { MobileSidebar } from "@/components/layout/mobile-sidebar"
 import { useRouter } from "next/navigation"
+import { TitlebarUpdateButton } from "@/components/modules/updates/titlebar-update-button"
 
 interface UserProps {
     id: string
@@ -24,6 +25,7 @@ export function Navbar({ user }: NavbarProps) {
             <div className="flex w-full justify-end">
                 {/* Botones de acción */}
                 <div className="flex items-center gap-x-2">
+                    <TitlebarUpdateButton />
                     <Button
                         size="sm"
                         variant="outline"

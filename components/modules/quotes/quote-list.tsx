@@ -77,6 +77,7 @@ export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: ()
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-[100px]">No.</TableHead>
                         <TableHead>Fecha</TableHead>
                         <TableHead>Vence</TableHead>
                         <TableHead>Cliente</TableHead>
@@ -86,13 +87,17 @@ export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: ()
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {quotes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No hay cotizaciones</TableCell></TableRow>}
+                    {quotes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No hay cotizaciones</TableCell></TableRow>}
                     {quotes.map((quote) => {
                         const isExpired = !quote.isDraft && quote.status === "EXPIRED"
                         const validUntilText = quote.validUntil ? formatDateDO(quote.validUntil) : "N/A"
+                        const quoteNumber = quote.sequenceNumber
+                            ? `#${String(quote.sequenceNumber).padStart(6, "0")}`
+                            : `#${String(quote.id || "").slice(-6).toUpperCase()}`
 
                         return (
                             <TableRow key={quote.id} className={isExpired ? "bg-red-50" : ""}>
+                                <TableCell className="font-semibold text-primary">{quoteNumber}</TableCell>
                                 <TableCell>{formatDateDO(quote.createdAt)}</TableCell>
                                 <TableCell>
                                     {isExpired && <AlertTriangle className="h-4 w-4 text-red-500 inline mr-1" />}

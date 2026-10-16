@@ -53,7 +53,16 @@ function QuotesPageContent() {
 
             if (!normalizedQuery) return true
 
-            const text = `${quote.clientName || quote.client?.name || ""} ${quote.status || ""} ${quote.isDraft ? "borrador draft" : ""} ${quote.total}`.toLowerCase()
+            const seq = quote.sequenceNumber != null ? String(quote.sequenceNumber) : ""
+            const paddedSeq = seq ? seq.padStart(6, "0") : ""
+            const formattedSeq = seq ? `#${paddedSeq}` : ""
+            const simpleFormattedSeq = seq ? `#${seq}` : ""
+            const cotSeq = seq ? `cot-${seq}` : ""
+            const cotPaddedSeq = seq ? `cot-${paddedSeq}` : ""
+            const clientRnc = quote.client?.rnc || ""
+            const clientCedula = quote.client?.cedula || ""
+
+            const text = `${seq} ${paddedSeq} ${formattedSeq} ${simpleFormattedSeq} ${cotSeq} ${cotPaddedSeq} ${quote.clientName || quote.client?.name || ""} ${clientRnc} ${clientCedula} ${quote.status || ""} ${quote.isDraft ? "borrador draft" : ""} ${quote.total}`.toLowerCase()
             return text.includes(normalizedQuery)
         })
     }, [query, quotes, status])
@@ -100,8 +109,8 @@ function QuotesPageContent() {
                 </div>
                 <Input
                     aria-label="Buscar cotización"
-                    className="h-9 w-72"
-                    placeholder="Buscar cliente, estado o monto..."
+                    className="h-9 w-80"
+                    placeholder="Buscar por número (#), cliente, RNC o monto..."
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                 />
@@ -127,6 +136,20 @@ function QuotesPageContent() {
                     </Button>
                 )}
             </div>
+
+            {!loading && visibleQuotes.length === 0 && query.trim() !== "" && !showAll && (
+                <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3 text-sm text-amber-900">
+                    <span>No se encontraron cotizaciones en el mes seleccionado para &quot;{query}&quot;.</span>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-600 text-amber-800 hover:bg-amber-100"
+                        onClick={() => setShowAll(true)}
+                    >
+                        Buscar en todo el historial
+                    </Button>
+                </div>
+            )}
 
             {loading ? (
                 <PageLoading message="Cargando cotizaciones..." />
