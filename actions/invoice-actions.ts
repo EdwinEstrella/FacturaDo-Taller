@@ -254,11 +254,13 @@ export async function createInvoice(data: InvoiceFormData) {
             throw new Error(itemsError.message)
         }
 
-        // Register Initial Payment
-        if (amountPaid && amountPaid > 0) {
+        // Register Initial Payment. Lo que exceda el total es la devuelta: no se queda en caja.
+        // Si no se digitó el monto recibido en una venta de contado, se cobró el total.
+        const paidAmount = isCredit ? 0 : Math.min(amountPaid ?? total, total)
+        if (paidAmount > 0) {
             const paymentData = {
                 invoiceId: invoice.id,
-                amount: amountPaid,
+                amount: paidAmount,
                 method: paymentMethod || "CASH",
                 date: new Date().toISOString(),
                 notes: "Pago Inicial / Abono"

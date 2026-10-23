@@ -78,7 +78,7 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
 
     // Apertura de turno state
     const [openInitialCash, setOpenInitialCash] = useState<number>(
-        lastClosedShift ? Number(lastClosedShift.actualCash || lastClosedShift.expectedCash || 0) : 0
+        lastClosedShift ? Number(lastClosedShift.actualCash ?? lastClosedShift.expectedCash ?? 0) : 0
     )
     const [openNotes, setOpenNotes] = useState("")
     const [isOpening, setIsOpening] = useState(false)
