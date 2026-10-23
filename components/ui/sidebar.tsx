@@ -20,7 +20,6 @@ import {
   Users,
   PackageSearch,
   Package,
-  ClipboardList,
   Truck,
   Send,
   User,
@@ -146,7 +145,6 @@ export function SessionNavBar({ user }: { user?: UserProps | null }) {
         items: [
             { icon: PackageSearch, label: "Productos / Servicios", href: "/products" },
             { icon: Package, label: "Almacén", href: "/warehouse" },
-            { icon: ClipboardList, label: "Pedidos / Producción", href: "/orders" },
             { icon: Truck, label: "Pendientes", href: "/pendientes" },
             { icon: Send, label: "Despacho", href: "/dispatch" },
             { icon: User, label: "Técnicos", href: "/technician" },

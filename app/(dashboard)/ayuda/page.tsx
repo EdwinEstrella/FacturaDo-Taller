@@ -19,7 +19,6 @@ const helpModules = [
     videos: [
       { id: "4", title: "Agregar un nuevo producto al catálogo", duration: "1:50", url: "https://videos.pexels.com/video-files/30333849/13003128_2560_1440_25fps.mp4" },
       { id: "5", title: "Registrar entradas y salidas de almacén", duration: "3:10", url: "https://videos.pexels.com/video-files/30333849/13003128_2560_1440_25fps.mp4" },
-      { id: "6", title: "Creación de un pedido de producción", duration: "5:30", url: "https://videos.pexels.com/video-files/30333849/13003128_2560_1440_25fps.mp4" },
     ]
   },
   {

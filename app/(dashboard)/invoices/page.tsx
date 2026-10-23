@@ -15,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { InvoiceFilters } from "@/components/modules/invoices/invoice-filters"
 import { InvoiceReportPrint } from "@/components/modules/reports/invoice-report-print"
-import { CreateWorkOrderDialog } from "@/components/modules/orders/create-order-dialog"
 import { InvoicePreviewDialog } from "@/components/modules/invoices/invoice-preview"
 import { DispatchSlipPreviewDialog } from "@/components/modules/invoices/dispatch-slip-preview"
 import { DeleteInvoiceDialog } from "@/components/modules/invoices/delete-invoice-dialog"
@@ -191,15 +190,8 @@ export default function InvoicesPage() {
 
                                                 <DispatchSlipPreviewDialog invoice={invoice} settings={settings || undefined} />
 
-                                                {!invoice.workOrder && (
-                                                    <CreateWorkOrderDialog invoiceId={invoice.id} />
-                                                )}
-
                                                 {isAdmin && (
-                                                    <DeleteInvoiceDialog
-                                                        invoiceId={invoice.id}
-                                                        isProduction={!!invoice.workOrder}
-                                                    />
+                                                    <DeleteInvoiceDialog invoiceId={invoice.id} />
                                                 )}
                                             </div>
                                         </TableCell>

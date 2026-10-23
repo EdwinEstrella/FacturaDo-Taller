@@ -996,7 +996,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                             ¿Este producto requiere instalación para el cliente?
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
-                            Si selecciona &quot;Sí&quot;, se creará una orden de producción en el módulo de Pendientes.
+                            Si selecciona &quot;Sí&quot;, se agregará al módulo de Pendientes de Instalación.
                         </p>
                     </div>
                     <DialogFooter className="gap-2">
