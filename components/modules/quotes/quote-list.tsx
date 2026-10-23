@@ -23,9 +23,21 @@ import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
 import { convertQuoteToInvoice, deleteQuote, renewQuote } from "@/actions/quote-actions"
-import { ArrowRight, Printer, Trash2, AlertTriangle, Pencil, RotateCcw, Loader2 } from "lucide-react"
+import { ArrowRight, Printer, Trash2, Pencil, RotateCcw, Loader2, FileText, Plus } from "lucide-react"
+import { differenceInCalendarDays } from "date-fns"
+import Link from "next/link"
+import { ClientCell, EmptyList, StatusPill, type PillTone } from "@/components/modules/shared/list-page"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function quoteStatus(quote: any): { label: string; tone: PillTone } {
+    if (quote.isDraft) return { label: "Borrador", tone: "slate" }
+    if (quote.status === "ACCEPTED") return { label: "Aceptada", tone: "green" }
+    if (quote.status === "EXPIRED") return { label: "Vencida", tone: "red" }
+    if (quote.status === "REJECTED") return { label: "Rechazada", tone: "slate" }
+    return { label: "Pendiente", tone: "amber" }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: () => void }) {
@@ -73,81 +85,104 @@ export function QuoteList({ quotes, onRefresh }: { quotes: any[], onRefresh?: ()
     }
 
     return (
-        <div className="rounded-md border">
+        <div>
+            {quotes.length === 0 ? (
+                <EmptyList
+                    icon={<FileText />}
+                    title="No hay cotizaciones"
+                    description="Cambiá el mes o los filtros, o creá una nueva cotización."
+                    action={
+                        <Button asChild size="sm">
+                            <Link href="/invoices/create?type=QUOTE">
+                                <Plus className="mr-2 h-4 w-4" />
+                                Nueva Cotización
+                            </Link>
+                        </Button>
+                    }
+                />
+            ) : (
             <Table>
                 <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[100px]">No.</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Vence</TableHead>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="pl-4">Cotización</TableHead>
                         <TableHead>Cliente</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>Vigencia</TableHead>
                         <TableHead>Estado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="pr-4 text-right">Acciones</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {quotes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No hay cotizaciones</TableCell></TableRow>}
                     {quotes.map((quote) => {
                         const isExpired = !quote.isDraft && quote.status === "EXPIRED"
-                        const validUntilText = quote.validUntil ? formatDateDO(quote.validUntil) : "N/A"
+                        const isOpen = !quote.isDraft && quote.status === "PENDING"
                         const quoteNumber = quote.sequenceNumber
                             ? `#${String(quote.sequenceNumber).padStart(6, "0")}`
                             : `#${String(quote.id || "").slice(-6).toUpperCase()}`
+                        const st = quoteStatus(quote)
+                        const days = quote.validUntil ? differenceInCalendarDays(new Date(quote.validUntil), new Date()) : null
+                        const clientRnc = quote.client?.rnc || quote.client?.cedula
 
                         return (
-                            <TableRow key={quote.id} className={isExpired ? "bg-red-50" : ""}>
-                                <TableCell className="font-semibold text-primary">{quoteNumber}</TableCell>
-                                <TableCell>{formatDateDO(quote.createdAt)}</TableCell>
-                                <TableCell>
-                                    {isExpired && <AlertTriangle className="h-4 w-4 text-red-500 inline mr-1" />}
-                                    {validUntilText}
+                            <TableRow key={quote.id}>
+                                <TableCell className="py-3 pl-4">
+                                    <p className="font-mono font-semibold text-blue-700">{quoteNumber}</p>
+                                    <p className="text-xs text-muted-foreground">{formatDateDO(quote.createdAt)}</p>
                                 </TableCell>
-                                <TableCell>{quote.clientName || quote.client?.name || "Cliente"}</TableCell>
-                                <TableCell className="text-right font-bold">{formatCurrency(Number(quote.total))}</TableCell>
-                                <TableCell>
-                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                        quote.isDraft ? "bg-slate-100 text-slate-800" :
-                                        quote.status === "ACCEPTED" ? "bg-green-100 text-green-800" :
-                                        quote.status === "EXPIRED" || isExpired ? "bg-red-100 text-red-800" :
-                                        quote.status === "REJECTED" ? "bg-gray-100 text-gray-800" :
-                                        "bg-yellow-100 text-yellow-800"
-                                    }`}>
-                                        {quote.isDraft ? "Borrador" :
-                                         quote.status === "ACCEPTED" ? "Aceptada" :
-                                         quote.status === "EXPIRED" ? "Vencida" :
-                                         quote.status === "REJECTED" ? "Rechazada" :
-                                         "Pendiente"}
-                                    </span>
+                                <TableCell className="max-w-[280px] py-3">
+                                    <ClientCell
+                                        name={quote.clientName || quote.client?.name || "Cliente"}
+                                        detail={clientRnc ? `RNC / Céd. ${clientRnc}` : undefined}
+                                    />
                                 </TableCell>
-                                <TableCell className="text-right">
-                                    {quote.status === "PENDING" && !isExpired && (
-                                        <Button size="sm" variant="outline" onClick={() => router.push(`/invoices/create?sourceQuoteId=${quote.id}`)}>
-                                            <ArrowRight className="mr-2 h-4 w-4" /> Facturar
-                                        </Button>
+                                <TableCell className="py-3">
+                                    <p>{quote.validUntil ? formatDateDO(quote.validUntil) : "—"}</p>
+                                    {isOpen && days !== null && (
+                                        <p className={`text-xs ${days <= 3 ? "text-amber-700" : "text-muted-foreground"}`}>
+                                            {days <= 0 ? "Vence hoy" : days === 1 ? "Vence mañana" : `Vence en ${days} días`}
+                                        </p>
                                     )}
-                                    {(!isExpired && quote.status === "PENDING") && (
-                                        <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/edit`)}>
-                                            <Pencil className="h-4 w-4 text-blue-500" />
+                                    {isExpired && <p className="text-xs text-red-600">Vencida</p>}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                    <StatusPill tone={st.tone}>{st.label}</StatusPill>
+                                </TableCell>
+                                <TableCell className="py-3 text-right font-semibold tabular-nums">
+                                    {formatCurrency(Number(quote.total))}
+                                </TableCell>
+                                <TableCell className="py-3 pr-4">
+                                    <div className="flex items-center justify-end gap-1">
+                                        {isOpen && (
+                                            <Button size="sm" className="mr-1" onClick={() => router.push(`/invoices/create?sourceQuoteId=${quote.id}`)}>
+                                                Facturar
+                                                <ArrowRight className="ml-1.5 h-4 w-4" />
+                                            </Button>
+                                        )}
+                                        {isExpired && (
+                                            <Button size="sm" variant="outline" className="mr-1" onClick={() => openDialog('renew', quote.id)}>
+                                                <RotateCcw className="mr-1.5 h-4 w-4" />
+                                                Renovar
+                                            </Button>
+                                        )}
+                                        {(isOpen || quote.isDraft) && (
+                                            <Button size="icon" variant="ghost" title="Editar" onClick={() => router.push(`/quotes/${quote.id}/edit`)}>
+                                                <Pencil className="h-4 w-4 text-blue-500" />
+                                            </Button>
+                                        )}
+                                        <Button size="icon" variant="ghost" title="Imprimir" onClick={() => router.push(`/quotes/${quote.id}/print`)}>
+                                            <Printer className="h-4 w-4" />
                                         </Button>
-                                    )}
-                                    {isExpired && (
-                                        <Button size="sm" variant="ghost" onClick={() => openDialog('renew', quote.id)} title="Renovar cotización">
-                                            <RotateCcw className="h-4 w-4 text-green-600" />
+                                        <Button size="icon" variant="ghost" title="Eliminar" onClick={() => openDialog('delete', quote.id)}>
+                                            <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
-                                    )}
-                                    <Button size="sm" variant="ghost" onClick={() => router.push(`/quotes/${quote.id}/print`)}>
-                                        <Printer className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => openDialog('delete', quote.id)}>
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         )
                     })}
                 </TableBody>
             </Table>
+            )}
 
             <AlertDialog open={dialogState.isOpen} onOpenChange={(open) => !dialogState.isLoading && setDialogState(prev => ({ ...prev, isOpen: open }))}>
                 <AlertDialogContent>

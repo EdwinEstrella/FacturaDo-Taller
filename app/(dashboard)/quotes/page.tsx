@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { getQuotes } from "@/actions/quote-actions"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
+import { es } from "date-fns/locale"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { PageLoading } from "@/components/ui/loading"
-import { X } from "lucide-react"
+import { CalendarDays, CheckCircle2, Clock, FileText, History, Loader2, Plus, TrendingUp } from "lucide-react"
+import { PageHeader, SearchInput, SegmentedControl, StatTile } from "@/components/modules/shared/list-page"
+import { formatCurrency } from "@/lib/utils"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type QuoteAny = any
@@ -49,7 +51,7 @@ function QuotesPageContent() {
 
         return quotes.filter((quote: QuoteAny) => {
             if (status === "DRAFT" && !quote.isDraft) return false
-            if (status !== "ALL" && status !== "DRAFT" && quote.status !== status) return false
+            if (status !== "ALL" && status !== "DRAFT" && (quote.isDraft || quote.status !== status)) return false
 
             if (!normalizedQuery) return true
 
@@ -67,95 +69,146 @@ function QuotesPageContent() {
         })
     }, [query, quotes, status])
 
-    const clearFilters = () => {
-        setQuery("")
-        setStatus("ALL")
-    }
+    const counts = useMemo(() => ({
+        ALL: quotes.length,
+        PENDING: quotes.filter((q: QuoteAny) => !q.isDraft && q.status === "PENDING").length,
+        ACCEPTED: quotes.filter((q: QuoteAny) => q.status === "ACCEPTED").length,
+        EXPIRED: quotes.filter((q: QuoteAny) => !q.isDraft && q.status === "EXPIRED").length,
+        REJECTED: quotes.filter((q: QuoteAny) => q.status === "REJECTED").length,
+        DRAFT: quotes.filter((q: QuoteAny) => q.isDraft).length,
+    }), [quotes])
 
-    const hasActiveFilters = Boolean(query || status !== "ALL")
+    const stats = useMemo(() => {
+        const sum = (list: QuoteAny[]) => list.reduce((acc, q) => acc + Number(q.total || 0), 0)
+        const pending = quotes.filter((q: QuoteAny) => !q.isDraft && q.status === "PENDING")
+        const accepted = quotes.filter((q: QuoteAny) => q.status === "ACCEPTED")
+        const decided = quotes.filter((q: QuoteAny) => !q.isDraft && q.status !== "PENDING")
+        return {
+            total: sum(quotes.filter((q: QuoteAny) => !q.isDraft)),
+            pendingTotal: sum(pending),
+            acceptedTotal: sum(accepted),
+            conversion: decided.length ? Math.round((accepted.length / decided.length) * 100) : null,
+        }
+    }, [quotes])
+
+    const scopeLabel = showAll
+        ? "Todo el historial"
+        : format(new Date(`${month}-01T00:00:00`), "MMMM yyyy", { locale: es })
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <div className="flex items-center justify-between space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">Cotizaciones</h2>
-                <div className="flex gap-2">
-                    <Link href="/invoices/create?type=QUOTE">
-                        <Button variant="outline" className="border-yellow-500 text-yellow-600 hover:bg-yellow-50">
+        <div className="flex-1 space-y-6">
+            <PageHeader
+                title="Cotizaciones"
+                description="Prepará presupuestos, dales seguimiento y convertilos en factura."
+                actions={
+                    <Button asChild>
+                        <Link href="/invoices/create?type=QUOTE">
+                            <Plus className="mr-2 h-4 w-4" />
                             Nueva Cotización
-                        </Button>
-                    </Link>
-                </div>
+                        </Link>
+                    </Button>
+                }
+            />
+
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+                <StatTile
+                    label="Cotizado"
+                    value={formatCurrency(stats.total)}
+                    hint={<span className="capitalize">{scopeLabel}</span>}
+                    icon={<FileText />}
+                    tone="blue"
+                />
+                <StatTile
+                    label="Pendientes"
+                    value={counts.PENDING}
+                    hint={`${formatCurrency(stats.pendingTotal)} en espera`}
+                    icon={<Clock />}
+                    tone="amber"
+                />
+                <StatTile
+                    label="Aceptadas"
+                    value={counts.ACCEPTED}
+                    hint={`${formatCurrency(stats.acceptedTotal)} facturado`}
+                    icon={<CheckCircle2 />}
+                    tone="green"
+                />
+                <StatTile
+                    label="Tasa de cierre"
+                    value={stats.conversion === null ? "—" : `${stats.conversion}%`}
+                    hint={`${counts.EXPIRED} ${counts.EXPIRED === 1 ? "vencida" : "vencidas"}`}
+                    icon={<TrendingUp />}
+                    tone="slate"
+                />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">Mes</span>
-                    <Input
-                        aria-label="Mes"
-                        type="month"
-                        className="h-9 w-40"
-                        value={month}
-                        disabled={showAll}
-                        onChange={(event) => setMonth(event.target.value)}
-                    />
-                    <Button
-                        variant={showAll ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setShowAll((prev) => !prev)}
-                        title="Cargar todas las cotizaciones sin filtrar por mes"
-                    >
-                        Todas
-                    </Button>
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                <div className="space-y-4 border-b p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                        <SearchInput
+                            value={query}
+                            onChange={setQuery}
+                            placeholder="Buscar por número, cliente, RNC o monto..."
+                            className="lg:max-w-md lg:flex-1"
+                        />
+                        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+                            <div className="relative">
+                                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    aria-label="Mes"
+                                    type="month"
+                                    className="h-10 w-44 pl-9"
+                                    value={month}
+                                    disabled={showAll}
+                                    onChange={(event) => setMonth(event.target.value)}
+                                />
+                            </div>
+                            <Button
+                                variant={showAll ? "secondary" : "outline"}
+                                className="h-10"
+                                onClick={() => setShowAll((prev) => !prev)}
+                                title="Cargar todas las cotizaciones sin filtrar por mes"
+                            >
+                                <History className="mr-2 h-4 w-4" />
+                                {showAll ? "Viendo todo" : "Todo el historial"}
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <SegmentedControl
+                            options={[
+                                { value: "ALL", label: "Todas", count: counts.ALL },
+                                { value: "PENDING", label: "Pendientes", count: counts.PENDING },
+                                { value: "ACCEPTED", label: "Aceptadas", count: counts.ACCEPTED },
+                                { value: "EXPIRED", label: "Vencidas", count: counts.EXPIRED },
+                                { value: "REJECTED", label: "Rechazadas", count: counts.REJECTED },
+                                { value: "DRAFT", label: "Borradores", count: counts.DRAFT },
+                            ]}
+                            value={status}
+                            onChange={setStatus}
+                        />
+                        <p className="text-sm capitalize text-muted-foreground">{scopeLabel}</p>
+                    </div>
                 </div>
-                <Input
-                    aria-label="Buscar cotización"
-                    className="h-9 w-80"
-                    placeholder="Buscar por número (#), cliente, RNC o monto..."
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                />
-                {[
-                    ["PENDING", "Pendientes"],
-                    ["ACCEPTED", "Aceptadas"],
-                    ["REJECTED", "Rechazadas"],
-                    ["DRAFT", "Borradores"],
-                ].map(([value, label]) => (
-                    <Button
-                        key={value}
-                        variant={status === value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setStatus(status === value ? "ALL" : value)}
-                    >
-                        {label}
-                    </Button>
-                ))}
-                {hasActiveFilters && (
-                    <Button variant="ghost" size="sm" onClick={clearFilters} title="Limpiar filtros" aria-label="Limpiar filtros">
-                        <X className="mr-1 h-4 w-4" />
-                        Limpiar
-                    </Button>
+
+                {!loading && visibleQuotes.length === 0 && query.trim() !== "" && !showAll && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
+                        <span>No hay cotizaciones de este mes para &quot;{query}&quot;.</span>
+                        <Button size="sm" variant="outline" className="border-amber-600 text-amber-800 hover:bg-amber-100" onClick={() => setShowAll(true)}>
+                            Buscar en todo el historial
+                        </Button>
+                    </div>
+                )}
+
+                {loading ? (
+                    <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cargando cotizaciones...
+                    </div>
+                ) : (
+                    <QuoteList quotes={visibleQuotes} onRefresh={triggerRefresh} />
                 )}
             </div>
-
-            {!loading && visibleQuotes.length === 0 && query.trim() !== "" && !showAll && (
-                <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3 text-sm text-amber-900">
-                    <span>No se encontraron cotizaciones en el mes seleccionado para &quot;{query}&quot;.</span>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-amber-600 text-amber-800 hover:bg-amber-100"
-                        onClick={() => setShowAll(true)}
-                    >
-                        Buscar en todo el historial
-                    </Button>
-                </div>
-            )}
-
-            {loading ? (
-                <PageLoading message="Cargando cotizaciones..." />
-            ) : (
-                <QuoteList quotes={visibleQuotes} onRefresh={triggerRefresh} />
-            )}
         </div>
     )
 }

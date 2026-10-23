@@ -10,7 +10,7 @@ export default async function PendientesPage() {
     ])
 
     return (
-        <div className="space-y-6 p-8">
+        <div className="space-y-6">
             <PendientesClient
                 installations={installations}
                 pendingCount={pendingCount}

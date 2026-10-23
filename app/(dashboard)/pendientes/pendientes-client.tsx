@@ -1,5 +1,7 @@
 "use client"
 
+import { PageHeader } from "@/components/modules/shared/list-page"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardTitle } from "@/components/ui/card"
@@ -136,42 +138,17 @@ export function PendientesClient({ installations, pendingCount, currentUser }: P
 
     return (
         <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-white shadow-2xl">
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNMCAwaDQwdjQwSDBIMCIgZmlsbD0ibm9uZSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIgb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] opacity-20"></div>
-                <div className="relative">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
-                                Pendientes de Instalación
-                            </h1>
-                            <p className="mt-2 text-slate-300">
-                                Gestiona el flujo de producción, despacho e instalación
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-                                <div className="text-center">
-                                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-emerald-400 to-cyan-400">
-                                        {pendingCount}
-                                    </div>
-                                    <div className="text-xs text-slate-300 mt-1 uppercase tracking-wider font-semibold">Pendientes</div>
-                                </div>
-                                <div className="h-16 w-px bg-white/20"></div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Clock className="h-4 w-4 text-amber-400" />
-                                        <span className="text-slate-200">Tiempo real</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                        <span className="text-slate-200">Automático</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            <PageHeader
+                title="Instalaciones"
+                description="Seguimiento de cada trabajo: producción, despacho e instalación."
+                actions={
+                    <div className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm">
+                        <span className="size-2 rounded-full bg-amber-500" />
+                        <span className="font-semibold tabular-nums">{pendingCount}</span>
+                        <span className="text-muted-foreground">pendientes</span>
                     </div>
-                </div>
-            </div>
+                }
+            />
 
             <Tabs defaultValue="todos" className="space-y-4">
                 <TabsList className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">

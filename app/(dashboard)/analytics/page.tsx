@@ -24,7 +24,7 @@ export default async function AnalyticsPage({
     const summary = await getAnalyticsSummary(rangeFrom, rangeTo)
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
+        <div className="flex-1 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Analíticas</h2>
                 <Suspense fallback={null}>

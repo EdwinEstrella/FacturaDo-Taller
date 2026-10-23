@@ -1,116 +1,69 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowUpCircle, RefreshCw, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import type { UpdateInfo, DownloadProgress } from "@/types/electron"
+import { AlertTriangle, Download, RefreshCw, RotateCw } from "lucide-react"
+import type { useAppUpdate } from "@/hooks/use-app-update"
 
-type UpdatePhase = "idle" | "available" | "downloading" | "ready" | "installing"
+/** Control de actualización de la barra superior. Solo aparece cuando hay algo que hacer. */
+export function TitlebarUpdateButton({ update }: { update: ReturnType<typeof useAppUpdate> }) {
+    const { phase, newVersion, percent, error, install, check } = update
+    const v = newVersion ? ` v${newVersion}` : ""
 
-export function TitlebarUpdateButton() {
-    const [phase, setPhase] = useState<UpdatePhase>("idle")
-    const [version, setVersion] = useState<string>("")
-    const [percent, setPercent] = useState<number>(0)
-
-    useEffect(() => {
-        if (typeof window === "undefined" || !window.electron) return
-
-        // Consultar estado inicial
-        window.electron.getUpdateState?.().then((state) => {
-            if (!state) return
-            if (state.phase === "ready") {
-                setPhase("ready")
-                setVersion(state.downloadedVersion || state.remoteVersion || "")
-            } else if (state.phase === "downloading") {
-                setPhase("downloading")
-                setPercent(state.percent || 0)
-                setVersion(state.remoteVersion || "")
-            } else if (state.phase === "available") {
-                setPhase("available")
-                setVersion(state.remoteVersion || "")
-            }
-        })
-
-        const unsubAvailable = window.electron.onUpdateAvailable?.((info: UpdateInfo) => {
-            setPhase("available")
-            setVersion(info.version)
-        })
-
-        const unsubProgress = window.electron.onDownloadProgress?.((progress: DownloadProgress) => {
-            setPhase("downloading")
-            setPercent(progress.percent)
-        })
-
-        const unsubDownloaded = window.electron.onUpdateDownloaded?.((info: UpdateInfo) => {
-            setPhase("ready")
-            setVersion(info.version)
-            setPercent(100)
-        })
-
-        const unsubError = window.electron.onUpdateError?.(() => {
-            setPhase("idle")
-        })
-
-        return () => {
-            unsubAvailable?.()
-            unsubProgress?.()
-            unsubDownloaded?.()
-            unsubError?.()
-        }
-    }, [])
-
-    if (phase === "idle") return null
-
-    const handleInstall = () => {
-        setPhase("installing")
-        if (window.electron?.installUpdate) {
-            window.electron.installUpdate()
-        }
+    if (phase === "available" || phase === "downloading") {
+        return (
+            <div
+                className="flex h-9 items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-medium text-blue-800"
+                title={`Descargando la versión${v} en segundo plano`}
+            >
+                <Download className="size-4 text-blue-600" />
+                <span className="hidden sm:inline">Descargando{v}</span>
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-blue-100">
+                    <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${Math.max(percent, 4)}%` }} />
+                </div>
+                <span className="tabular-nums">{percent}%</span>
+            </div>
+        )
     }
 
-    if (phase === "downloading") {
+    if (phase === "ready") {
         return (
-            <Button
-                size="sm"
-                variant="outline"
-                className="border-emerald-500 text-emerald-700 bg-emerald-50/80 flex items-center gap-1.5 cursor-wait"
-                disabled
-                title={`Descargando actualización${version ? ` v${version}` : ""}: ${percent}%`}
+            <button
+                type="button"
+                onClick={install}
+                className="relative flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/20 transition hover:bg-emerald-700"
+                title={`La versión${v} ya está descargada. El sistema se reinicia en segundos.`}
             >
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                <span>Actualizando ({percent}%)</span>
-            </Button>
+                <span className="absolute -right-1 -top-1 flex size-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-3 rounded-full border-2 border-white bg-emerald-400" />
+                </span>
+                <RotateCw className="size-4" />
+                Reiniciar y actualizar
+            </button>
         )
     }
 
     if (phase === "installing") {
         return (
-            <Button
-                size="sm"
-                variant="outline"
-                className="border-emerald-600 text-emerald-700 bg-emerald-50/80 flex items-center gap-1.5 cursor-wait"
-                disabled
-            >
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                <span>Instalando...</span>
-            </Button>
+            <div className="flex h-9 items-center gap-2 rounded-lg bg-emerald-50 px-3 text-sm font-medium text-emerald-800">
+                <RefreshCw className="size-4 animate-spin" />
+                Reiniciando...
+            </div>
         )
     }
 
-    // "ready" o "available"
-    return (
-        <Button
-            size="sm"
-            onClick={handleInstall}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm flex items-center gap-1.5 transition-all"
-            title={version ? `Actualización v${version} lista. Haz clic para reiniciar e instalar.` : "Actualización lista para instalar"}
-        >
-            {phase === "ready" ? (
-                <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
-            ) : (
-                <ArrowUpCircle className="w-4 h-4" />
-            )}
-            <span>Actualizar</span>
-        </Button>
-    )
+    if (phase === "error") {
+        return (
+            <button
+                type="button"
+                onClick={check}
+                className="flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+                title={error || "No se pudo descargar la actualización"}
+            >
+                <AlertTriangle className="size-4" />
+                <span className="hidden sm:inline">Actualización falló ·</span> Reintentar
+            </button>
+        )
+    }
+
+    return null
 }

@@ -19,10 +19,9 @@ import { useRouter } from "next/navigation"
 
 interface DeleteInvoiceDialogProps {
     invoiceId: string
-    isProduction?: boolean // Check if it has workOrder
 }
 
-export function DeleteInvoiceDialog({ invoiceId, isProduction }: DeleteInvoiceDialogProps) {
+export function DeleteInvoiceDialog({ invoiceId }: DeleteInvoiceDialogProps) {
     const [open, setOpen] = useState(false)
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
@@ -73,7 +72,6 @@ export function DeleteInvoiceDialog({ invoiceId, isProduction }: DeleteInvoiceDi
                     </DialogTitle>
                     <DialogDescription>
                         Esta acción es irreversible.
-                        {isProduction && " Esta factura está en PRODUCCIÓN, se requiere autorización de Administrador."}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">

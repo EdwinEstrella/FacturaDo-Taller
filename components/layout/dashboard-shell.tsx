@@ -1,6 +1,6 @@
 "use client"
 
-import { SessionNavBar } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/layout/app-sidebar"
 import { Navbar } from "@/components/layout/navbar"
 import { ShiftGuardProvider } from "@/components/modules/cash-close/closed-shift-dialog"
 import type { CashShiftRecord } from "@/actions/cash-shift-actions"
@@ -26,16 +26,17 @@ export function DashboardShell({
 }: DashboardShellProps) {
     return (
         <ShiftGuardProvider hasActiveShift={hasActiveShift}>
-            <div className="flex h-screen overflow-hidden bg-gray-100 relative">
-                {/* Sidebar is distinct flow, hidden on mobile by default usually, but we keep md:flex logic */}
-                <div className="hidden md:flex flex-shrink-0 bg-white h-screen">
-                    <SessionNavBar user={user} />
+            <div className="flex h-screen overflow-hidden bg-slate-50">
+                <div className="hidden md:flex">
+                    <AppSidebar role={user?.role} />
                 </div>
 
-                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                    <Navbar user={user} />
-                    <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                        {children}
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                    <Navbar user={user} hasActiveShift={hasActiveShift} />
+                    <main className="flex-1 overflow-y-auto">
+                        <div className="mx-auto w-full max-w-[1500px] p-4 md:p-8">
+                            {children}
+                        </div>
                     </main>
                 </div>
             </div>

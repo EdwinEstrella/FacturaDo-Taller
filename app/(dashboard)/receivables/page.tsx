@@ -31,8 +31,8 @@ export default async function ReceivablesPage() {
     }))
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <h2 className="text-3xl font-bold tracking-tight text-red-600">Cuentas por Cobrar</h2>
+        <div className="flex-1 space-y-4">
+            <h2 className="text-3xl font-bold tracking-tight">Cuentas por Cobrar</h2>
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>

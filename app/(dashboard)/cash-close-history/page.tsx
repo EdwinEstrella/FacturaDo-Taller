@@ -36,9 +36,9 @@ export default async function CashCloseHistoryPage() {
     const totalBilledAll = closedShifts.reduce((sum, s) => sum + Number(s.totalBilled || 0), 0)
 
     return (
-        <div className="flex-1 space-y-6 p-8 pt-6">
+        <div className="flex-1 space-y-6">
             <div className="flex flex-col space-y-1">
-                <h2 className="text-3xl font-bold tracking-tight">Historial de Turnos de Caja</h2>
+                <h2 className="text-3xl font-bold tracking-tight">Historial de Cierres</h2>
                 <p className="text-muted-foreground">
                     Registro histórico y auditoría de todos los ciclos de caja abiertos y cerrados.
                 </p>

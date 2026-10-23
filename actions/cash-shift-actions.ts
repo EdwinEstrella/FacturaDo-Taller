@@ -142,37 +142,202 @@ export async function getActiveShiftStatus() {
 
 type DatabaseClient = ReturnType<typeof createServerClient>
 
-async function resolvePaymentsWithInvoiceInfo(
-    insforge: DatabaseClient,
-    rawPayments: Array<{ id: string; invoiceId: string; amount: number | string; method: string | null; date: string; reference?: string | null }>
-): Promise<PaymentData[]> {
-    const paymentInvoiceIds = Array.from(new Set((rawPayments || []).map(p => p.invoiceId).filter(Boolean)))
-    let invoiceInfoMap = new Map<string, { seq: number; clientName: string | null }>()
+type RawPayment = { id: string; invoiceId: string; amount: number | string; method: string | null; date: string; reference?: string | null }
 
-    if (paymentInvoiceIds.length > 0) {
-        const { data: invList } = await insforge.database
+interface ShiftMovements {
+    invoices: InvoiceData[]
+    payments: PaymentData[]
+    expenses: ExpenseData[]
+    totalBilled: number
+    totalCollected: number
+    cashCollected: number
+    otherCollected: number
+    totalExpenses: number
+}
+
+/**
+ * Carga y concilia todos los movimientos de caja entre `from` y `to`.
+ * Es la única fuente de cálculo para el turno en vivo y para el cierre, así ambos cuadran igual.
+ */
+async function loadShiftMovements(insforge: DatabaseClient, from: string, to: string): Promise<ShiftMovements> {
+    const [
+        { data: rawInvoices },
+        { data: rawPayments },
+        { data: rawExpenses }
+    ] = await Promise.all([
+        insforge.database
             .from('Invoice')
-            .select('id, sequenceNumber, clientName')
-            .in('id', paymentInvoiceIds)
+            .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status, discount, tax, shippingCost')
+            .gte('createdAt', from)
+            .lte('createdAt', to)
+            .order('createdAt', { ascending: false }),
 
-        if (invList) {
-            invoiceInfoMap = new Map(invList.map(i => [i.id, { seq: Number(i.sequenceNumber), clientName: i.clientName || null }]))
+        insforge.database
+            .from('Payment')
+            .select('id, invoiceId, amount, method, date, reference')
+            .gte('date', from)
+            .lte('date', to)
+            .order('date', { ascending: false }),
+
+        insforge.database
+            .from('Transaction')
+            .select('id, description, amount, date, category')
+            .gte('date', from)
+            .lte('date', to)
+            .eq('type', 'EXPENSE')
+            .order('date', { ascending: false })
+    ])
+
+    // Las facturas canceladas no son ventas del turno.
+    const shiftInvoices = (rawInvoices || []).filter(inv => inv.status !== 'CANCELLED')
+
+    // Load line items for the shift's invoices so the close report can show what was sold to collect the money.
+    const invoiceIds = Array.from(new Set(shiftInvoices.map(inv => inv.id).filter(Boolean)))
+    const itemsByInvoice: Record<string, InvoiceItemData[]> = {}
+
+    if (invoiceIds.length > 0) {
+        const { data: rawItems } = await insforge.database
+            .from('InvoiceItem')
+            .select('invoiceId, productName, quantity, price')
+            .in('invoiceId', invoiceIds)
+
+        for (const it of (rawItems || []) as Array<{ invoiceId: string; productName: string | null; quantity: number | string; price: number | string }>) {
+            const list = itemsByInvoice[it.invoiceId] || (itemsByInvoice[it.invoiceId] = [])
+            list.push({
+                productName: it.productName || 'Ítem',
+                quantity: Number(it.quantity) || 0,
+                price: Number(it.price) || 0,
+            })
         }
     }
 
-    return (rawPayments || []).map(p => {
-        const inv = p.invoiceId ? invoiceInfoMap.get(p.invoiceId) : null
-        return {
-            id: p.id,
-            invoiceId: p.invoiceId,
-            amount: Number(p.amount),
-            method: p.method || 'CASH',
-            date: p.date,
-            reference: p.reference || null,
-            invoiceSequenceNumber: inv?.seq || null,
-            clientName: inv?.clientName || null
+    const invoices: InvoiceData[] = shiftInvoices.map(inv => ({
+        id: inv.id,
+        sequenceNumber: Number(inv.sequenceNumber),
+        total: Number(inv.total),
+        paymentMethod: inv.paymentMethod || 'CASH',
+        createdAt: inv.createdAt,
+        clientName: inv.clientName || null,
+        status: inv.status,
+        discount: Number(inv.discount) || 0,
+        tax: Number(inv.tax) || 0,
+        shippingCost: Number(inv.shippingCost) || 0,
+        items: itemsByInvoice[inv.id] || []
+    }))
+
+    // Facturas de los cobros del turno + todos sus cobros (incluidos los de turnos anteriores),
+    // para no contar más de lo que realmente vale cada factura.
+    const shiftPayments = (rawPayments || []) as RawPayment[]
+    const relatedInvoiceIds = Array.from(new Set([
+        ...shiftPayments.map(p => p.invoiceId).filter(Boolean),
+        ...invoiceIds
+    ]))
+
+    const invoiceInfoMap = new Map<string, { seq: number; clientName: string | null; total: number; status: string | null }>()
+    const paymentsByInvoice = new Map<string, RawPayment[]>()
+
+    if (relatedInvoiceIds.length > 0) {
+        const [{ data: invList }, { data: allInvoicePayments }] = await Promise.all([
+            insforge.database
+                .from('Invoice')
+                .select('id, sequenceNumber, clientName, total, status')
+                .in('id', relatedInvoiceIds),
+            insforge.database
+                .from('Payment')
+                .select('id, invoiceId, amount, method, date, reference')
+                .in('invoiceId', relatedInvoiceIds)
+        ])
+
+        for (const i of invList || []) {
+            invoiceInfoMap.set(i.id, {
+                seq: Number(i.sequenceNumber),
+                clientName: i.clientName || null,
+                total: Number(i.total) || 0,
+                status: i.status || null
+            })
         }
-    })
+
+        for (const p of (allInvoicePayments || []) as RawPayment[]) {
+            const list = paymentsByInvoice.get(p.invoiceId) || []
+            list.push(p)
+            paymentsByInvoice.set(p.invoiceId, list)
+        }
+    }
+
+    // Monto efectivamente aplicado de cada cobro: el exceso sobre el total de la factura es
+    // la devuelta que se entregó al cliente, no dinero que quedó en caja.
+    const appliedAmount = new Map<string, number>()
+    for (const [invoiceId, list] of paymentsByInvoice) {
+        const info = invoiceInfoMap.get(invoiceId)
+        if (!info) continue
+        let applied = 0
+        const ordered = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        for (const p of ordered) {
+            const amount = Math.max(0, Math.min(Number(p.amount) || 0, info.total - applied))
+            appliedAmount.set(p.id, amount)
+            applied += amount
+        }
+    }
+
+    const payments: PaymentData[] = shiftPayments
+        // Cobros de facturas eliminadas o canceladas ya no están en caja.
+        .filter(p => {
+            const info = invoiceInfoMap.get(p.invoiceId)
+            return !!info && info.status !== 'CANCELLED'
+        })
+        .map(p => {
+            const inv = invoiceInfoMap.get(p.invoiceId)!
+            return {
+                id: p.id,
+                invoiceId: p.invoiceId,
+                amount: appliedAmount.get(p.id) ?? Number(p.amount),
+                method: p.method || 'CASH',
+                date: p.date,
+                reference: p.reference || null,
+                invoiceSequenceNumber: inv.seq || null,
+                clientName: inv.clientName || null
+            }
+        })
+        .filter(p => p.amount > 0)
+
+    // Facturas de contado del turno marcadas como pagadas sin ningún cobro registrado
+    // (se facturó sin digitar el monto recibido): el total sí entró a caja.
+    for (const inv of invoices) {
+        if (inv.status !== 'PAID' || inv.paymentMethod === 'CREDIT') continue
+        if ((paymentsByInvoice.get(inv.id) || []).length > 0) continue
+        if (inv.total <= 0) continue
+        payments.push({
+            id: `invoice-${inv.id}`,
+            invoiceId: inv.id,
+            amount: inv.total,
+            method: inv.paymentMethod || 'CASH',
+            date: inv.createdAt,
+            reference: null,
+            invoiceSequenceNumber: inv.sequenceNumber,
+            clientName: inv.clientName
+        })
+    }
+
+    payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    const expenses: ExpenseData[] = (rawExpenses || []).map(e => ({
+        id: e.id,
+        description: e.description || 'Gasto de caja',
+        amount: Number(e.amount),
+        date: e.date,
+        category: e.category || 'EXPENSE'
+    }))
+
+    const round = (n: number) => Math.round(n * 100) / 100
+    const totalBilled = round(invoices.reduce((acc, inv) => acc + inv.total, 0))
+    const totalCollected = round(payments.reduce((acc, p) => acc + p.amount, 0))
+    const cashCollected = round(payments
+        .filter(p => !p.method || p.method === 'CASH')
+        .reduce((acc, p) => acc + p.amount, 0))
+    const otherCollected = round(totalCollected - cashCollected)
+    const totalExpenses = round(expenses.reduce((acc, e) => acc + e.amount, 0))
+
+    return { invoices, payments, expenses, totalBilled, totalCollected, cashCollected, otherCollected, totalExpenses }
 }
 
 /**
@@ -224,94 +389,19 @@ export async function getCurrentShiftSummary(): Promise<CurrentShiftSummary | nu
         }
     }
 
-    const openedAt = currentShift.openedAt
-    const now = new Date().toISOString()
+    const {
+        invoices: formattedInvoices,
+        payments: formattedPayments,
+        expenses: formattedExpenses,
+        totalBilled,
+        totalCollected,
+        cashCollected,
+        otherCollected,
+        totalExpenses
+    } = await loadShiftMovements(insforge, currentShift.openedAt, new Date().toISOString())
 
-    // 3. Consultar datos en vivo del turno activo
-    const [
-        { data: rawInvoices },
-        { data: rawPayments },
-        { data: rawExpenses }
-    ] = await Promise.all([
-        insforge.database
-            .from('Invoice')
-            .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status, discount, tax, shippingCost')
-            .gte('createdAt', openedAt)
-            .lte('createdAt', now)
-            .order('createdAt', { ascending: false }),
-
-        insforge.database
-            .from('Payment')
-            .select('id, invoiceId, amount, method, date, reference')
-            .gte('date', openedAt)
-            .lte('date', now)
-            .order('date', { ascending: false }),
-
-        insforge.database
-            .from('Transaction')
-            .select('id, description, amount, date, category')
-            .gte('date', openedAt)
-            .lte('date', now)
-            .eq('type', 'EXPENSE')
-            .order('date', { ascending: false })
-    ])
-
-    // Load line items for the shift's invoices so the close report can show what was sold to collect the money.
-    const invoiceIds = Array.from(new Set((rawInvoices || []).map(inv => inv.id).filter(Boolean)))
-    const itemsByInvoice: Record<string, InvoiceItemData[]> = {}
-
-    if (invoiceIds.length > 0) {
-        const { data: rawItems } = await insforge.database
-            .from('InvoiceItem')
-            .select('invoiceId, productName, quantity, price')
-            .in('invoiceId', invoiceIds)
-
-        for (const it of (rawItems || []) as Array<{ invoiceId: string; productName: string | null; quantity: number | string; price: number | string }>) {
-            const list = itemsByInvoice[it.invoiceId] || (itemsByInvoice[it.invoiceId] = [])
-            list.push({
-                productName: it.productName || 'Ítem',
-                quantity: Number(it.quantity) || 0,
-                price: Number(it.price) || 0,
-            })
-        }
-    }
-
-    const formattedInvoices: InvoiceData[] = (rawInvoices || []).map(inv => ({
-        id: inv.id,
-        sequenceNumber: Number(inv.sequenceNumber),
-        total: Number(inv.total),
-        paymentMethod: inv.paymentMethod || 'CASH',
-        createdAt: inv.createdAt,
-        clientName: inv.clientName || null,
-        status: inv.status,
-        discount: Number(inv.discount) || 0,
-        tax: Number(inv.tax) || 0,
-        shippingCost: Number(inv.shippingCost) || 0,
-        items: itemsByInvoice[inv.id] || []
-    }))
-
-    const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)
-
-    const formattedExpenses: ExpenseData[] = (rawExpenses || []).map(e => ({
-        id: e.id,
-        description: e.description || 'Gasto de caja',
-        amount: Number(e.amount),
-        date: e.date,
-        category: e.category || 'EXPENSE'
-    }))
-
-    // 4. Cálculos en tiempo real
     const openingBalance = Number(currentShift.openingBalance) || 0
-    const totalBilled = formattedInvoices.reduce((acc, inv) => acc + inv.total, 0)
-    const totalCollected = formattedPayments.reduce((acc, p) => acc + p.amount, 0)
-
-    const cashCollected = formattedPayments
-        .filter(p => !p.method || p.method === 'CASH')
-        .reduce((acc, p) => acc + p.amount, 0)
-
-    const otherCollected = totalCollected - cashCollected
-    const totalExpenses = formattedExpenses.reduce((acc, e) => acc + e.amount, 0)
-    const expectedCash = openingBalance + cashCollected - totalExpenses
+    const expectedCash = Math.round((openingBalance + cashCollected - totalExpenses) * 100) / 100
 
     return {
         shift: currentShift,
@@ -432,88 +522,21 @@ export async function closeCashShift(payload: CloseShiftPayload) {
         const closedAt = new Date().toISOString()
 
         // 2. Obtener movimientos finales dentro del rango exacto del turno
-        const [
-            { data: rawInvoices },
-            { data: rawPayments },
-            { data: rawExpenses }
-        ] = await Promise.all([
-            insforge.database
-                .from('Invoice')
-                .select('id, sequenceNumber, total, paymentMethod, createdAt, clientName, status, discount, tax, shippingCost')
-                .gte('createdAt', openedAt)
-                .lte('createdAt', closedAt),
-
-            insforge.database
-                .from('Payment')
-                .select('id, invoiceId, amount, method, date, reference')
-                .gte('date', openedAt)
-                .lte('date', closedAt),
-
-            insforge.database
-                .from('Transaction')
-                .select('id, description, amount, date, category')
-                .gte('date', openedAt)
-                .lte('date', closedAt)
-                .eq('type', 'EXPENSE')
-        ])
-
-        // Load line items so the persisted snapshot (and history report) shows what was sold to collect.
-        const closeInvoiceIds = Array.from(new Set((rawInvoices || []).map(inv => inv.id).filter(Boolean)))
-        const closeItemsByInvoice: Record<string, InvoiceItemData[]> = {}
-
-        if (closeInvoiceIds.length > 0) {
-            const { data: rawItems } = await insforge.database
-                .from('InvoiceItem')
-                .select('invoiceId, productName, quantity, price')
-                .in('invoiceId', closeInvoiceIds)
-
-            for (const it of (rawItems || []) as Array<{ invoiceId: string; productName: string | null; quantity: number | string; price: number | string }>) {
-                const list = closeItemsByInvoice[it.invoiceId] || (closeItemsByInvoice[it.invoiceId] = [])
-                list.push({
-                    productName: it.productName || 'Ítem',
-                    quantity: Number(it.quantity) || 0,
-                    price: Number(it.price) || 0,
-                })
-            }
-        }
-
-        const formattedInvoices: InvoiceData[] = (rawInvoices || []).map(inv => ({
-            id: inv.id,
-            sequenceNumber: Number(inv.sequenceNumber),
-            total: Number(inv.total),
-            paymentMethod: inv.paymentMethod || 'CASH',
-            createdAt: inv.createdAt,
-            clientName: inv.clientName || null,
-            status: inv.status,
-            discount: Number(inv.discount) || 0,
-            tax: Number(inv.tax) || 0,
-            shippingCost: Number(inv.shippingCost) || 0,
-            items: closeItemsByInvoice[inv.id] || []
-        }))
-
-        const formattedPayments = await resolvePaymentsWithInvoiceInfo(insforge, (rawPayments || []) as any)
-
-        const formattedExpenses: ExpenseData[] = (rawExpenses || []).map(e => ({
-            id: e.id,
-            description: e.description || 'Gasto de caja',
-            amount: Number(e.amount),
-            date: e.date,
-            category: e.category || 'EXPENSE'
-        }))
+        const {
+            invoices: formattedInvoices,
+            payments: formattedPayments,
+            expenses: formattedExpenses,
+            totalBilled,
+            totalCollected,
+            cashCollected,
+            otherCollected,
+            totalExpenses
+        } = await loadShiftMovements(insforge, openedAt, closedAt)
 
         const openingBalance = Number(shift.openingBalance) || 0
-        const totalBilled = formattedInvoices.reduce((acc, inv) => acc + inv.total, 0)
-        const totalCollected = formattedPayments.reduce((acc, p) => acc + p.amount, 0)
-
-        const cashCollected = formattedPayments
-            .filter(p => !p.method || p.method === 'CASH')
-            .reduce((acc, p) => acc + p.amount, 0)
-
-        const otherCollected = totalCollected - cashCollected
-        const totalExpenses = formattedExpenses.reduce((acc, e) => acc + e.amount, 0)
-        const expectedCash = openingBalance + cashCollected - totalExpenses
+        const expectedCash = Math.round((openingBalance + cashCollected - totalExpenses) * 100) / 100
         const actualCash = Number(payload.totalRD) || 0
-        const discrepancy = actualCash - expectedCash
+        const discrepancy = Math.round((actualCash - expectedCash) * 100) / 100
 
         const updateData = {
             status: 'CLOSED',

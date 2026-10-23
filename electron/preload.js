@@ -33,6 +33,16 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('update-downloaded', handler);
     return () => ipcRenderer.removeListener('update-downloaded', handler);
   },
+  onCheckingForUpdate: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('checking-for-update', handler);
+    return () => ipcRenderer.removeListener('checking-for-update', handler);
+  },
+  onUpdateNotAvailable: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('update-not-available', handler);
+    return () => ipcRenderer.removeListener('update-not-available', handler);
+  },
   onUpdateError: (callback) => {
     const handler = (_e, error) => callback(error);
     ipcRenderer.on('update-error', handler);
