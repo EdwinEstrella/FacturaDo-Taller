@@ -251,9 +251,9 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
     // -------------------------------------------------------------
     if (!shift) {
         return (
-            <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto">
+            <div className="flex-1 space-y-6 max-w-4xl mx-auto">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Control de Turnos de Caja</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">Cierre de Caja</h2>
                     <p className="text-muted-foreground mt-1">
                         Iniciá un nuevo ciclo de trabajo para registrar ventas, cobros y gastos por turno.
                     </p>
@@ -412,7 +412,7 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
     const discrepancyTone = discrepancy === 0 ? "green" : discrepancy < 0 ? "red" : "amber"
 
     return (
-        <div className="flex-1 w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 pt-6">
+        <div className="flex-1 space-y-8">
             {/* Encabezado */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b">
                 <div className="space-y-2">

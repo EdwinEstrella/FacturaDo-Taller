@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
@@ -13,15 +13,18 @@ const updateState = {
   downloadedVersion: null,
   percent: 0,
   error: '',
+  lastCheckedAt: null,
 };
 
-function getTargetWindow(getMainWindow) {
-  const focused = BrowserWindow.getFocusedWindow();
-  if (focused && !focused.isDestroyed() && !focused.webContents?.isDestroyed()) return focused;
+// Cada cuánto se vuelve a buscar una versión nueva mientras la app está abierta.
+const CHECK_INTERVAL_MS = 30 * 60 * 1000;
+
+function getTargetWindows(getMainWindow) {
   const main = getMainWindow ? getMainWindow() : null;
-  if (main && !main.isDestroyed() && !main.webContents?.isDestroyed()) return main;
   const all = BrowserWindow.getAllWindows();
-  return all.find((w) => !w.isDestroyed() && !w.webContents?.isDestroyed()) ?? null;
+  // Las ventanas ocultas de impresión/PDF no muestran la barra superior: solo las visibles y la principal.
+  const targets = all.filter((w) => !w.isDestroyed() && !w.webContents?.isDestroyed() && (w === main || w.isVisible()));
+  return targets;
 }
 
 function installDownloadedUpdate() {
@@ -58,14 +61,28 @@ function setupAutoUpdater(getMainWindow) {
   }
 
   const send = (channel, payload) => {
-    try {
-      const win = getTargetWindow(getMainWindow);
-      if (win && !win.isDestroyed() && !win.webContents?.isDestroyed()) {
+    for (const win of getTargetWindows(getMainWindow)) {
+      try {
         win.webContents.send(channel, payload);
+      } catch (err) {
+        log.warn(`[AutoUpdater] Error enviando evento ${channel}:`, err);
       }
-    } catch (err) {
-      log.warn(`[AutoUpdater] Error enviando evento ${channel}:`, err);
     }
+  };
+
+  const check = (reason) => {
+    // Ya descargada o descargando: no hace falta volver a buscar.
+    if (updateState.phase === 'ready' || updateState.phase === 'downloading' || installStarted) return;
+    updateState.phase = 'checking';
+    updateState.percent = 0;
+    updateState.error = '';
+    send('checking-for-update');
+    autoUpdater.checkForUpdates().catch((err) => {
+      log.warn(`checkForUpdates failed (${reason})`, err);
+      updateState.phase = 'error';
+      updateState.error = err.message || String(err);
+      send('update-error', updateState.error);
+    });
   };
 
   if (!listenersAttached) {
@@ -89,6 +106,7 @@ function setupAutoUpdater(getMainWindow) {
         updateState.phase = 'idle';
         updateState.percent = 0;
       }
+      updateState.lastCheckedAt = new Date().toISOString();
       send('update-not-available');
     });
 
@@ -130,28 +148,15 @@ function setupAutoUpdater(getMainWindow) {
       installDownloadedUpdate();
     });
 
-    ipcMain.on('check-for-updates', () => {
-      updateState.phase = 'checking';
-      updateState.percent = 0;
-      updateState.error = '';
-      send('checking-for-update');
-      autoUpdater.checkForUpdates().catch((err) => {
-        log.warn('checkForUpdates failed', err);
-        updateState.phase = 'error';
-        updateState.error = err.message || String(err);
-        send('update-error', updateState.error);
-      });
-    });
+    ipcMain.on('check-for-updates', () => check('manual'));
 
-    ipcMain.handle('get-update-state', () => ({ ...updateState }));
+    ipcMain.handle('get-update-state', () => ({ ...updateState, currentVersion: app.getVersion() }));
+
+    // Comprobar después del arranque y luego periódicamente: antes solo se buscaba una vez al abrir,
+    // así que una versión publicada con el sistema abierto nunca aparecía.
+    setTimeout(() => check('startup'), 4000);
+    setInterval(() => check('interval'), CHECK_INTERVAL_MS);
   }
-
-  // Comprobar automáticamente después de 4 segundos del arranque
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
-      log.warn('autoUpdater initial check failed', err);
-    });
-  }, 4000);
 }
 
 module.exports = { setupAutoUpdater };

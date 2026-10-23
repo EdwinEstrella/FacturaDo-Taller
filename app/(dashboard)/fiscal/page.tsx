@@ -10,7 +10,7 @@ export default async function FiscalPage() {
     const getValue = (type: string) => sequences.find(s => s.key === `NCF_${type}`)?.value || ""
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
+        <div className="flex-1 space-y-4">
             <h2 className="text-3xl font-bold tracking-tight">Comprobantes Fiscales</h2>
 
             <div className="grid gap-4 md:grid-cols-2">

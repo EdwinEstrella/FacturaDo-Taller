@@ -31,7 +31,7 @@ export function UsersClient({ users }: { users: User[] }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h2>
+                <h2 className="text-3xl font-bold tracking-tight">Usuarios</h2>
                 <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
                     <UserPlus className="mr-2 h-4 w-4" />
                     Nuevo Usuario

@@ -46,7 +46,11 @@ export interface ElectronAPI {
     downloadedVersion: string | null;
     percent: number;
     error: string;
+    currentVersion?: string;
+    lastCheckedAt?: string | null;
   }>;
+  onCheckingForUpdate?: (callback: () => void) => () => void;
+  onUpdateNotAvailable?: (callback: () => void) => () => void;
   onUpdateAvailable?: (callback: (info: UpdateInfo) => void) => () => void;
   onDownloadProgress?: (callback: (progress: DownloadProgress) => void) => () => void;
   onUpdateDownloaded?: (callback: (info: UpdateInfo) => void) => () => void;
