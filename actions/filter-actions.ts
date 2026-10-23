@@ -25,6 +25,8 @@ interface InvoiceFilters {
     maxAmount?: number
     period?: 'today' | 'week' | 'month' | 'year'
     status?: 'PAID' | 'PENDING' | 'CANCELLED'
+    // Número de factura, NCF o nombre del cliente. Busca en todo el historial.
+    search?: string
 }
 
 export async function filterClients(filters: ClientFilters): Promise<Client[]> {
@@ -98,8 +100,20 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
         `)
         .order('createdAt', { ascending: false })
 
-    // Predefined periods
-    if (filters.period) {
+    // Los caracteres reservados del filtro `or` de PostgREST rompen la consulta.
+    const search = (filters.search || "").replace(/[,()*%\\]/g, " ").trim()
+
+    if (search) {
+        const conditions = [`clientName.ilike.*${search}*`, `ncf.ilike.*${search}*`]
+        const seq = search.replace(/^#|^(fac|fact)-?/i, "").replace(/^0+(?=\d)/, "")
+        if (/^\d+$/.test(seq)) {
+            conditions.push(`sequenceNumber.eq.${seq}`)
+        }
+        query = query.or(conditions.join(","))
+    }
+
+    // Predefined periods (una búsqueda ignora el período: se busca en todo el historial)
+    if (filters.period && !search) {
         const now = new Date()
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
@@ -125,11 +139,11 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
     }
 
     // Custom date range
-    if (filters.startDate) {
+    if (filters.startDate && !search) {
         query = query.gte('createdAt', filters.startDate.toISOString())
     }
 
-    if (filters.endDate) {
+    if (filters.endDate && !search) {
         const endOfDay = new Date(filters.endDate)
         endOfDay.setHours(23, 59, 59, 999)
         query = query.lte('createdAt', endOfDay.toISOString())
@@ -183,19 +197,4 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
             measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
         }))
     }))
-}
-
-export async function getInvoiceStats(filters: InvoiceFilters) {
-    await requireAuth();
-
-    const invoices = await filterInvoices(filters)
-
-    const stats = {
-        count: invoices.length,
-        total: invoices.reduce((sum, inv) => sum + inv.total, 0),
-        paid: invoices.filter(inv => inv.status === 'PAID').length,
-        pending: invoices.filter(inv => inv.status === 'PENDING').length
-    }
-
-    return stats
 }
