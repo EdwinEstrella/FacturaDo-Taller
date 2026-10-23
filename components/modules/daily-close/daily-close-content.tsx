@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { CurrencyInput } from "@/components/ui/currency-input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Dialog,
     DialogContent,
@@ -52,7 +53,6 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useRouter } from "next/navigation"
-import "./daily-close-print.css"
 
 const BILLS_RD = [1, 5, 10, 25, 50, 100, 200, 500, 1000, 2000]
 const BILLS_USD = [1, 5, 10, 100]
@@ -408,56 +408,48 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
     // RENDER 2: CUANDO HAY UN TURNO EN CURSO (TURNO ACTIVO + CIERRE)
     // -------------------------------------------------------------
     const openedDate = new Date(shift.openedAt)
-    const discrepancy = totalRD - expectedCash
+    const discrepancy = Math.round((totalRD - expectedCash) * 100) / 100
+    const discrepancyTone = discrepancy === 0 ? "green" : discrepancy < 0 ? "red" : "amber"
 
     return (
-        <div className="flex-1 space-y-6 p-8 pt-6">
-            {/* Header en pantalla */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print pb-2 border-b">
-                <div>
-                    <div className="flex items-center gap-3">
+        <div className="flex-1 w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 pt-6">
+            {/* Encabezado */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-3 flex-wrap">
                         <h2 className="text-3xl font-bold tracking-tight">Turno #{shift.shiftNumber}</h2>
-                        <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1.5 px-3 py-1 font-semibold animate-pulse">
-                            <span className="size-2 rounded-full bg-white inline-block"></span>
-                            TURNO EN CURSO
+                        <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white gap-1.5 px-3 py-1 font-semibold">
+                            <span className="size-2 rounded-full bg-white inline-block animate-pulse"></span>
+                            EN CURSO
                         </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
-                        <span className="flex items-center gap-1">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            Iniciado el {format(openedDate, "dd/MM/yyyy HH:mm", { locale: es })}
+                    <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-1">
+                        <span className="flex items-center gap-1.5">
+                            <Clock className="h-4 w-4" />
+                            Iniciado el {format(openedDate, "dd/MM/yyyy 'a las' HH:mm", { locale: es })}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                            <UserCheck className="h-4 w-4 text-gray-500" />
-                            Apertura por: <strong>{shift.openedByName || "Usuario"}</strong>
+                        <span className="flex items-center gap-1.5">
+                            <UserCheck className="h-4 w-4" />
+                            Apertura por <strong className="text-foreground">{shift.openedByName || "Usuario"}</strong>
                         </span>
-                        {shift.openingNotes && (
-                            <>
-                                <span>•</span>
-                                <span className="italic text-gray-500">&ldquo;{shift.openingNotes}&rdquo;</span>
-                            </>
-                        )}
-                    </p>
+                    </div>
+                    {shift.openingNotes && (
+                        <p className="text-sm italic text-muted-foreground">&ldquo;{shift.openingNotes}&rdquo;</p>
+                    )}
                 </div>
 
                 {/* Acciones Rápidas */}
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => printReport(buildCountsQuery())}
-                        className="border-gray-300 text-gray-700 hover:bg-gray-100 font-medium"
-                        title="Imprimir Reporte del Cuadre"
-                    >
-                        <Printer className="mr-1.5 h-4 w-4 text-gray-600" />
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" onClick={() => printReport(buildCountsQuery())}>
+                        <Printer className="mr-2 h-4 w-4" />
                         Imprimir Reporte
                     </Button>
 
                     <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50">
-                                <Minus className="mr-1.5 h-4 w-4 text-red-600" />
-                                Registrar Gasto Rápido
+                            <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800">
+                                <Minus className="mr-2 h-4 w-4" />
+                                Registrar Gasto
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -470,8 +462,8 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                                     Este egreso se registrará automáticamente en la sesión del Turno #{shift.shiftNumber}.
                                 </DialogDescription>
                             </DialogHeader>
-                            <form onSubmit={handleQuickExpense} className="space-y-4 py-2">
-                                <div>
+                            <form onSubmit={handleQuickExpense} className="space-y-5 py-2">
+                                <div className="space-y-2">
                                     <Label htmlFor="quick-desc" className="text-sm font-semibold">Descripción o Motivo del Gasto *</Label>
                                     <Input
                                         id="quick-desc"
@@ -480,17 +472,16 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                                         placeholder="Ej: Pago de delivery, compra de insumos, café..."
                                         required
                                         autoFocus
-                                        className="mt-1"
                                     />
                                 </div>
-                                <div>
+                                <div className="space-y-2">
                                     <Label htmlFor="quick-amount" className="text-sm font-semibold">Monto en RD$ *</Label>
                                     <CurrencyInput
                                         id="quick-amount"
                                         value={quickExpenseAmount}
                                         onValueChange={(val) => setQuickExpenseAmount(val)}
                                         placeholder="0.00"
-                                        className="mt-1 focus-within:ring-red-500 focus-within:border-red-500"
+                                        className="focus-within:ring-red-500 focus-within:border-red-500"
                                     />
                                 </div>
                                 <DialogFooter className="pt-2">
@@ -507,569 +498,494 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                 </div>
             </div>
 
-            {/* Print Header - Solo visible al imprimir */}
-            <div className="print-only-header">
-                <h1>Cierre de Caja</h1>
-                <div className="print-header-meta">
-                    <span>Turno #{shift.shiftNumber}</span>
-                    <span>Cajero: {shift.openedByName || currentUser.name || "Usuario"}</span>
-                    <span>
-                        {format(openedDate, "dd/MM/yyyy HH:mm", { locale: es })} — {format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}
-                    </span>
-                </div>
+            {/* Indicadores del turno */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                    label="Fondo inicial"
+                    value={formatCurrency(openingBalance)}
+                    hint="Efectivo al abrir la caja"
+                    icon={<Wallet className="h-5 w-5" />}
+                />
+                <StatCard
+                    label="Facturado"
+                    value={formatCurrency(totalBilled)}
+                    hint={`${invoices.length} ${invoices.length === 1 ? "factura emitida" : "facturas emitidas"}`}
+                    icon={<Receipt className="h-5 w-5" />}
+                />
+                <StatCard
+                    label="Cobrado"
+                    value={formatCurrency(totalCollected)}
+                    hint={`Efectivo ${formatCurrency(cashCollected)} · Banco ${formatCurrency(otherCollected)}`}
+                    icon={<DollarSign className="h-5 w-5" />}
+                    tone="green"
+                />
+                <StatCard
+                    label="Gastos"
+                    value={`-${formatCurrency(totalExpenses)}`}
+                    hint={`${expenses.length} ${expenses.length === 1 ? "egreso registrado" : "egresos registrados"}`}
+                    icon={<Minus className="h-5 w-5" />}
+                    tone="red"
+                />
             </div>
 
-            {/* Cuadros de resumen estilo Ticket de Impresión - Solo imprimir */}
-            <div className="print-summary-cards grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                    <p>Fondo Inicial</p>
-                    <p>{formatCurrency(openingBalance)}</p>
-                </div>
-                <div>
-                    <p>Facturación</p>
-                    <p>{formatCurrency(totalBilled)}</p>
-                </div>
-                <div>
-                    <p>Ingresos Cobrados</p>
-                    <p>{formatCurrency(totalCollected)}</p>
-                </div>
-                <div>
-                    <p>Gastos</p>
-                    <p>-{formatCurrency(totalExpenses)}</p>
-                </div>
-                <div>
-                    <p>Efectivo Físico</p>
-                    <p>{formatCurrency(totalRD)}</p>
-                </div>
-            </div>
-
-            {/* KPI Cards en Vivo - No imprimir */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 no-print">
-                <Card className="bg-neutral-50/50">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                        <CardTitle className="text-xs font-semibold uppercase text-gray-500">1. Fondo Inicial</CardTitle>
-                        <Wallet className="h-4 w-4 text-gray-400" />
+            {/* Arqueo + Cuadre y cierre */}
+            <div className="grid gap-6 lg:grid-cols-5 items-start">
+                <Card className="lg:col-span-3">
+                    <CardHeader className="border-b">
+                        <CardTitle className="text-xl">Arqueo Físico de Caja</CardTitle>
+                        <CardDescription>
+                            Contá los billetes y monedas en caja. El total se compara con el efectivo esperado.
+                        </CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-xl font-bold">{formatCurrency(openingBalance)}</div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Monto de apertura</p>
-                    </CardContent>
-                </Card>
+                    <CardContent className="space-y-8">
+                        <BillCounter
+                            title="Pesos dominicanos (RD$)"
+                            prefix="RD$"
+                            denoms={BILLS_RD}
+                            counts={countsRD}
+                            total={formatCurrency(totalRD)}
+                            onChange={(denom, value) => handleCountChange('RD', denom, value)}
+                            formatAmount={(n) => formatCurrency(n)}
+                        />
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                        <CardTitle className="text-xs font-semibold uppercase text-gray-500">2. Facturado</CardTitle>
-                        <Receipt className="h-4 w-4 text-gray-400" />
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-xl font-bold">{formatCurrency(totalBilled)}</div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{invoices.length} facturas generadas</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                        <CardTitle className="text-xs font-semibold uppercase text-green-700">3. Cobros Recibidos</CardTitle>
-                        <DollarSign className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-xl font-bold text-green-700">{formatCurrency(totalCollected)}</div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Efec: {formatCurrency(cashCollected)} / Banco: {formatCurrency(otherCollected)}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                        <CardTitle className="text-xs font-semibold uppercase text-red-600">4. Gastos de Turno</CardTitle>
-                        <Minus className="h-4 w-4 text-red-500" />
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-xl font-bold text-red-600">-{formatCurrency(totalExpenses)}</div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{expenses.length} egresos en turno</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-blue-50/80 border-blue-200">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                        <CardTitle className="text-xs font-semibold uppercase text-blue-900">Efectivo Esperado</CardTitle>
-                        <DollarSign className="h-4 w-4 text-blue-700" />
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-xl font-bold text-blue-700">{formatCurrency(expectedCash)}</div>
-                        <p className="text-[11px] text-blue-600 mt-0.5">Fondo + Efec. Cobrado - Gastos</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* SECCIÓN DE ARQUEO / DESGLOSE DE BILLETES */}
-            <div className="bg-white border rounded-xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4 border-b pb-3">
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-900">Arqueo Físico de Caja</h3>
-                        <p className="text-xs text-gray-500">
-                            Contá los billetes en caja para validar el cuadre contra el efectivo esperado en el sistema.
-                        </p>
-                    </div>
-                </div>
-
-                <div className={`grid ${hasUSD && hasEUR ? 'md:grid-cols-3' : hasUSD || hasEUR ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-8 print-breakdown`}>
-                    {/* Billetes RD$ */}
-                    <div className="print-breakdown-section">
-                        <h4 className="text-sm font-bold uppercase text-gray-600 mb-2">Desglose Billetes RD$ (Moneda Local)</h4>
-                        <div className="border rounded-lg p-3 bg-gray-50/50">
-                            {BILLS_RD.map(denom => (
-                                <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1.5 ${!countsRD[denom] ? 'hide-zero' : ''}`}>
-                                    <span className="w-14 text-right font-mono font-semibold text-sm">RD$ {denom}</span>
-                                    <span className="text-gray-400">×</span>
-                                    <Input
-                                        className="h-8 w-24 text-right font-mono font-bold bg-white"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        value={countsRD[denom] || ''}
-                                        onChange={(e) => handleCountChange('RD', denom, e.target.value)}
-                                    />
-                                    <span className="text-gray-400">=</span>
-                                    <span className="flex-1 text-right font-mono font-medium text-sm">
-                                        {formatCurrency(denom * (countsRD[denom] || 0))}
-                                    </span>
-                                </div>
-                            ))}
-                            <div className="border-t mt-3 pt-2 flex justify-between font-bold text-base text-gray-900">
-                                <span>Total Físico RD$:</span>
-                                <span className="font-mono">{formatCurrency(totalRD)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Divisas US$ */}
-                    <div className={`print-breakdown-section ${!hasUSD ? 'no-print-usd' : ''}`}>
-                        <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-bold uppercase text-gray-600">Desglose Divisas US$</h4>
-                            <div className="flex items-center space-x-2 no-print">
-                                <Checkbox id="usd" checked={hasUSD} onCheckedChange={(c: boolean) => setHasUSD(c)} />
-                                <Label htmlFor="usd" className="text-xs">Maneja USD</Label>
-                            </div>
-                        </div>
-                        {hasUSD && (
-                            <div className="border rounded-lg p-3 bg-gray-50/50">
-                                {BILLS_USD.map(denom => (
-                                    <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1.5 ${!countsUSD[denom] ? 'hide-zero' : ''}`}>
-                                        <span className="w-12 text-right font-mono text-sm">US$ {denom}</span>
-                                        <span className="text-gray-400">×</span>
-                                        <Input
-                                            className="h-8 w-20 text-right font-mono font-bold bg-white"
-                                            type="number"
-                                            min="0"
-                                            placeholder="0"
-                                            value={countsUSD[denom] || ''}
-                                            onChange={(e) => handleCountChange('USD', denom, e.target.value)}
-                                        />
-                                        <span className="text-gray-400">=</span>
-                                        <span className="flex-1 text-right font-mono text-sm">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(denom * (countsUSD[denom] || 0))}
-                                        </span>
+                        <div className="space-y-4 pt-6 border-t">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <h4 className="text-sm font-semibold text-gray-800">Divisas</h4>
+                                <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox id="usd" checked={hasUSD} onCheckedChange={(c: boolean) => setHasUSD(c)} />
+                                        <Label htmlFor="usd" className="text-sm font-normal">Maneja US$</Label>
                                     </div>
-                                ))}
-                                <div className="border-t mt-3 pt-2 flex justify-between font-bold text-sm">
-                                    <span>Total US$:</span>
-                                    <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalUSD)}</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Divisas EUR */}
-                    <div className={`print-breakdown-section ${!hasEUR ? 'no-print-eur' : ''}`}>
-                        <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-bold uppercase text-gray-600">Desglose Divisas €</h4>
-                            <div className="flex items-center space-x-2 no-print">
-                                <Checkbox id="eur" checked={hasEUR} onCheckedChange={(c: boolean) => setHasEUR(c)} />
-                                <Label htmlFor="eur" className="text-xs">Maneja EUR</Label>
-                            </div>
-                        </div>
-                        {hasEUR && (
-                            <div className="border rounded-lg p-3 bg-gray-50/50">
-                                {BILLS_EUR.map(denom => (
-                                    <div key={denom} className={`print-bill-row flex items-center gap-2 mb-1.5 ${!countsEUR[denom] ? 'hide-zero' : ''}`}>
-                                        <span className="w-12 text-right font-mono text-sm">€ {denom}</span>
-                                        <span className="text-gray-400">×</span>
-                                        <Input
-                                            className="h-8 w-20 text-right font-mono font-bold bg-white"
-                                            type="number"
-                                            min="0"
-                                            placeholder="0"
-                                            value={countsEUR[denom] || ''}
-                                            onChange={(e) => handleCountChange('EUR', denom, e.target.value)}
-                                        />
-                                        <span className="text-gray-400">=</span>
-                                        <span className="flex-1 text-right font-mono text-sm">
-                                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(denom * (countsEUR[denom] || 0))}
-                                        </span>
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox id="eur" checked={hasEUR} onCheckedChange={(c: boolean) => setHasEUR(c)} />
+                                        <Label htmlFor="eur" className="text-sm font-normal">Maneja €</Label>
                                     </div>
-                                ))}
-                                <div className="border-t mt-3 pt-2 flex justify-between font-bold text-sm">
-                                    <span>Total €:</span>
-                                    <span>{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totalEUR)}</span>
                                 </div>
                             </div>
-                        )}
-                    </div>
-                </div>
 
-                {/* Resumen de Cuadre en Vivo */}
-                <div className="mt-6 border rounded-lg p-4 bg-gray-50 max-w-lg print-summary">
-                    <h4 className="font-bold text-base border-b pb-2 text-gray-800">Resumen de Cuadre del Turno</h4>
-                    <div className="grid grid-cols-2 gap-y-1.5 text-sm pt-2">
-                        <div className="text-gray-600">Fondo Inicial:</div>
-                        <div className="text-right font-mono">{formatCurrency(openingBalance)}</div>
+                            {!hasUSD && !hasEUR && (
+                                <p className="text-sm text-muted-foreground">
+                                    Marcá una divisa si hay dólares o euros en caja.
+                                </p>
+                            )}
 
-                        <div className="text-gray-600">(+) Cobros en Efectivo:</div>
-                        <div className="text-right font-mono text-green-700">+{formatCurrency(cashCollected)}</div>
+                            {hasUSD && (
+                                <BillCounter
+                                    title="Dólares (US$)"
+                                    prefix="US$"
+                                    denoms={BILLS_USD}
+                                    counts={countsUSD}
+                                    total={formatUSD(totalUSD)}
+                                    onChange={(denom, value) => handleCountChange('USD', denom, value)}
+                                    formatAmount={formatUSD}
+                                />
+                            )}
 
-                        <div className="text-gray-600">(-) Total Gastos de Caja:</div>
-                        <div className="text-right font-mono text-red-600">-{formatCurrency(totalExpenses)}</div>
-
-                        <div className="col-span-2 border-t pt-1.5 font-semibold text-gray-700 flex justify-between">
-                            <span>(=) Efectivo Teórico Esperado:</span>
-                            <span className="font-mono">{formatCurrency(expectedCash)}</span>
+                            {hasEUR && (
+                                <BillCounter
+                                    title="Euros (€)"
+                                    prefix="€"
+                                    denoms={BILLS_EUR}
+                                    counts={countsEUR}
+                                    total={formatEUR(totalEUR)}
+                                    onChange={(denom, value) => handleCountChange('EUR', denom, value)}
+                                    formatAmount={formatEUR}
+                                />
+                            )}
                         </div>
+                    </CardContent>
+                </Card>
 
-                        <div className="col-span-2 font-semibold text-gray-700 flex justify-between">
-                            <span>(=) Efectivo Físico Arqueado:</span>
-                            <span className="font-mono">{formatCurrency(totalRD)}</span>
-                        </div>
+                <div className="lg:col-span-2 space-y-6 lg:sticky lg:top-6">
+                    {/* Resumen de Cuadre en Vivo */}
+                    <Card>
+                        <CardHeader className="border-b">
+                            <CardTitle className="text-xl">Cuadre del Turno</CardTitle>
+                            <CardDescription>Fondo + cobros en efectivo − gastos</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            <SummaryLine label="Fondo inicial" value={formatCurrency(openingBalance)} />
+                            <SummaryLine label="(+) Cobros en efectivo" value={`+${formatCurrency(cashCollected)}`} className="text-green-700" />
+                            <SummaryLine label="(−) Gastos de caja" value={`-${formatCurrency(totalExpenses)}`} className="text-red-600" />
 
-                        <div className="col-span-2 border-t pt-2 mt-1">
-                            <div className="flex justify-between items-center">
-                                <span className="font-bold text-base">
-                                    {discrepancy === 0 ? "Cuadre Exacto:" : discrepancy > 0 ? "Sobrante en Caja:" : "Faltante en Caja:"}
+                            <div className="border-t pt-3 space-y-3">
+                                <SummaryLine label="Efectivo esperado" value={formatCurrency(expectedCash)} strong />
+                                <SummaryLine label="Efectivo contado" value={formatCurrency(totalRD)} strong />
+                            </div>
+
+                            <div
+                                className={`mt-2 rounded-lg border px-4 py-4 flex items-center justify-between gap-3 ${
+                                    discrepancyTone === "green"
+                                        ? "bg-green-50 border-green-200 text-green-800"
+                                        : discrepancyTone === "red"
+                                            ? "bg-red-50 border-red-200 text-red-700"
+                                            : "bg-amber-50 border-amber-200 text-amber-800"
+                                }`}
+                            >
+                                <span className="font-semibold">
+                                    {discrepancy === 0 ? "Cuadre exacto" : discrepancy > 0 ? "Sobrante en caja" : "Faltante en caja"}
                                 </span>
-                                <span className={`font-mono text-lg font-bold ${
-                                    discrepancy === 0 ? 'text-green-700' : discrepancy < 0 ? 'text-red-600' : 'text-yellow-600'
-                                }`}>
+                                <span className="font-mono text-xl font-bold">
                                     {discrepancy < 0 ? '-' : discrepancy > 0 ? '+' : ''}{formatCurrency(Math.abs(discrepancy))}
                                 </span>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Cerrar el turno */}
+                    <Card>
+                        <CardHeader className="border-b">
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <Save className="h-5 w-5 text-blue-600" />
+                                Cerrar Turno #{shift.shiftNumber}
+                            </CardTitle>
+                            <CardDescription>
+                                Al confirmar, el turno se bloquea y queda registrado en el historial.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            {closeSuccess && (
+                                <div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700 text-sm">
+                                    <CheckCircle2 className="h-5 w-5 shrink-0" />
+                                    <span>Turno cerrado exitosamente. Se ha generado el reporte para impresión.</span>
+                                </div>
+                            )}
+
+                            {closeError && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-700 text-sm">
+                                    <AlertCircle className="h-5 w-5 shrink-0" />
+                                    <span>{closeError}</span>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <Label htmlFor="close-notes" className="text-sm font-medium">Notas del cierre (opcional)</Label>
+                                <Textarea
+                                    id="close-notes"
+                                    rows={3}
+                                    value={closeNotes}
+                                    onChange={(e) => setCloseNotes(e.target.value)}
+                                    placeholder="Observaciones de entrega, justificación de diferencias, etc..."
+                                />
+                            </div>
+
+                            <Button
+                                onClick={handleCloseShift}
+                                disabled={isClosing}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 text-base"
+                            >
+                                <Save className={`mr-2 h-4 w-4 ${isClosing ? "animate-spin" : ""}`} />
+                                {isClosing ? "Guardando Cierre..." : "Cerrar Turno e Imprimir"}
+                            </Button>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
 
-            {/* DETALLES DE TRANSACCIONES DEL TURNO */}
-            <div className="space-y-6">
-                <div className="no-print">
-                    <h3 className="text-xl font-bold text-gray-900">Movimientos y Transacciones del Turno</h3>
-                    <p className="text-xs text-gray-500">
-                        Detalle completo de todo lo facturado (ventas), cobrado en caja y egresos registrados.
-                    </p>
-                </div>
+            {/* Movimientos del turno */}
+            <Card>
+                <CardHeader className="border-b">
+                    <CardTitle className="text-xl">Movimientos del Turno</CardTitle>
+                    <CardDescription>
+                        Todo lo facturado, cobrado y gastado desde la apertura.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Tabs defaultValue="sales" className="gap-6 min-w-0">
+                        <TabsList className="h-10 w-full sm:w-fit">
+                            <TabsTrigger value="sales" className="px-2 sm:px-4">
+                                <ShoppingCart className="hidden sm:block h-4 w-4" />
+                                Ventas ({invoices.length})
+                            </TabsTrigger>
+                            <TabsTrigger value="payments" className="px-2 sm:px-4">
+                                <DollarSign className="hidden sm:block h-4 w-4" />
+                                Cobros ({payments.length})
+                            </TabsTrigger>
+                            <TabsTrigger value="expenses" className="px-2 sm:px-4">
+                                <Minus className="hidden sm:block h-4 w-4" />
+                                Gastos ({expenses.length})
+                            </TabsTrigger>
+                        </TabsList>
 
-                {/* 1. VENTAS DEL TURNO CON DETALLE DE ÍTEMS (QUÉ SE VENDIÓ PARA COBRAR) */}
-                <div className="border rounded-xl p-4 bg-white shadow-sm print-section">
-                    <div className="print-section-title">
-                        1. Detalle de Ventas del Turno (Qué se Vendió)
-                    </div>
-                    <h4 className="font-bold text-base mb-3 flex items-center justify-between no-print">
-                        <span className="flex items-center gap-2">
-                            <ShoppingCart className="h-5 w-5 text-blue-600" />
-                            <span>Ventas / Facturas Emitidas ({invoices.length})</span>
-                        </span>
-                        <span className="text-sm font-semibold text-blue-700 font-mono">
-                            Total Facturado: {formatCurrency(totalBilled)}
-                        </span>
-                    </h4>
-
-                    {invoices.length === 0 ? (
-                        <p className="text-center text-xs text-gray-500 py-4 border rounded-md">
-                            No se han emitido facturas en este turno
-                        </p>
-                    ) : (
-                        <div className="space-y-3 print-invoice-list">
-                            {invoices.map((inv) => (
-                                <div key={inv.id} className="border rounded-lg overflow-hidden print-invoice-block">
-                                    {/* Cabecera de la factura */}
-                                    <div className="flex items-center justify-between gap-2 flex-wrap bg-gray-50 px-3 py-2 text-sm print-invoice-head">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-mono font-bold text-blue-700">
-                                                #{String(inv.sequenceNumber).padStart(6, '0')}
-                                            </span>
-                                            <span className="text-gray-500">
-                                                {format(new Date(inv.createdAt), "HH:mm", { locale: es })}
-                                            </span>
-                                            <span className="font-medium max-w-[200px] truncate" title={inv.clientName || "Consumidor Final"}>
-                                                {inv.clientName || "Consumidor Final"}
-                                            </span>
-                                            <Badge variant="outline" className="text-[10px] uppercase">
-                                                {inv.paymentMethod || 'CASH'}
-                                            </Badge>
-                                            <Badge
-                                                variant="secondary"
-                                                className={`text-[10px] uppercase ${
-                                                    inv.status === 'PAID'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-amber-100 text-amber-800'
-                                                }`}
-                                            >
-                                                {inv.status === 'PAID' ? 'PAGADA' : inv.status === 'PENDING' ? 'PENDIENTE' : (inv.status || 'EMITIDA')}
-                                            </Badge>
+                        {/* Ventas con detalle de ítems */}
+                        <TabsContent value="sales" className="space-y-4 min-w-0">
+                            {invoices.length === 0 ? (
+                                <EmptyState text="No se han emitido facturas en este turno" />
+                            ) : (
+                                invoices.map((inv) => (
+                                    <div key={inv.id} className="border rounded-lg overflow-hidden">
+                                        <div className="flex items-center justify-between gap-4 flex-wrap bg-gray-50 px-4 py-3 border-b">
+                                            <div className="flex items-center gap-3 flex-wrap text-sm">
+                                                <span className="font-mono font-bold text-blue-700">
+                                                    #{String(inv.sequenceNumber).padStart(6, '0')}
+                                                </span>
+                                                <span className="text-muted-foreground">
+                                                    {format(new Date(inv.createdAt), "HH:mm", { locale: es })}
+                                                </span>
+                                                <span className="font-medium max-w-[240px] truncate" title={inv.clientName || "Consumidor Final"}>
+                                                    {inv.clientName || "Consumidor Final"}
+                                                </span>
+                                                <Badge variant="outline" className="text-[11px]">
+                                                    {paymentMethodLabel(inv.paymentMethod)}
+                                                </Badge>
+                                                <Badge
+                                                    variant="secondary"
+                                                    className={`text-[11px] ${
+                                                        inv.status === 'PAID'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-amber-100 text-amber-800'
+                                                    }`}
+                                                >
+                                                    {inv.status === 'PAID' ? 'Pagada' : inv.status === 'PENDING' ? 'Pendiente' : (inv.status || 'Emitida')}
+                                                </Badge>
+                                            </div>
+                                            <span className="font-mono font-bold text-base">{formatCurrency(inv.total)}</span>
                                         </div>
-                                        <span className="font-mono font-bold text-gray-900">{formatCurrency(inv.total)}</span>
-                                    </div>
 
-                                    {/* Ítems de la factura: producto/servicio, cantidad, precio, subtotal */}
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="pl-4 whitespace-normal">Producto / Servicio</TableHead>
+                                                    <TableHead className="text-right">Cant.</TableHead>
+                                                    <TableHead className="text-right hidden sm:table-cell">Precio</TableHead>
+                                                    <TableHead className="text-right pr-4">Subtotal</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {inv.items && inv.items.length > 0 ? (
+                                                    inv.items.map((it, idx) => (
+                                                        <TableRow key={idx}>
+                                                            <TableCell className="pl-4 whitespace-normal break-words">
+                                                                {it.productName}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-mono">{formatQuantity(it.quantity)}</TableCell>
+                                                            <TableCell className="text-right font-mono hidden sm:table-cell">{formatCurrency(it.price)}</TableCell>
+                                                            <TableCell className="text-right font-mono font-semibold pr-4">
+                                                                {formatCurrency(it.price * it.quantity)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                                                            Sin desglose de ítems
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ))
+                            )}
+                            <TabFooter
+                                left={`${invoices.length} ${invoices.length === 1 ? "factura" : "facturas"}`}
+                                right={`Total vendido: ${formatCurrency(totalBilled)}`}
+                            />
+                        </TabsContent>
+
+                        {/* Cobros */}
+                        <TabsContent value="payments" className="space-y-4 min-w-0">
+                            {payments.length === 0 ? (
+                                <EmptyState text="No hay cobros registrados en este turno" />
+                            ) : (
+                                <div className="border rounded-lg overflow-hidden">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="py-1 font-bold">Producto / Servicio</TableHead>
-                                                <TableHead className="py-1 font-bold text-right">Cant.</TableHead>
-                                                <TableHead className="py-1 font-bold text-right">Precio</TableHead>
-                                                <TableHead className="py-1 font-bold text-right">Subtotal</TableHead>
+                                                <TableHead className="pl-4">Hora</TableHead>
+                                                <TableHead>Factura</TableHead>
+                                                <TableHead>Cliente</TableHead>
+                                                <TableHead>Método</TableHead>
+                                                <TableHead className="text-right pr-4">Monto</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {inv.items && inv.items.length > 0 ? (
-                                                inv.items.map((it, idx) => (
-                                                    <TableRow key={idx} className="text-xs">
-                                                        <TableCell className="max-w-[240px] truncate" title={it.productName}>
-                                                            {it.productName}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono">{formatQuantity(it.quantity)}</TableCell>
-                                                        <TableCell className="text-right font-mono">{formatCurrency(it.price)}</TableCell>
-                                                        <TableCell className="text-right font-mono font-semibold">
-                                                            {formatCurrency(it.price * it.quantity)}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="text-center text-[11px] text-gray-400 py-2">
-                                                        Sin desglose de ítems
+                                            {payments.map((p) => (
+                                                <TableRow key={p.id}>
+                                                    <TableCell className="pl-4">{format(new Date(p.date), "HH:mm", { locale: es })}</TableCell>
+                                                    <TableCell className="font-mono font-semibold text-blue-700">
+                                                        {p.invoiceSequenceNumber ? `#${String(p.invoiceSequenceNumber).padStart(6, '0')}` : "-"}
+                                                    </TableCell>
+                                                    <TableCell className="max-w-[220px] truncate" title={p.clientName || "Consumidor Final"}>
+                                                        {p.clientName || "Consumidor Final"}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className="text-[11px]">
+                                                            {paymentMethodLabel(p.method)}
+                                                        </Badge>
+                                                        {p.reference && (
+                                                            <span className="block text-xs text-muted-foreground font-mono truncate max-w-[140px] mt-1">
+                                                                Ref: {p.reference}
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono font-bold text-green-700 pr-4">
+                                                        +{formatCurrency(p.amount)}
                                                     </TableCell>
                                                 </TableRow>
-                                            )}
+                                            ))}
                                         </TableBody>
                                     </Table>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            )}
+                            <TabFooter
+                                left={`Efectivo ${formatCurrency(cashCollected)} · Banco / otros ${formatCurrency(otherCollected)}`}
+                                right={`Total cobrado: ${formatCurrency(totalCollected)}`}
+                                className="text-green-700"
+                            />
+                        </TabsContent>
 
-                    <div className="pt-2 text-xs text-muted-foreground flex justify-between font-mono">
-                        <span>Total de Facturas: {invoices.length}</span>
-                        <span className="font-bold text-gray-900">Total Vendido: {formatCurrency(totalBilled)}</span>
-                    </div>
-                </div>
-
-                {/* 2. COBROS RECIBIDOS Y 3. GASTOS DE CAJA */}
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* Cobros Realizados (Todo lo que Cobré) */}
-                    <div className="border rounded-xl p-4 bg-white shadow-sm print-section">
-                        <div className="print-section-title">
-                            2. Cobros Recibidos en Caja (Todo lo Cobrado)
-                        </div>
-                        <h4 className="font-bold text-base mb-3 flex items-center justify-between no-print">
-                            <span className="flex items-center gap-2">
-                                <DollarSign className="h-5 w-5 text-green-600" />
-                                <span>Cobros en este Turno ({payments.length})</span>
-                            </span>
-                            <span className="text-sm text-green-700 font-mono font-semibold">
-                                Total: {formatCurrency(totalCollected)}
-                            </span>
-                        </h4>
-                        <div className="max-h-72 overflow-y-auto border rounded-md print-table-container">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="py-2 font-bold">Hora</TableHead>
-                                        <TableHead className="py-2 font-bold">Factura</TableHead>
-                                        <TableHead className="py-2 font-bold">Cliente</TableHead>
-                                        <TableHead className="py-2 font-bold">Método</TableHead>
-                                        <TableHead className="py-2 font-bold text-right">Monto</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {payments.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-xs text-gray-500 py-4">
-                                                No hay cobros registrados en este turno
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        payments.map((p) => (
-                                            <TableRow key={p.id} className="text-xs">
-                                                <TableCell>{format(new Date(p.date), "HH:mm", { locale: es })}</TableCell>
-                                                <TableCell className="font-mono font-semibold text-blue-700">
-                                                    {p.invoiceSequenceNumber ? `#${String(p.invoiceSequenceNumber).padStart(6, '0')}` : "-"}
-                                                </TableCell>
-                                                <TableCell className="max-w-[120px] truncate" title={p.clientName || "Consumidor Final"}>
-                                                    {p.clientName || "Consumidor Final"}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className="text-[10px] uppercase">
-                                                        {p.method || 'CASH'}
-                                                    </Badge>
-                                                    {p.reference && (
-                                                        <span className="block text-[9px] text-muted-foreground font-mono truncate max-w-[80px]">
-                                                            Ref: {p.reference}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono font-bold text-green-700">
-                                                    +{formatCurrency(p.amount)}
-                                                </TableCell>
+                        {/* Gastos */}
+                        <TabsContent value="expenses" className="space-y-4 min-w-0">
+                            {expenses.length === 0 ? (
+                                <EmptyState text="No hay gastos registrados en este turno" />
+                            ) : (
+                                <div className="border rounded-lg overflow-hidden">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="pl-4">Hora</TableHead>
+                                                <TableHead>Descripción</TableHead>
+                                                <TableHead className="text-right pr-4">Monto</TableHead>
                                             </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <div className="pt-2 text-xs text-muted-foreground flex justify-between font-mono">
-                            <span>Efec: {formatCurrency(cashCollected)} | Banco/Otros: {formatCurrency(otherCollected)}</span>
-                            <span className="font-bold text-green-800">Total: {formatCurrency(totalCollected)}</span>
-                        </div>
-                    </div>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {expenses.map((e) => (
+                                                <TableRow key={e.id}>
+                                                    <TableCell className="pl-4">{format(new Date(e.date), "HH:mm", { locale: es })}</TableCell>
+                                                    <TableCell className="max-w-[420px] truncate" title={e.description || ""}>
+                                                        {e.description}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono font-bold text-red-600 pr-4">
+                                                        -{formatCurrency(e.amount)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                            <TabFooter
+                                left={`${expenses.length} ${expenses.length === 1 ? "egreso" : "egresos"}`}
+                                right={`Total gastos: -${formatCurrency(totalExpenses)}`}
+                                className="text-red-600"
+                            />
+                        </TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
+        </div>
+    )
+}
 
-                    {/* Gastos del Turno */}
-                    <div className="border rounded-xl p-4 bg-white shadow-sm print-section">
-                        <div className="print-section-title">
-                            3. Gastos y Egresos de Caja
-                        </div>
-                        <h4 className="font-bold text-base mb-3 flex items-center justify-between no-print">
-                            <span className="flex items-center gap-2">
-                                <Minus className="h-5 w-5 text-red-600" />
-                                <span>Gastos en este Turno ({expenses.length})</span>
-                            </span>
-                            <span className="text-sm text-red-600 font-mono font-semibold">
-                                Total: -{formatCurrency(totalExpenses)}
-                            </span>
-                        </h4>
-                        <div className="max-h-72 overflow-y-auto border rounded-md print-table-container">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="py-2 font-bold">Hora</TableHead>
-                                        <TableHead className="py-2 font-bold">Descripción</TableHead>
-                                        <TableHead className="py-2 font-bold text-right">Monto</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {expenses.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={3} className="text-center text-xs text-gray-500 py-4">
-                                                No hay gastos registrados en este turno
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        expenses.map((e) => (
-                                            <TableRow key={e.id} className="text-xs">
-                                                <TableCell>{format(new Date(e.date), "HH:mm", { locale: es })}</TableCell>
-                                                <TableCell className="max-w-[200px] truncate" title={e.description || ""}>
-                                                    {e.description}
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono font-bold text-red-600">
-                                                    -{formatCurrency(e.amount)}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <div className="pt-2 text-xs text-muted-foreground flex justify-between font-mono">
-                            <span>Egresos: {expenses.length}</span>
-                            <span className="font-bold text-red-700">Total: -{formatCurrency(totalExpenses)}</span>
-                        </div>
-                    </div>
+const formatUSD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+const formatEUR = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n)
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    CASH: "Efectivo",
+    TRANSFER: "Transferencia",
+    CARD: "Tarjeta",
+    CHECK: "Cheque",
+    CREDIT: "Crédito",
+}
+
+const paymentMethodLabel = (method?: string | null) => PAYMENT_METHOD_LABELS[method || "CASH"] || method || "Efectivo"
+
+const STAT_TONES = {
+    neutral: { value: "text-gray-900", icon: "bg-gray-100 text-gray-600" },
+    green: { value: "text-green-700", icon: "bg-green-50 text-green-600" },
+    red: { value: "text-red-600", icon: "bg-red-50 text-red-600" },
+}
+
+function StatCard({ label, value, hint, icon, tone = "neutral" }: {
+    label: string
+    value: string
+    hint: string
+    icon: React.ReactNode
+    tone?: keyof typeof STAT_TONES
+}) {
+    const t = STAT_TONES[tone]
+    return (
+        <Card className="py-0">
+            <CardContent className="p-5 flex items-start justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">{label}</p>
+                    <p className={`text-2xl font-bold tabular-nums truncate ${t.value}`}>{value}</p>
+                    <p className="text-xs text-muted-foreground">{hint}</p>
                 </div>
+                <div className={`rounded-lg p-2.5 shrink-0 ${t.icon}`}>{icon}</div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function BillCounter({ title, prefix, denoms, counts, total, onChange, formatAmount }: {
+    title: string
+    prefix: string
+    denoms: number[]
+    counts: Record<number, number>
+    total: string
+    onChange: (denom: number, value: string) => void
+    formatAmount: (n: number) => string
+}) {
+    return (
+        <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
+                {[...denoms].reverse().map(denom => (
+                    <div key={denom} className="grid grid-cols-[5.5rem_1fr_auto] items-center gap-3">
+                        <span className="font-mono font-semibold text-sm text-gray-700">{prefix} {denom}</span>
+                        <Input
+                            className="h-9 text-right font-mono"
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            placeholder="0"
+                            aria-label={`Cantidad de ${prefix} ${denom}`}
+                            value={counts[denom] || ''}
+                            onChange={(e) => onChange(denom, e.target.value)}
+                        />
+                        <span className={`w-28 text-right font-mono text-sm ${counts[denom] ? "text-gray-900 font-medium" : "text-gray-400"}`}>
+                            {formatAmount(denom * (counts[denom] || 0))}
+                        </span>
+                    </div>
+                ))}
             </div>
-
-            {/* NOTAS DEL TURNO (apertura y cierre) - se imprimen si existen */}
-            {(shift.openingNotes || closeNotes.trim()) && (
-                <div className="border rounded-xl p-4 bg-white shadow-sm print-section print-notes">
-                    <div className="print-section-title">Notas del Turno</div>
-                    <h4 className="font-bold text-base mb-2 no-print">Notas del Turno</h4>
-                    {shift.openingNotes && (
-                        <p className="text-sm text-gray-700">
-                            <strong>Apertura:</strong> {shift.openingNotes}
-                        </p>
-                    )}
-                    {closeNotes.trim() && (
-                        <p className="text-sm text-gray-700 mt-1">
-                            <strong>Cierre:</strong> {closeNotes}
-                        </p>
-                    )}
-                </div>
-            )}
-
-            {/* SECCIÓN PARA CERRAR EL TURNO */}
-            <div className="border rounded-xl p-6 bg-gray-50 no-print space-y-4">
-                <div className="flex items-center gap-2">
-                    <Save className="h-5 w-5 text-blue-600" />
-                    <h3 className="text-lg font-bold text-gray-900">Finalizar y Cerrar Turno #{shift.shiftNumber}</h3>
-                </div>
-
-                {closeSuccess && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700 text-sm">
-                        <CheckCircle2 className="h-5 w-5 shrink-0" />
-                        <span>Turno cerrado exitosamente. Se ha generado el reporte para impresión.</span>
-                    </div>
-                )}
-
-                {closeError && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-700 text-sm">
-                        <AlertCircle className="h-5 w-5 shrink-0" />
-                        <span>{closeError}</span>
-                    </div>
-                )}
-
-                <div>
-                    <Label htmlFor="close-notes" className="text-sm font-medium">Notas u observaciones del cierre (opcional)</Label>
-                    <Textarea
-                        id="close-notes"
-                        rows={2}
-                        value={closeNotes}
-                        onChange={(e) => setCloseNotes(e.target.value)}
-                        placeholder="Observaciones de entrega, justificación de diferencias, etc..."
-                        className="mt-1 bg-white"
-                    />
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                    <p className="text-xs text-gray-500">
-                        Al confirmar el cierre, la sesión del turno se bloqueará y quedará registrada en el historial.
-                    </p>
-                    <Button
-                        onClick={handleCloseShift}
-                        disabled={isClosing}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-5 text-base"
-                    >
-                        {isClosing ? (
-                            <>
-                                <Save className="mr-2 h-4 w-4 animate-spin" />
-                                Guardando Cierre...
-                            </>
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" />
-                                Cerrar Turno e Imprimir Reporte
-                            </>
-                        )}
-                    </Button>
-                </div>
+            <div className="flex justify-between items-center rounded-lg bg-gray-50 border px-4 py-3">
+                <span className="font-semibold text-gray-700">Total contado</span>
+                <span className="font-mono text-lg font-bold">{total}</span>
             </div>
+        </div>
+    )
+}
 
-            {/* Footer con firmas para impresión */}
-            <div className="print-footer">
-                <div className="print-signature">
-                    <div className="print-signature-line">Entregado por: {shift.openedByName || currentUser.name}</div>
-                </div>
-                <div className="print-signature">
-                    <div className="print-signature-line">Recibido por (Supervisor / Administración)</div>
-                </div>
-            </div>
+function SummaryLine({ label, value, className = "", strong = false }: {
+    label: string
+    value: string
+    className?: string
+    strong?: boolean
+}) {
+    return (
+        <div className={`flex justify-between gap-4 ${strong ? "font-semibold text-gray-900 text-base" : "text-gray-600"}`}>
+            <span>{label}</span>
+            <span className={`font-mono ${className}`}>{value}</span>
+        </div>
+    )
+}
+
+function EmptyState({ text }: { text: string }) {
+    return (
+        <div className="text-center text-sm text-muted-foreground py-12 border border-dashed rounded-lg">
+            {text}
+        </div>
+    )
+}
+
+function TabFooter({ left, right, className = "" }: { left: string; right: string; className?: string }) {
+    return (
+        <div className="flex flex-wrap justify-between gap-2 pt-4 border-t text-sm">
+            <span className="text-muted-foreground">{left}</span>
+            <span className={`font-semibold font-mono ${className}`}>{right}</span>
         </div>
     )
 }
