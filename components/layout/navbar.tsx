@@ -29,7 +29,7 @@ interface UserProps {
 
 const ROLE_LABELS: Record<string, string> = {
     ADMIN: "Administrador",
-    MANAGER: "Gerente",
+    MANAGER: "Supervisor",
     SELLER: "Vendedor",
     ACCOUNTANT: "Contador",
     TECHNICIAN: "Técnico",

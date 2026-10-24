@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Printer } from "lucide-react"
+import { Image as ImageIcon, Loader2, Printer, Upload } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SettingsSection } from "@/components/modules/settings/settings-nav"
 import {
     Dialog,
     DialogContent,
@@ -23,6 +24,7 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<CompanySettings>(initialSettings)
     const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+    const logoInputRef = useRef<HTMLInputElement>(null)
 
     // Estado para impresoras de escritorio
     const [printers, setPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([])
@@ -135,242 +137,186 @@ export function SettingsGeneralClient({ initialSettings }: { initialSettings: Co
         createdBy: { name: "Usuario Demo" },
     }
 
+    const NONE = "__none__"
+    const printerOptions = printers.map((p) => ({
+        value: p.name,
+        label: `${p.displayName || p.name}${p.isDefault ? " (predeterminada)" : ""}`,
+    }))
+
     return (
-        <div className="grid gap-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Información del Negocio</CardTitle>
-                    <CardDescription>
-                        Estos datos aparecerán en las facturas y documentos oficiales.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="companyName">Nombre del Negocio</Label>
-                            <Input
-                                id="companyName"
-                                name="companyName"
-                                value={formData.companyName}
-                                onChange={handleChange}
-                                placeholder="Ej: FacturaDO"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="companyRnc">RNC / Cédula</Label>
-                            <Input
-                                id="companyRnc"
-                                name="companyRnc"
-                                value={formData.companyRnc}
-                                onChange={handleChange}
-                                placeholder="Ej: 101-00000-0"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="companyPhone">Teléfono</Label>
-                            <Input
-                                id="companyPhone"
-                                name="companyPhone"
-                                value={formData.companyPhone}
-                                onChange={handleChange}
-                                placeholder="Ej: 809-555-0000"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="companyAddress">Dirección</Label>
-                            <Input
-                                id="companyAddress"
-                                name="companyAddress"
-                                value={formData.companyAddress}
-                                onChange={handleChange}
-                                placeholder="Ej: Av. Winston Churchill #101"
-                            />
-                        </div>
-                        <div className="flex justify-end">
-                            <Button type="submit" disabled={loading}>
-                                {loading ? "Guardando..." : "Guardar cambios y logo"}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <SettingsSection
+                title="Datos de la empresa"
+                description="Aparecen en el encabezado de facturas, cotizaciones y reportes."
+            >
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Nombre del negocio" htmlFor="companyName" className="sm:col-span-2">
+                        <Input id="companyName" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Ej: Aluminios del Este SRL" />
+                    </Field>
+                    <Field label="RNC / Cédula" htmlFor="companyRnc">
+                        <Input id="companyRnc" name="companyRnc" value={formData.companyRnc} onChange={handleChange} placeholder="101-00000-0" />
+                    </Field>
+                    <Field label="Teléfono" htmlFor="companyPhone">
+                        <Input id="companyPhone" name="companyPhone" value={formData.companyPhone} onChange={handleChange} placeholder="809-555-0000" />
+                    </Field>
+                    <Field label="Dirección" htmlFor="companyAddress" className="sm:col-span-2">
+                        <Input id="companyAddress" name="companyAddress" value={formData.companyAddress} onChange={handleChange} placeholder="Av. Winston Churchill #101, Santo Domingo" />
+                    </Field>
+                </div>
+            </SettingsSection>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Diseño de Factura A4</CardTitle>
-                    <CardDescription>
-                        Elige el template de diseño de impresión A4 y el logo que se usará en las facturas.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-semibold">Template de diseño de impresión A4</p>
-                            <p className="text-xs text-gray-600">
-                                Por ahora hay un solo diseño disponible. En futuras versiones podrás escoger entre varios templates.
-                            </p>
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setTemplateDialogOpen(true)}
-                            className={formData.invoiceTemplate === "a4" ? "border-blue-500 bg-blue-50" : ""}
-                        >
-                            Ver plantillas disponibles
+            <SettingsSection
+                title="Logo"
+                description="Se imprime en las facturas. Usá un PNG con fondo transparente para mejor resultado."
+            >
+                <div className="flex flex-wrap items-center gap-5">
+                    <div className="flex size-24 items-center justify-center overflow-hidden rounded-xl border bg-slate-50">
+                        {formData.companyLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={formData.companyLogo} alt="Logo actual" className="max-h-full max-w-full object-contain p-2" />
+                        ) : (
+                            <ImageIcon className="size-7 text-slate-300" />
+                        )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            {formData.companyLogo ? "Cambiar logo" : "Subir logo"}
                         </Button>
+                        {formData.companyLogo && (
+                            <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setFormData((prev) => ({ ...prev, companyLogo: "" }))}>
+                                Quitar
+                            </Button>
+                        )}
+                        <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
                     </div>
+                </div>
+            </SettingsSection>
 
-                    <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-                        <DialogContent className="max-w-[520px] max-h-[85vh] overflow-hidden">
-                            <DialogHeader>
-                                <DialogTitle>Plantillas disponibles</DialogTitle>
-                                <DialogDescription>
-                                    Haz click en una plantilla para seleccionarla como diseño de impresión A4.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            <div className="overflow-x-auto pb-2">
-                                <div className="flex min-w-max gap-4">
-                                    <button
-                                        type="button"
-                                        onClick={handleChooseA4Template}
-                                        className={`w-[190px] shrink-0 rounded-xl border bg-white p-2 text-left shadow-sm transition hover:border-blue-500 hover:shadow-md ${formData.invoiceTemplate === "a4" ? "border-blue-600 ring-2 ring-blue-200" : "border-gray-200"}`}
-                                    >
-                                        <div className="mb-3 flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm font-semibold">Clásica azul A4</p>
-                                                <p className="text-[11px] text-gray-500">Tabla azul corporativa.</p>
-                                            </div>
-                                            {formData.invoiceTemplate === "a4" && (
-                                                <span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
-                                                    Activa
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Preview: 810×1160 scaled 0.48 → visual ~389×557px, clipped at 320px height */}
-                                        <div className="mx-auto overflow-hidden rounded-lg border bg-gray-50" style={{ width: "160px", height: "220px" }}>
-                                            <div
-                                                className="w-[810px] origin-top-left"
-                                                style={{ transform: "scale(0.19)", transformOrigin: "top left" }}
-                                            >
-                                                <InvoiceOdooTemplate invoice={exampleInvoice} settings={formData} />
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    <div className="grid md:grid-cols-[auto,1fr] gap-4 items-center">
-                        <div className="w-24 h-24 border rounded flex items-center justify-center bg-white overflow-hidden">
-                            {formData.companyLogo ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={formData.companyLogo}
-                                    alt="Logo actual"
-                                    className="max-w-full max-h-full object-contain"
-                                />
-                            ) : (
-                                <span className="text-xs text-gray-400 text-center px-2">Sin logo</span>
-                            )}
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="companyLogo">Logo de la empresa</Label>
-                            <Input
-                                id="companyLogo"
-                                type="file"
-                                accept="image/*"
-                                onChange={handleLogoChange}
-                            />
-                            <p className="text-xs text-gray-500">
-                                Se recomienda un logo en PNG con fondo transparente. Se almacenará dentro de la aplicación.
-                            </p>
+            <SettingsSection
+                title="Diseño de factura A4"
+                description="Plantilla que se usa al imprimir facturas en hoja completa."
+            >
+                <button
+                    type="button"
+                    onClick={() => setTemplateDialogOpen(true)}
+                    className="flex w-full items-center gap-4 rounded-xl border p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40"
+                >
+                    <div className="h-20 w-14 shrink-0 overflow-hidden rounded-md border bg-white">
+                        <div className="w-[810px] origin-top-left" style={{ transform: "scale(0.069)" }}>
+                            <InvoiceOdooTemplate invoice={exampleInvoice} settings={formData} />
                         </div>
                     </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Printer className="h-5 w-5 text-primary" />
-                        <CardTitle>Impresoras del Sistema (Impresión Silenciosa)</CardTitle>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-medium">Clásica azul</p>
+                        <p className="text-sm text-muted-foreground">Tabla azul corporativa con logo y datos fiscales.</p>
                     </div>
-                    <CardDescription>
-                        Configura la impresora térmica y la impresora A4. Solo si las seleccionas aquí, los documentos se imprimirán de forma silenciosa sin abrir el cuadro de diálogo de Windows. Si las dejas en &quot;Ninguna&quot;, se abrirá el diálogo habitual.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {isDesktop ? (
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label htmlFor="thermalPrinter" className="font-semibold text-sm">
-                                    Impresora Térmica (Tickets / Rollo 80mm)
-                                </Label>
-                                <select
-                                    id="thermalPrinter"
-                                    value={printerConfig.thermalPrinter}
-                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, thermalPrinter: e.target.value }))}
-                                    className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                >
-                                    <option value="">Ninguna (Abrir cuadro de diálogo de Windows)</option>
-                                    {printers.map((p) => (
-                                        <option key={p.name} value={p.name}>
-                                            {p.displayName || p.name} {p.isDefault ? "(Predeterminada)" : ""}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-muted-foreground">
-                                    Aplica a tickets de venta, cuadres de caja y recibos de caja chica.
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="a4Printer" className="font-semibold text-sm">
-                                    Impresora A4 (Documentos / Cotizaciones / Facturas A4)
-                                </Label>
-                                <select
-                                    id="a4Printer"
-                                    value={printerConfig.a4Printer}
-                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, a4Printer: e.target.value }))}
-                                    className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                >
-                                    <option value="">Ninguna (Abrir cuadro de diálogo de Windows)</option>
-                                    {printers.map((p) => (
-                                        <option key={p.name} value={p.name}>
-                                            {p.displayName || p.name} {p.isDefault ? "(Predeterminada)" : ""}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-muted-foreground">
-                                    Aplica a facturas A4 completas, reportes y cotizaciones.
-                                </p>
-                            </div>
-
-                            <div className="md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t">
-                                <div className="text-xs text-muted-foreground">
-                                    {printerConfig.thermalPrinter || printerConfig.a4Printer ? (
-                                        <span className="text-emerald-600 font-medium">
-                                            ✓ Impresión silenciosa activa para las impresoras seleccionadas
-                                        </span>
-                                    ) : (
-                                        <span>Modo interactivo: se abrirá el diálogo habitual de impresión</span>
-                                    )}
-                                </div>
-                                <Button onClick={handleSavePrinters} disabled={savingPrinters}>
-                                    {savingPrinters ? "Guardando..." : "Guardar impresoras"}
-                                </Button>
-                            </div>
-                        </div>
+                    {formData.invoiceTemplate === "a4" ? (
+                        <span className="rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">Activa</span>
                     ) : (
-                        <div className="text-sm text-muted-foreground bg-muted/40 p-4 rounded-lg border">
-                            La configuración de impresión silenciosa y selección de dispositivos de hardware está disponible cuando ejecutas FacturaDo en su aplicación de escritorio.
-                        </div>
+                        <span className="text-sm font-medium text-blue-700">Ver</span>
                     )}
-                </CardContent>
-            </Card>
+                </button>
+
+                <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+                    <DialogContent className="max-w-[520px]">
+                        <DialogHeader>
+                            <DialogTitle>Plantillas disponibles</DialogTitle>
+                            <DialogDescription>Elegí la plantilla para imprimir facturas A4.</DialogDescription>
+                        </DialogHeader>
+                        <button
+                            type="button"
+                            onClick={handleChooseA4Template}
+                            className={`w-[200px] rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-blue-500 ${formData.invoiceTemplate === "a4" ? "border-blue-600 ring-2 ring-blue-200" : "border-slate-200"}`}
+                        >
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold">Clásica azul</p>
+                                {formData.invoiceTemplate === "a4" && (
+                                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-semibold text-white">Activa</span>
+                                )}
+                            </div>
+                            <div className="mx-auto overflow-hidden rounded-lg border bg-slate-50" style={{ width: "160px", height: "220px" }}>
+                                <div className="w-[810px] origin-top-left" style={{ transform: "scale(0.19)" }}>
+                                    <InvoiceOdooTemplate invoice={exampleInvoice} settings={formData} />
+                                </div>
+                            </div>
+                        </button>
+                    </DialogContent>
+                </Dialog>
+            </SettingsSection>
+
+            <div className="flex justify-end">
+                <Button type="submit" disabled={loading} className="min-w-40">
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Guardar cambios
+                </Button>
+            </div>
+
+            <SettingsSection
+                title="Impresoras"
+                description="Si elegís una impresora, los documentos se imprimen directo sin abrir el cuadro de Windows."
+                footer={isDesktop ? (
+                    <>
+                        <span className="mr-auto text-sm text-muted-foreground">
+                            {printerConfig.thermalPrinter || printerConfig.a4Printer ? "Impresión directa activa" : "Se abrirá el cuadro de impresión"}
+                        </span>
+                        <Button type="button" variant="outline" onClick={handleSavePrinters} disabled={savingPrinters}>
+                            {savingPrinters && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar impresoras
+                        </Button>
+                    </>
+                ) : undefined}
+            >
+                {isDesktop ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field label="Térmica (tickets 80 mm)" hint="Tickets de venta, cuadres de caja y recibos.">
+                            <Select
+                                value={printerConfig.thermalPrinter || NONE}
+                                onValueChange={(v) => setPrinterConfig((prev) => ({ ...prev, thermalPrinter: v === NONE ? "" : v }))}
+                            >
+                                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={NONE}>Preguntar al imprimir</SelectItem>
+                                    {printerOptions.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+                        <Field label="Hoja completa (A4 / Carta)" hint="Facturas A4, cotizaciones y reportes.">
+                            <Select
+                                value={printerConfig.a4Printer || NONE}
+                                onValueChange={(v) => setPrinterConfig((prev) => ({ ...prev, a4Printer: v === NONE ? "" : v }))}
+                            >
+                                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={NONE}>Preguntar al imprimir</SelectItem>
+                                    {printerOptions.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+                    </div>
+                ) : (
+                    <div className="flex items-start gap-3 rounded-lg border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">
+                        <Printer className="mt-0.5 size-4 shrink-0" />
+                        Disponible en la aplicación de escritorio de FacturaDo.
+                    </div>
+                )}
+            </SettingsSection>
+        </form>
+    )
+}
+
+function Field({ label, htmlFor, hint, className = "", children }: {
+    label: string
+    htmlFor?: string
+    hint?: string
+    className?: string
+    children: React.ReactNode
+}) {
+    return (
+        <div className={`space-y-2 ${className}`}>
+            <Label htmlFor={htmlFor} className="text-sm font-medium">{label}</Label>
+            {children}
+            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </div>
     )
 }

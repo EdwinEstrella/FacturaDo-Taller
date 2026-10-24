@@ -71,7 +71,7 @@ export function AppSidebar({ role, collapsible = true, onNavigate }: {
             </div>
 
             {/* Navegación */}
-            <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 [scrollbar-width:thin]">
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 scrollbar-on-dark">
                 {sections.map((section, idx) => (
                     <div key={section.title} className={cn(idx > 0 && "mt-5")}>
                         {isCollapsed ? (

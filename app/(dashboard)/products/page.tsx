@@ -2,6 +2,7 @@ import { getProducts } from "@/actions/product-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { ProductList } from "@/components/modules/products/product-list"
+import { PageHeader } from "@/components/modules/shared/list-page"
 import type { Product } from "@/types"
 
 interface SerializedProduct extends Omit<Product, 'price' | 'cost'> {
@@ -24,15 +25,12 @@ export default async function ProductsPage() {
     }))
 
     return (
-        <div className="flex-1 space-y-4">
-            <div className="flex items-center justify-between space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">Productos y Servicios</h2>
-                {canManageProducts && (
-                    <div className="flex items-center space-x-2">
-                        <ProductDialog />
-                    </div>
-                )}
-            </div>
+        <div className="flex-1 space-y-6">
+            <PageHeader
+                title="Productos y Servicios"
+                description="Catálogo con precios y existencia."
+                actions={canManageProducts ? <ProductDialog /> : undefined}
+            />
             <ProductList products={serializedProducts} canManageProducts={canManageProducts} />
         </div>
     )
