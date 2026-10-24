@@ -1,10 +1,8 @@
 import {
-    BarChart3,
     Calculator,
     ClipboardCheck,
     FileMinus,
     FileSignature,
-    FileText,
     History,
     LayoutDashboard,
     Landmark,
@@ -14,7 +12,6 @@ import {
     Settings,
     ShoppingBag,
     Truck,
-    UserCog,
     Users,
     Wallet,
     Vault,
@@ -39,7 +36,6 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "General",
         items: [
             { label: "Panel", href: "/", icon: LayoutDashboard },
-            { label: "Analíticas", href: "/analytics", icon: BarChart3 },
         ],
     },
     {
@@ -58,7 +54,6 @@ export const NAV_SECTIONS: NavSection[] = [
             { label: "Desglose P65", href: "/desglose/ventana-p65", icon: Calculator },
             { label: "Desglose Tradicional", href: "/desglose/ventana-tradicional", icon: Calculator },
             { label: "Historial de Desgloses", href: "/desglose/historial", icon: ScrollText },
-            { label: "Instalaciones", href: "/pendientes", icon: ClipboardCheck },
             { label: "Despacho", href: "/dispatch", icon: Truck },
         ],
     },
@@ -78,11 +73,9 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
     },
     {
-        title: "Administración",
+        title: "Sistema",
         items: [
-            { label: "Comprobantes Fiscales", href: "/fiscal", icon: FileText },
-            { label: "Usuarios", href: "/settings/users", icon: UserCog },
-            { label: "Configuración", href: "/settings/general", icon: Settings },
+            { label: "Ajustes", href: "/settings", icon: Settings },
         ],
     },
 ]
@@ -92,13 +85,17 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
 ]
 
 const BLOCKED_BY_ROLE: Record<string, string[]> = {
-    SELLER: ["/analytics", "/liquidations", "/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
-    CUSTOM: ["/analytics", "/liquidations", "/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
+    SELLER: ["/liquidations", "/settings/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
+    CUSTOM: ["/liquidations", "/settings/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
     ACCOUNTANT: ["/products", "/settings/users", "/settings/general"],
     MANAGER: ["/liquidations", "/settings/users"],
 }
 
-export function canAccess(role: string | undefined, href: string) {
+const SETTINGS_PAGES = ["/settings/general", "/settings/fiscal", "/settings/users"]
+
+export function canAccess(role: string | undefined, href: string): boolean {
+    // "Ajustes" agrupa varias páginas: se muestra si el rol puede entrar al menos a una.
+    if (href === "/settings") return SETTINGS_PAGES.some((p) => canAccess(role, p))
     const r = (role || "SELLER").toUpperCase()
     if (r === "ADMIN") return true
     if (r === "TECHNICIAN") return href === "/technician"

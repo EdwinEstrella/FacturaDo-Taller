@@ -91,7 +91,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, c
     className?: string
 }) {
     return (
-        <div className={cn("inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1", className)}>
+        <div className={cn("scrollbar-none inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1", className)}>
             {options.map((opt) => (
                 <button
                     key={opt.value}

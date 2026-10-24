@@ -27,7 +27,6 @@ import {
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote, updateQuote } from "@/actions/quote-actions"
-import { createInstallationsForInvoice } from "@/actions/installation-actions"
 import type { Client, Product, ProductCharacteristic, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -69,7 +68,6 @@ interface InvoiceItemState {
     measurementMode: ProductMeasurementMode
     variantId?: string
     variantName?: string
-    requiresInstallation?: boolean
     characteristics?: ProductCharacteristic[]
 }
 
@@ -136,17 +134,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         return true
     })
 
-    // Installation Modal State
-    const [installationModal, setInstallationModal] = useState<{
-        open: boolean
-        product: Product | SerializedProduct | null
-        variant: { id: string; name: string; price: number } | null
-    }>({
-        open: false,
-        product: null,
-        variant: null,
-    })
-
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -181,11 +168,9 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         }
     }, [dataToUse, initialProducts])
 
-    // Función interna para agregar item (con o sin instalación)
-    const doAddItem = (
+    const addItem = (
         product: Product | SerializedProduct,
-        variant?: { id: string; name: string; price: number },
-        requiresInstallation = false
+        variant?: { id: string; name: string; price: number }
     ) => {
         const lineId = createLineId()
         const measurementMode = getDefaultMeasurementMode(product)
@@ -194,8 +179,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
 
         const existingIndex = items.findIndex(item =>
             item.productId === product.id &&
-            item.variantId === (variant?.id || undefined) &&
-            item.requiresInstallation === requiresInstallation
+            item.variantId === (variant?.id || undefined)
         )
 
         if (existingIndex > -1) {
@@ -214,7 +198,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                 measurementMode,
                 variantId: variant?.id,
                 variantName: variant?.name,
-                requiresInstallation,
                 characteristics: [{ label: "Característica", value: "" }],
             }])
         }
@@ -222,46 +205,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         setOpenProduct(false)
     }
 
-    const addItem = (product: Product | SerializedProduct, variant?: { id: string; name: string; price: number }) => {
-        // En modo cotización, no preguntamos por instalación
-        if (isQuoteMode) {
-            doAddItem(product, variant, false)
-            return
-        }
-
-        // Si es servicio, no requiere instalación física
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const asAny = product as any
-        if (asAny.isService || asAny.category === "SERVICIO") {
-            doAddItem(product, variant, false)
-            return
-        }
-
-        // Abrir modal de confirmación de instalación
-        setInstallationModal({
-            open: true,
-            product,
-            variant: variant || null,
-        })
-    }
-
-    const handleInstallationYes = () => {
-        if (installationModal.product) {
-            doAddItem(installationModal.product, installationModal.variant || undefined, true)
-        }
-        setInstallationModal({ open: false, product: null, variant: null })
-    }
-
-    const handleInstallationNo = () => {
-        if (installationModal.product) {
-            doAddItem(installationModal.product, installationModal.variant || undefined, false)
-        }
-        setInstallationModal({ open: false, product: null, variant: null })
-    }
-
-    const handleInstallationCancel = () => {
-        setInstallationModal({ open: false, product: null, variant: null })
-    }
 
     const removeItem = (lineId: string) => {
         setItems(items.filter(item => item.lineId !== lineId))
@@ -446,29 +389,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
             }
 
             if (res.success) {
-                if (!isEdit && !isQuoteMode) {
-                    const invoiceId = 'invoiceId' in res ? res.invoiceId as string : undefined
-
-                    if (invoiceId) {
-                        const installationItems = items
-                            .filter(item => item.requiresInstallation)
-                            .map(item => ({
-                                invoiceId,
-                                productId: item.productId,
-                                productName: item.productName,
-                                quantity: Number(item.quantity || 0),
-                                clientName: selectedClient.name,
-                                clientAddress: selectedClient.address,
-                                clientPhone: selectedClient.phone
-                            }))
-
-                        if (installationItems.length > 0) {
-                            await createInstallationsForInvoice(installationItems)
-                            toast.success(`${installationItems.length} producto(s) agregado(s) a Pendientes de Instalación`)
-                        }
-                    }
-                }
-
                 toast.success(
                     isEdit
                         ? "Factura Actualizada"
@@ -975,43 +895,6 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                 </DialogContent>
             </Dialog>
 
-            {/* Installation Modal */}
-            <Dialog open={installationModal.open} onOpenChange={(open) => {
-                if (!open) handleInstallationCancel()
-                setInstallationModal(prev => ({ ...prev, open }))
-            }}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>¿Requiere Instalación?</DialogTitle>
-                        <DialogDescription>
-                            {installationModal.product && (
-                                <span>Producto: <strong>{installationModal.variant
-                                    ? `${installationModal.product.name} - ${installationModal.variant.name}`
-                                    : installationModal.product.name}</strong></span>
-                            )}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <p className="text-sm text-muted-foreground">
-                            ¿Este producto requiere instalación para el cliente?
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                            Si selecciona &quot;Sí&quot;, se agregará al módulo de Pendientes de Instalación.
-                        </p>
-                    </div>
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={handleInstallationCancel}>
-                            Cancelar
-                        </Button>
-                        <Button variant="secondary" onClick={handleInstallationNo}>
-                            No
-                        </Button>
-                        <Button onClick={handleInstallationYes}>
-                            Sí, requiere instalación
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Search, X } from "lucide-react"
+import { useMemo, useState } from "react"
+import { AlertTriangle, Boxes, Package, Wrench } from "lucide-react"
 import {
     Table,
     TableBody,
@@ -10,11 +10,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { ProductDialog } from "@/components/modules/products/product-dialog"
 import { DeleteProductButton } from "@/components/modules/products/delete-button"
+import { EmptyList, SearchInput, SegmentedControl, StatTile, StatusPill } from "@/components/modules/shared/list-page"
 import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { formatCurrency, formatQuantity } from "@/lib/utils"
 import type { Product } from "@/types"
@@ -29,87 +27,126 @@ interface ProductListProps {
     canManageProducts: boolean
 }
 
+type Filter = "ALL" | "PRODUCTS" | "SERVICES" | "LOW"
+
+const isLow = (p: SerializedProduct) => !p.isService && Number(p.stock) <= Number(p.minStock)
+
 export function ProductList({ products, canManageProducts }: ProductListProps) {
     const [search, setSearch] = useState("")
-    const normalizedSearch = search.trim().toLowerCase()
-    const filteredProducts = normalizedSearch
-        ? products.filter((product) =>
-            [product.name, product.sku, product.category, product.description]
-                .some((value) => value?.toLowerCase().includes(normalizedSearch))
-        )
-        : products
+    const [filter, setFilter] = useState<Filter>("ALL")
+
+    const counts = useMemo(() => ({
+        ALL: products.length,
+        PRODUCTS: products.filter((p) => !p.isService).length,
+        SERVICES: products.filter((p) => p.isService).length,
+        LOW: products.filter(isLow).length,
+    }), [products])
+
+    const visible = useMemo(() => {
+        const q = search.trim().toLowerCase()
+        return products.filter((p) => {
+            if (filter === "PRODUCTS" && p.isService) return false
+            if (filter === "SERVICES" && !p.isService) return false
+            if (filter === "LOW" && !isLow(p)) return false
+            if (!q) return true
+            return [p.name, p.sku, p.category, p.description].some((v) => v?.toLowerCase().includes(q))
+        })
+    }, [products, search, filter])
 
     return (
-        <>
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
-                <div className="relative w-full sm:w-80">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        aria-label="Buscar productos y servicios"
-                        className="pl-9"
-                        placeholder="Buscar productos y servicios..."
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
-                </div>
-                {search && (
-                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
-                        <X className="mr-1 h-4 w-4" />
-                        Limpiar
-                    </Button>
-                )}
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+                <StatTile label="Productos" value={counts.PRODUCTS} hint="Artículos con inventario" icon={<Package />} tone="blue" />
+                <StatTile label="Servicios" value={counts.SERVICES} hint="Mano de obra e instalación" icon={<Wrench />} tone="slate" />
+                <StatTile
+                    label="Stock bajo"
+                    value={counts.LOW}
+                    hint={counts.LOW ? "En o por debajo del mínimo" : "Todo en orden"}
+                    icon={<AlertTriangle />}
+                    tone={counts.LOW ? "red" : "green"}
+                />
             </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Categoría</TableHead>
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Precio</TableHead>
-                            <TableHead>Stock</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredProducts.map((product) => (
-                            <TableRow key={product.id}>
-                                <TableCell className="font-medium">{product.name}</TableCell>
-                                <TableCell>
-                                    <Badge variant="outline">{product.category}</Badge>
-                                </TableCell>
-                                <TableCell>{product.sku || "-"}</TableCell>
-                                <TableCell>{formatCurrency(product.price)}</TableCell>
-                                <TableCell>
-                                    {product.isService ? (
-                                        <span className="text-muted-foreground italic">Servicio</span>
-                                    ) : (
-                                        <span className={product.stock <= product.minStock ? "text-red-500 font-bold" : ""}>
-                                            {formatQuantity(product.stock)} {getMeasurementShortLabel(getMeasurementModeFromProduct(product))}
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="flex justify-end gap-2 text-right">
-                                    {canManageProducts && (
-                                        <>
-                                            <ProductDialog product={product} />
-                                            <DeleteProductButton id={product.id} name={product.name} />
-                                        </>
-                                    )}
-                                </TableCell>
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Buscar por nombre, SKU o categoría..."
+                        className="lg:max-w-md lg:flex-1"
+                    />
+                    <SegmentedControl
+                        options={[
+                            { value: "ALL" as Filter, label: "Todos", count: counts.ALL },
+                            { value: "PRODUCTS" as Filter, label: "Productos", count: counts.PRODUCTS },
+                            { value: "SERVICES" as Filter, label: "Servicios", count: counts.SERVICES },
+                            { value: "LOW" as Filter, label: "Stock bajo", count: counts.LOW },
+                        ]}
+                        value={filter}
+                        onChange={setFilter}
+                    />
+                </div>
+
+                {visible.length === 0 ? (
+                    <EmptyList
+                        icon={<Boxes />}
+                        title={products.length === 0 ? "Todavía no hay productos" : "Sin resultados"}
+                        description={products.length === 0 ? "Agregá tu primer producto o servicio." : "Probá con otro nombre, SKU o filtro."}
+                        action={products.length === 0 && canManageProducts ? <ProductDialog /> : undefined}
+                    />
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                <TableHead className="pl-4">Producto / Servicio</TableHead>
+                                <TableHead>Categoría</TableHead>
+                                <TableHead className="text-right">Precio</TableHead>
+                                <TableHead className="text-right">Existencia</TableHead>
+                                {canManageProducts && <TableHead className="pr-4 text-right">Acciones</TableHead>}
                             </TableRow>
-                        ))}
-                        {filteredProducts.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
-                                    {products.length === 0 ? "No hay productos registrados." : "No hay productos ni servicios que coincidan con la búsqueda."}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {visible.map((product) => {
+                                const unit = getMeasurementShortLabel(getMeasurementModeFromProduct(product))
+                                return (
+                                    <TableRow key={product.id}>
+                                        <TableCell className="max-w-[380px] py-3 pl-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${product.isService ? "bg-slate-100 text-slate-500" : "bg-blue-50 text-blue-600"}`}>
+                                                    {product.isService ? <Wrench className="size-4" /> : <Package className="size-4" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-medium">{product.name}</p>
+                                                    <p className="truncate font-mono text-xs text-muted-foreground">{product.sku || "Sin SKU"}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="py-3 text-sm text-slate-600">{product.category || "—"}</TableCell>
+                                        <TableCell className="py-3 text-right font-semibold tabular-nums">{formatCurrency(product.price)}</TableCell>
+                                        <TableCell className="py-3 text-right">
+                                            {product.isService ? (
+                                                <span className="text-sm text-muted-foreground">Servicio</span>
+                                            ) : isLow(product) ? (
+                                                <StatusPill tone="red">{formatQuantity(product.stock)} {unit}</StatusPill>
+                                            ) : (
+                                                <span className="tabular-nums">{formatQuantity(product.stock)} <span className="text-muted-foreground">{unit}</span></span>
+                                            )}
+                                        </TableCell>
+                                        {canManageProducts && (
+                                            <TableCell className="py-3 pr-4">
+                                                <div className="flex justify-end gap-1">
+                                                    <ProductDialog product={product} />
+                                                    <DeleteProductButton id={product.id} name={product.name} />
+                                                </div>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                )
+                            })}
+                        </TableBody>
+                    </Table>
+                )}
             </div>
-        </>
+        </div>
     )
 }

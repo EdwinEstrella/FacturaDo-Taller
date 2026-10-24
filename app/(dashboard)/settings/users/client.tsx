@@ -29,6 +29,16 @@ import {
 } from "@/components/ui/select"
 import { createUser, updateUser, deleteUser } from "@/actions/user-actions"
 import { useRouter } from "next/navigation"
+import { ClientCell, StatusPill, type PillTone } from "@/components/modules/shared/list-page"
+
+const ROLE_TONES: Record<string, PillTone> = {
+    ADMIN: "blue",
+    MANAGER: "blue",
+    ACCOUNTANT: "green",
+    SELLER: "slate",
+    TECHNICIAN: "amber",
+    CUSTOM: "slate",
+}
 
 type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM"
 
@@ -218,8 +228,14 @@ export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: U
     }
 
     return (
-        <div>
-            <div className="flex justify-end mb-4">
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+                <div>
+                    <h3 className="font-semibold text-slate-900">Equipo</h3>
+                    <p className="text-sm text-muted-foreground">
+                        {initialUsers.length} {initialUsers.length === 1 ? "usuario" : "usuarios"} con acceso al sistema
+                    </p>
+                </div>
                 <Dialog open={isOpen} onOpenChange={setIsOpen}>
                     <DialogTrigger asChild>
                         <Button>
@@ -323,47 +339,41 @@ export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: U
                 </Dialog>
             </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Usuario</TableHead>
-                            <TableHead>Rol</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {initialUsers.map((user) => (
-                            <TableRow key={user.id}>
-                                <TableCell className="font-medium">{user.name || ""}</TableCell>
-                                <TableCell>{user.username}</TableCell>
-                                <TableCell>
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
-                                            user.role === 'ACCOUNTANT' ? 'bg-green-100 text-green-800' :
-                                                user.role === 'TECHNICIAN' ? 'bg-orange-100 text-orange-800' :
-                                                    user.role === 'MANAGER' ? 'bg-indigo-100 text-indigo-800' :
-                                                        user.role === 'CUSTOM' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-blue-100 text-blue-800'
-                                        }`}>
-                                        {getRoleName(user.role)}
-                                    </span>
-                                </TableCell>
-                                <TableCell className="text-right space-x-2">
-                                    <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
-                                        <Pencil className="h-4 w-4" />
+            <Table>
+                <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="pl-5">Nombre</TableHead>
+                        <TableHead>Usuario</TableHead>
+                        <TableHead>Rol</TableHead>
+                        <TableHead className="pr-5 text-right">Acciones</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {initialUsers.map((user) => (
+                        <TableRow key={user.id}>
+                            <TableCell className="py-3 pl-5">
+                                <ClientCell name={user.name || user.username} />
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-slate-600">@{user.username}</TableCell>
+                            <TableCell>
+                                <StatusPill tone={ROLE_TONES[user.role] || "slate"}>{getRoleName(user.role)}</StatusPill>
+                            </TableCell>
+                            <TableCell className="pr-5 text-right">
+                                <div className="flex justify-end gap-1">
+                                    <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(user)}>
+                                        <Pencil className="h-4 w-4 text-blue-500" />
                                     </Button>
                                     {currentUserRole !== 'SELLER' && (
-                                        <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(user.id)}>
-                                            <Trash className="h-4 w-4" />
+                                        <Button variant="ghost" size="icon" title="Eliminar" onClick={() => handleDelete(user.id)}>
+                                            <Trash className="h-4 w-4 text-red-500" />
                                         </Button>
                                     )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
 
             {/* EDIT DIALOG */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>

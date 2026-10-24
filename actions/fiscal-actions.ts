@@ -56,7 +56,7 @@ export async function updateFiscalSequence(type: string, current: string) {
             .insert([{ key: `NCF_${normalizedType}`, value: normalizedCurrent }])
     }
 
-    revalidatePath("/fiscal")
+    revalidatePath("/settings/fiscal")
 }
 
 export async function generateNCF(type: string) {

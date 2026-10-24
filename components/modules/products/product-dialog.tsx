@@ -193,9 +193,9 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 {isEdit ? (
-                    <Button variant="ghost" size="icon"><Edit className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Editar"><Edit className="h-4 w-4 text-blue-500" /></Button>
                 ) : (
-                    <Button>Agregar Producto</Button>
+                    <Button><Plus className="mr-2 h-4 w-4" />Nuevo producto</Button>
                 )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
