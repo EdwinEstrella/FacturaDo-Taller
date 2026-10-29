@@ -236,10 +236,12 @@ export async function createQuote(data: QuoteFormData) {
 }
 
 interface GetQuotesOptions {
-    // Month to load, formatted as 'yyyy-MM'. Defaults to the current month.
+    // Month to load, formatted as 'yyyy-MM'. Optional.
     month?: string
     // When true, ignores the date range and returns every quote.
     all?: boolean
+    // Client name or quote sequence number. Searches the full history.
+    search?: string
 }
 
 function resolveMonthRange(month?: string): { start: string; end: string } {
@@ -277,10 +279,36 @@ export async function getQuotes(options: GetQuotesOptions = {}) {
         .select('*')
         .order('createdAt', { ascending: false })
 
-    // By default only load the current month so we don't pull the whole history.
-    if (!options.all) {
+    // Los caracteres reservados del filtro `or` de PostgREST rompen la consulta.
+    const search = (options.search || "").replace(/[,()*%\\]/g, " ").trim()
+
+    if (search) {
+        // Quote only stores clientId, so match clients by name/RNC/cédula first.
+        const { data: matchingClients } = await insforge.database
+            .from('Client')
+            .select('id')
+            .or(`name.ilike.*${search}*,rnc.ilike.*${search}*,cedula.ilike.*${search}*`)
+
+        const conditions: string[] = []
+        const matchingIds = (matchingClients || []).map(c => c.id)
+        if (matchingIds.length > 0) {
+            conditions.push(`clientId.in.(${matchingIds.join(",")})`)
+        }
+        const seq = search.replace(/^#/, "").replace(/^cot-?/i, "").replace(/^0+(?=\d)/, "")
+        if (/^\d+$/.test(seq)) {
+            conditions.push(`sequenceNumber.eq.${seq}`)
+        }
+        if (conditions.length === 0) return []
+        quotesQuery = quotesQuery.or(conditions.join(","))
+    } else if (options.all) {
+        // No date filter (full history)
+    } else if (options.month && /^\d{4}-\d{2}$/.test(options.month)) {
         const { start, end } = resolveMonthRange(options.month)
         quotesQuery = quotesQuery.gte('createdAt', start).lte('createdAt', end)
+    } else {
+        const now = new Date()
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+        quotesQuery = quotesQuery.gte('createdAt', start.toISOString())
     }
 
     const { data: quotes, error } = await quotesQuery

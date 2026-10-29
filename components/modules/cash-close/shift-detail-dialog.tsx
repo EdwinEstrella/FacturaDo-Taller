@@ -23,6 +23,7 @@ import { Eye, Printer, ShoppingCart, DollarSign, Minus } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import type { CashShiftRecord } from "@/actions/cash-shift-actions"
+import { printCashCloseReport, ExportCashClosePdfButton } from "@/components/modules/daily-close/cash-close-pdf"
 
 export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
     const isClosed = shift.status === 'CLOSED'
@@ -46,16 +47,24 @@ export function ShiftDetailDialog({ shift }: { shift: CashShiftRecord }) {
                                 {isClosed ? "CERRADO" : "EN CURSO"}
                             </Badge>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.print()}
-                            className="gap-1.5"
-                            title="Imprimir reporte"
-                        >
-                            <Printer className="h-3.5 w-3.5" />
-                            Imprimir
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => printCashCloseReport(shift.id)}
+                                className="gap-1.5"
+                                title="Imprimir reporte"
+                            >
+                                <Printer className="h-3.5 w-3.5" />
+                                Imprimir
+                            </Button>
+                            <ExportCashClosePdfButton
+                                shiftId={shift.id}
+                                shiftNumber={shift.shiftNumber}
+                                size="sm"
+                                variant="outline"
+                            />
+                        </div>
                     </div>
                     <DialogDescription>
                         Apertura: {openedAtFormatted} por <strong>{shift.openedByName || "Usuario"}</strong>

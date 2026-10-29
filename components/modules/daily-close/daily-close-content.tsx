@@ -53,6 +53,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useRouter } from "next/navigation"
+import { printCashCloseReport, ExportCashClosePdfButton } from "./cash-close-pdf"
 
 const BILLS_RD = [1, 5, 10, 25, 50, 100, 200, 500, 1000, 2000]
 const BILLS_USD = [1, 5, 10, 100]
@@ -135,31 +136,9 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
         return qs ? `?${qs}` : ""
     }
 
-    // Print via a hidden iframe: same page, no new tab, and isolated from the dashboard shell.
     const printReport = (query = "") => {
         if (!shift) return
-        const url = `/daily-close/print/${shift.id}${query}`
-        const existing = document.getElementById("cc-print-frame")
-        if (existing) existing.remove()
-
-        const iframe = document.createElement("iframe")
-        iframe.id = "cc-print-frame"
-        iframe.style.position = "fixed"
-        iframe.style.right = "0"
-        iframe.style.bottom = "0"
-        iframe.style.width = "0"
-        iframe.style.height = "0"
-        iframe.style.border = "0"
-        iframe.onload = () => {
-            try {
-                iframe.contentWindow?.focus()
-                iframe.contentWindow?.print()
-            } catch {
-                /* noop */
-            }
-        }
-        iframe.src = url
-        document.body.appendChild(iframe)
+        printCashCloseReport(shift.id, query)
     }
 
     // Acción: Abrir Turno
@@ -444,6 +423,12 @@ export function DailyCloseContent({ summary }: { summary: CurrentShiftSummary })
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir Reporte
                     </Button>
+                    <ExportCashClosePdfButton
+                        shiftId={shift.id}
+                        shiftNumber={shift.shiftNumber}
+                        getQuery={buildCountsQuery}
+                        variant="outline"
+                    />
 
                     <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
                         <DialogTrigger asChild>
