@@ -122,9 +122,7 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
                 query = query.gte('createdAt', startOfDay.toISOString())
                 break
             case 'week':
-                const startOfWeek = new Date(now)
-                startOfWeek.setDate(now.getDate() - now.getDay())
-                startOfWeek.setHours(0, 0, 0, 0)
+                const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
                 query = query.gte('createdAt', startOfWeek.toISOString())
                 break
             case 'month':
