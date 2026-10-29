@@ -43,7 +43,7 @@ type StatusFilter = "ALL" | "PAID" | "PENDING" | "CANCELLED"
 
 const PERIODS: { value: Period; label: string }[] = [
     { value: "today", label: "Hoy" },
-    { value: "week", label: "Semana" },
+    { value: "week", label: "7 días" },
     { value: "month", label: "Mes" },
     { value: "year", label: "Año" },
     { value: "all", label: "Todo" },
@@ -51,7 +51,7 @@ const PERIODS: { value: Period; label: string }[] = [
 
 const PERIOD_LABELS: Record<Period, string> = {
     today: "Hoy",
-    week: "Esta semana",
+    week: "Últimos 7 días",
     month: "Este mes",
     year: "Este año",
     all: "Todo el historial",
@@ -79,8 +79,8 @@ export default function InvoicesPage() {
     const [settings, setSettings] = useState<CompanySettings | null>(null)
     const [showPrint, setShowPrint] = useState(false)
 
-    // Default to the current month so we don't pull the whole invoice history on load.
-    const [period, setPeriod] = useState<Period>("month")
+    // Default to the last 7 days so we don't pull the whole invoice history on load.
+    const [period, setPeriod] = useState<Period>("week")
     const [status, setStatus] = useState<StatusFilter>("ALL")
     const [search, setSearch] = useState("")
     const [debouncedSearch, setDebouncedSearch] = useState("")

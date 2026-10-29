@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { format } from "date-fns"
 import { getQuotes } from "@/actions/quote-actions"
 import { QuoteList } from "@/components/modules/quotes/quote-list"
@@ -20,23 +20,37 @@ function QuotesPageContent() {
     const [loading, setLoading] = useState(true)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [query, setQuery] = useState("")
+    const [debouncedQuery, setDebouncedQuery] = useState("")
     const [status, setStatus] = useState("ALL")
-    // Default to the current month so we don't pull the whole quote history on load.
-    const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"))
+    // Default to the last 7 days (empty month) so we don't pull the whole quote history on load.
+    const [month, setMonth] = useState("")
     const [showAll, setShowAll] = useState(false)
+    const requestId = useRef(0)
 
     const triggerRefresh = () => setRefreshTrigger(prev => prev + 1)
 
     useEffect(() => {
+        const t = setTimeout(() => setDebouncedQuery(query.trim()), 350)
+        return () => clearTimeout(t)
+    }, [query])
+
+    useEffect(() => {
+        const id = ++requestId.current
         let active = true
 
         const load = async () => {
             setLoading(true)
             try {
-                const data = await getQuotes({ month, all: showAll })
-                if (active) setQuotes(data)
+                const data = await getQuotes({
+                    month: month || undefined,
+                    all: showAll,
+                    search: debouncedQuery || undefined,
+                })
+                if (id === requestId.current && active) setQuotes(data)
+            } catch (error) {
+                console.error("Error loading quotes:", error)
             } finally {
-                if (active) setLoading(false)
+                if (id === requestId.current && active) setLoading(false)
             }
         }
         void load()
@@ -44,7 +58,7 @@ function QuotesPageContent() {
         return () => {
             active = false
         }
-    }, [refreshTrigger, month, showAll])
+    }, [refreshTrigger, month, showAll, debouncedQuery])
 
     const visibleQuotes = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase()
@@ -91,9 +105,13 @@ function QuotesPageContent() {
         }
     }, [quotes])
 
-    const scopeLabel = showAll
+    const scopeLabel = debouncedQuery
         ? "Todo el historial"
-        : format(new Date(`${month}-01T00:00:00`), "MMMM yyyy", { locale: es })
+        : showAll
+            ? "Todo el historial"
+            : month && /^\d{4}-\d{2}$/.test(month)
+                ? format(new Date(`${month}-01T00:00:00`), "MMMM yyyy", { locale: es })
+                : "Últimos 7 días"
 
     return (
         <div className="flex-1 space-y-6">
@@ -151,6 +169,16 @@ function QuotesPageContent() {
                             className="lg:max-w-md lg:flex-1"
                         />
                         <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+                            <Button
+                                variant={!month && !showAll ? "secondary" : "outline"}
+                                className="h-10"
+                                onClick={() => {
+                                    setMonth("")
+                                    setShowAll(false)
+                                }}
+                            >
+                                7 días
+                            </Button>
                             <div className="relative">
                                 <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
@@ -191,12 +219,9 @@ function QuotesPageContent() {
                     </div>
                 </div>
 
-                {!loading && visibleQuotes.length === 0 && query.trim() !== "" && !showAll && (
+                {!loading && visibleQuotes.length === 0 && query.trim() !== "" && query.trim() === debouncedQuery && (
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
-                        <span>No hay cotizaciones de este mes para &quot;{query}&quot;.</span>
-                        <Button size="sm" variant="outline" className="border-amber-600 text-amber-800 hover:bg-amber-100" onClick={() => setShowAll(true)}>
-                            Buscar en todo el historial
-                        </Button>
+                        <span>No se encontraron cotizaciones para &quot;{query}&quot;.</span>
                     </div>
                 )}
 
