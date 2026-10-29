@@ -26,15 +26,20 @@ const nextConfig: NextConfig = {
   // Headers para caching estático
   async headers() {
     return [
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
+      // Cache inmutable solo en producción para evitar CSS obsoleto en desarrollo
+      ...(process.env.NODE_ENV === 'production'
+        ? [
+            {
+              source: '/_next/static/:path*',
+              headers: [
+                {
+                  key: 'Cache-Control',
+                  value: 'public, max-age=31536000, immutable',
+                },
+              ],
+            },
+          ]
+        : []),
       {
         source: '/api/:path*',
         headers: [
