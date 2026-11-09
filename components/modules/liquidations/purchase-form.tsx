@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
 import { CalendarIcon, Loader2, Plus, Trash2, Check, ChevronsUpDown } from "lucide-react"
 
-import { getMeasurementLabel, getMeasurementModeFromProduct, isMeasuredMode } from "@/lib/product-measurements"
+import { getMeasurementModeFromProduct, getMeasurementShortLabel, isMeasuredMode } from "@/lib/product-measurements"
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { createPurchase, createSupplier } from "@/actions/purchase-actions"
 import { useRouter } from "next/navigation"
@@ -121,7 +121,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     const [openCombobox, setOpenCombobox] = useState(false)
 
     // Costing & Pricing State
-    const [pricingMode, setPricingMode] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE")
+    const [pricingMode, setPricingMode] = useState<"KEEP" | "PERCENTAGE" | "FIXED">("KEEP")
     const [margin, setMargin] = useState(30) // Default 30%
     const [fixedPrice, setFixedPrice] = useState(0)
     const [newSellingPrice, setNewSellingPrice] = useState(0)
@@ -132,26 +132,31 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
     // Calculations
     const selectedProduct = products.find(p => p.id === selectedProductId)
     const selectedVariant = selectedProduct?.variants?.find(v => v.id === selectedVariantId)
+    const currentSellingPrice = selectedVariant
+        ? (Number(selectedVariant.price) || 0)
+        : (Number(selectedProduct?.price) || 0)
+    const measurementUnitLabel = getMeasurementShortLabel(getMeasurementModeFromProduct(selectedProduct))
 
     // Effect for Avg Cost & Selling Price
     const currentDepsKey = `${quantity}-${unitCost}-${selectedProductId}-${selectedVariantId}-${margin}-${pricingMode}-${fixedPrice}`
-    const prevDepsKey = useRef(currentDepsKey)
+    const [prevDepsKey, setPrevDepsKey] = useState(currentDepsKey)
 
-    if (currentDepsKey !== prevDepsKey.current) {
-        prevDepsKey.current = currentDepsKey
+    if (currentDepsKey !== prevDepsKey) {
+        setPrevDepsKey(currentDepsKey)
 
         if (selectedProduct) {
             const currentStock = selectedVariant ? selectedVariant.stock || 0 : selectedProduct.stock || 0
             const currentCost = selectedVariant
                 ? Number(selectedVariant.cost) || 0
                 : Number(selectedProduct.cost) || 0
-            const totalQty = currentStock + quantity
+            const safeQuantity = Number.isNaN(quantity) ? 0 : quantity
+            const totalQty = currentStock + safeQuantity
 
             let currentAvgCost = 0
             if (totalQty === 0) {
                 currentAvgCost = unitCost
             } else {
-                currentAvgCost = ((currentStock * currentCost) + (quantity * unitCost)) / totalQty
+                currentAvgCost = ((currentStock * currentCost) + (safeQuantity * unitCost)) / totalQty
             }
 
             const finalAvgCost = parseFloat(currentAvgCost.toFixed(2))
@@ -160,7 +165,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
             if (pricingMode === "PERCENTAGE") {
                 const price = finalAvgCost * (1 + (margin / 100))
                 setNewSellingPrice(parseFloat(price.toFixed(2)))
-            } else {
+            } else if (pricingMode === "FIXED") {
                 setNewSellingPrice(parseFloat(fixedPrice.toFixed(2)))
             }
         }
@@ -258,14 +263,14 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
             id: crypto.randomUUID(),
             productId: selectedProductId,
             productName: product.name,
-            variantId: selectedVariantId,
+            variantId: selectedVariantId || undefined,
             variantName: variant?.name,
             quantity,
             quantityType,
             unitCost,
             total: quantity * unitCost,
             newCost: avgCost,
-            newPrice: newSellingPrice
+            newPrice: pricingMode === "KEEP" ? undefined : newSellingPrice
         }
 
         setItems([...items, newItem])
@@ -275,7 +280,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
         setQuantity(1)
         setQuantityType("UNIT")
         setUnitCost(0)
-        setPricingMode("PERCENTAGE")
+        setPricingMode("KEEP")
         setMargin(30)
         setFixedPrice(0)
     }
@@ -499,35 +504,28 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Cantidad</Label>
-                                <div className="flex gap-2">
+                                <Label>Cantidad a sumar</Label>
+                                <div className="flex gap-2 items-center">
                                     <Input
                                         type="number"
-                                        min={quantityType === "MEASURE" ? "0.01" : "1"}
-                                        step={quantityType === "MEASURE" ? "0.01" : "1"}
+                                        min={quantityType === "MEASURE" ? "0" : "1"}
+                                        step={quantityType === "MEASURE" ? "any" : "1"}
                                         value={quantity}
                                         onChange={(e) => setQuantity(Number(e.target.value))}
                                         className="flex-1"
                                     />
-                                    <Select value={quantityType} onValueChange={(v: "UNIT" | "BOX" | "MEASURE") => setQuantityType(v)}>
-                                        <SelectTrigger className="w-[120px]">
-                                            <SelectValue placeholder="Tipo" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="UNIT">Unidad</SelectItem>
-                                            <SelectItem value="BOX">Caja</SelectItem>
-                                            <SelectItem value="MEASURE">Medida</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <span className="inline-flex items-center justify-center rounded-md border bg-muted px-3 h-9 text-sm text-muted-foreground font-medium select-none min-w-[3rem]">
+                                        {measurementUnitLabel}
+                                    </span>
                                 </div>
                                 {selectedProduct && !selectedVariant && (
                                     <p className="text-xs text-muted-foreground">
-                                        Stock actual: {formatQuantity(selectedProduct.stock)} | {getMeasurementLabel(getMeasurementModeFromProduct(selectedProduct))} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
+                                        Stock actual: {formatQuantity(selectedProduct.stock)} {measurementUnitLabel} → Nuevo stock: {formatQuantity(selectedProduct.stock + (Number.isNaN(quantity) ? 0 : quantity))} {measurementUnitLabel} | Costo Base: {formatCurrency(Number(selectedProduct.cost))}
                                     </p>
                                 )}
                                 {selectedVariant && (
                                     <p className="text-xs text-muted-foreground">
-                                        Variante: {selectedVariant.name} | Stock: {formatQuantity(selectedVariant.stock)} | Costo: {formatCurrency(Number(selectedVariant.cost))}
+                                        Variante: {selectedVariant.name} | Stock actual: {formatQuantity(selectedVariant.stock || 0)} {measurementUnitLabel} → Nuevo stock: {formatQuantity((selectedVariant.stock || 0) + (Number.isNaN(quantity) ? 0 : quantity))} {measurementUnitLabel} | Costo Base: {formatCurrency(Number(selectedVariant.cost))}
                                     </p>
                                 )}
                             </div>
@@ -536,7 +534,7 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 <Input
                                     type="number"
                                     min="0"
-                                    step="0.01"
+                                    step="any"
                                     value={unitCost}
                                     onChange={(e) => setUnitCost(Number(e.target.value))}
                                 />
@@ -567,7 +565,15 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 {/* Pricing Mode Selector */}
                                 <div className="flex items-center gap-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                                     <Label className="text-sm font-medium">Modo de Precio:</Label>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            type="button"
+                                            variant={pricingMode === "KEEP" ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => setPricingMode("KEEP")}
+                                        >
+                                            Mantener precio actual
+                                        </Button>
                                         <Button
                                             type="button"
                                             variant={pricingMode === "PERCENTAGE" ? "default" : "outline"}
@@ -588,12 +594,15 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                 </div>
 
                                 {/* Calculation Fields */}
-                                <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg border">
+                                <div className={cn(
+                                    "grid gap-4 p-4 bg-muted/50 rounded-lg border",
+                                    pricingMode === "KEEP" ? "grid-cols-2" : "grid-cols-3"
+                                )}>
                                     <div className="space-y-2">
                                         <Label className="text-xs">Nuevo Costo Promedio</Label>
                                         <Input
                                             type="number"
-                                            step="0.01"
+                                            step="any"
                                             value={avgCost}
                                             onChange={(e) => setAvgCost(Number(e.target.value))}
                                             className="h-8 text-sm"
@@ -603,51 +612,69 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                         </p>
                                     </div>
 
-                                    {pricingMode === "PERCENTAGE" ? (
+                                    {pricingMode === "KEEP" ? (
                                         <div className="space-y-2">
-                                            <Label className="text-xs text-blue-600">% Ganancia</Label>
+                                            <Label className="text-xs">Precio de venta (se mantiene)</Label>
                                             <Input
-                                                type="number"
-                                                value={margin}
-                                                onChange={(e) => setMargin(Number(e.target.value))}
-                                                className="h-8 text-sm"
+                                                readOnly
+                                                value={formatCurrency(currentSellingPrice)}
+                                                className="h-8 text-sm bg-muted"
                                             />
                                             <p className="text-[10px] text-muted-foreground">
-                                                Precio = Costo promedio × (1 + {margin}%)
+                                                {avgCost > 0
+                                                    ? `Margen actual: ${((currentSellingPrice - avgCost) / avgCost * 100).toFixed(1)}%`
+                                                    : "Precio sin cambios"}
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-2">
-                                            <Label className="text-xs text-purple-600">Precio Fijo</Label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={fixedPrice}
-                                                onChange={(e) => setFixedPrice(Number(e.target.value))}
-                                                className="h-8 text-sm"
-                                            />
-                                            <p className="text-[10px] text-muted-foreground">
-                                                Precio manual sin cálculo
-                                            </p>
-                                        </div>
-                                    )}
+                                        <>
+                                            {pricingMode === "PERCENTAGE" ? (
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-blue-600">% Ganancia</Label>
+                                                    <Input
+                                                        type="number"
+                                                        step="any"
+                                                        value={margin}
+                                                        onChange={(e) => setMargin(Number(e.target.value))}
+                                                        className="h-8 text-sm"
+                                                    />
+                                                    <p className="text-[10px] text-muted-foreground">
+                                                        Precio = Costo promedio × (1 + {margin}%)
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-purple-600">Precio Fijo</Label>
+                                                    <Input
+                                                        type="number"
+                                                        step="any"
+                                                        value={fixedPrice}
+                                                        onChange={(e) => setFixedPrice(Number(e.target.value))}
+                                                        className="h-8 text-sm"
+                                                    />
+                                                    <p className="text-[10px] text-muted-foreground">
+                                                        Precio manual sin cálculo
+                                                    </p>
+                                                </div>
+                                            )}
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-bold text-green-700">Precio Venta Sugerido</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={newSellingPrice}
-                                            onChange={(e) => setNewSellingPrice(Number(e.target.value))}
-                                            className="h-8 text-sm font-bold text-green-700"
-                                        />
-                                        <p className="text-[10px] text-muted-foreground">
-                                            {pricingMode === "PERCENTAGE"
-                                                ? `Margen: ${((newSellingPrice - avgCost) / avgCost * 100).toFixed(1)}%`
-                                                : `Margen: ${avgCost > 0 ? ((newSellingPrice - avgCost) / avgCost * 100).toFixed(1) : 0}%`
-                                            }
-                                        </p>
-                                    </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-bold text-green-700">Precio Venta Sugerido</Label>
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    value={newSellingPrice}
+                                                    onChange={(e) => setNewSellingPrice(Number(e.target.value))}
+                                                    className="h-8 text-sm font-bold text-green-700"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    {avgCost > 0
+                                                        ? `Margen: ${((newSellingPrice - avgCost) / avgCost * 100).toFixed(1)}%`
+                                                        : "Margen: 0%"}
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -685,25 +712,33 @@ export default function PurchaseForm({ suppliers: initialSuppliers, products: in
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {items.map((item, index) => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{item.productName}</TableCell>
-                                    <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
-                                    <TableCell className="text-right">
-                                        {item.quantityType === "UNIT" && "Unidad"}
-                                        {item.quantityType === "BOX" && "Caja"}
-                                        {item.quantityType === "MEASURE" && "Medida"}
-                                    </TableCell>
-                                    <TableCell className="text-right">{formatCurrency(item.unitCost)}</TableCell>
-                                    <TableCell className="text-right text-xs text-muted-foreground">{item.newPrice ? formatCurrency(item.newPrice) : '-'}</TableCell>
-                                    <TableCell className="text-right font-bold">{formatCurrency(item.total)}</TableCell>
-                                    <TableCell>
-                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                                            <Trash2 className="h-4 w-4 text-red-500" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {items.map((item, index) => {
+                                const itemProduct = products.find(p => p.id === item.productId)
+                                const itemVariant = item.variantId ? itemProduct?.variants?.find(v => v.id === item.variantId) : undefined
+                                const currentPrice = itemVariant ? (Number(itemVariant.price) || 0) : (Number(itemProduct?.price) || 0)
+
+                                return (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.productName}</TableCell>
+                                        <TableCell className="text-right">{formatQuantity(item.quantity)}</TableCell>
+                                        <TableCell className="text-right">
+                                            {getMeasurementShortLabel(getMeasurementModeFromProduct(itemProduct))}
+                                        </TableCell>
+                                        <TableCell className="text-right">{formatCurrency(item.unitCost)}</TableCell>
+                                        <TableCell className="text-right text-xs text-muted-foreground">
+                                            {typeof item.newPrice === "number"
+                                                ? formatCurrency(item.newPrice)
+                                                : (currentPrice > 0 ? `${formatCurrency(currentPrice)} (Sin cambio)` : "Sin cambio")}
+                                        </TableCell>
+                                        <TableCell className="text-right font-bold">{formatCurrency(item.total)}</TableCell>
+                                        <TableCell>
+                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })}
                         </TableBody>
                     </Table>
 
