@@ -24,10 +24,12 @@ import { createProduct, updateProduct } from "@/actions/product-actions"
 import {
     getMeasurementLabel,
     getMeasurementModeFromProduct,
+    getMeasurementShortLabel,
     isMeasuredMode,
     PRODUCT_MEASUREMENT_OPTIONS,
     type ProductMeasurementMode,
 } from "@/lib/product-measurements"
+import { formatQuantity } from "@/lib/utils"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
 import type { Product, ProductCharacteristic } from "@/types"
@@ -86,9 +88,12 @@ function SubmitButton({ isEdit }: { isEdit: boolean }) {
 
 export function ProductDialog({ product }: { product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string } }) {
     const [open, setOpen] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
     const [measurementMode, setMeasurementMode] = useState<ProductMeasurementMode>(() => getMeasurementModeFromProduct(product))
+    const [stockMode, setStockMode] = useState<"ADD" | "SET">("ADD")
+    const [stockToAdd, setStockToAdd] = useState<string>("")
 
     // Price/Cost/Margin State
     const initialCost = product?.cost || 0
@@ -126,24 +131,30 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (nextOpen) {
-        const nextCategory = product?.category || "ARTICULO"
-        const nextMeasurementMode = getMeasurementModeFromProduct(product)
-        const nextCost = product?.cost || 0
-        const nextPrice = product?.price || 0
+            setErrorMessage(null)
+            const nextCategory = product?.category || "ARTICULO"
+            const nextMeasurementMode = getMeasurementModeFromProduct(product)
+            const nextCost = product?.cost || 0
+            const nextPrice = product?.price || 0
 
-        setCategory(nextCategory)
-        setMeasurementMode(nextMeasurementMode)
-        setCost(nextCost)
-        setPrice(nextPrice)
-        setMargin(calculateMargin(nextCost, nextPrice))
-        setVariants(getInitialVariants(product))
-        setCharacteristics(getInitialCharacteristics(product))
+            setCategory(nextCategory)
+            setMeasurementMode(nextMeasurementMode)
+            setCost(nextCost)
+            setPrice(nextPrice)
+            setMargin(calculateMargin(nextCost, nextPrice))
+            setVariants(getInitialVariants(product))
+            setCharacteristics(getInitialCharacteristics(product))
+            setStockMode("ADD")
+            setStockToAdd("")
         }
 
         setOpen(nextOpen)
     }
 
-    const stockInputStep = isMeasuredMode(measurementMode) ? "0.01" : "1"
+    const stockInputStep = isMeasuredMode(measurementMode) ? "any" : "1"
+    const unit = getMeasurementShortLabel(measurementMode)
+    const currentStock = Number(product?.stock || 0)
+    const parsedStockToAdd = parseFloat(stockToAdd) || 0
 
     const addVariant = () => {
         setVariants([...variants, { clientKey: crypto.randomUUID(), name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
@@ -214,17 +225,36 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         }
                     }
                     formData.set("characteristics", JSON.stringify(completedCharacteristics))
-                    // Ensure price/cost are set from state if controlled
-                    // But input fields with name attribute will override?
-                    // Best to use hidden inputs or ensure inputs have correct values
+
+                    let result: { message?: string; error?: string; errors?: Record<string, string[] | undefined> }
                     if (isEdit && product) {
-                        await updateProduct(product.id, null, formData)
+                        result = await updateProduct(product.id, null, formData)
                     } else {
-                        await createProduct(null, formData)
+                        result = await createProduct(null, formData)
                     }
+
+                    if (result?.error) {
+                        setErrorMessage(result.error)
+                        return
+                    }
+
+                    if (result?.errors) {
+                        const firstKey = Object.keys(result.errors)[0]
+                        const fieldErrors = firstKey ? result.errors[firstKey] : null
+                        const firstMsg = fieldErrors && fieldErrors.length > 0 ? fieldErrors[0] : "Error de validación"
+                        setErrorMessage(firstMsg)
+                        return
+                    }
+
+                    setErrorMessage(null)
                     setOpen(false)
                 }}>
                     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                        {errorMessage && (
+                            <p className="text-sm text-destructive" role="alert">
+                                {errorMessage}
+                            </p>
+                        )}
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="category" className="text-right">Categoría</Label>
                             <div className="col-span-3">
@@ -279,7 +309,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 id="cost"
                                 name="cost"
                                 type="number"
-                                step="0.01"
+                                step="any"
+                                min="0"
                                 value={cost}
                                 onChange={(e) => handleCostChange(parseFloat(e.target.value) || 0)}
                                 className="col-span-3"
@@ -291,7 +322,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 <Input
                                     id="margin"
                                     type="number"
-                                    step="0.1"
+                                    step="any"
                                     value={margin}
                                     onChange={(e) => handleMarginChange(parseFloat(e.target.value) || 0)}
                                     className="w-24"
@@ -305,7 +336,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 id="price"
                                 name="price"
                                 type="number"
-                                step="0.01"
+                                step="any"
+                                min="0"
                                 value={price}
                                 onChange={(e) => handlePriceChange(parseFloat(e.target.value) || 0)}
                                 className="col-span-3 font-bold"
@@ -314,10 +346,85 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         </div>
 
                         {category !== "SERVICIO" && variants.length === 0 && (
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="stock" className="text-right">Stock</Label>
-                                <Input id="stock" name="stock" type="number" step={stockInputStep} defaultValue={product?.stock || 0} className="col-span-3" />
-                            </div>
+                            isEdit && product ? (
+                                stockMode === "ADD" ? (
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                        <Label htmlFor="stockToAdd" className="text-right pt-2">
+                                            Cantidad a sumar
+                                        </Label>
+                                        <div className="col-span-3 space-y-2">
+                                            <input type="hidden" name="stockMode" value="ADD" />
+                                            <input type="hidden" name="stock" value={product.stock} />
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-muted-foreground">
+                                                    Stock actual: {formatQuantity(product.stock)} {unit}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-xs text-blue-600 hover:text-blue-800 hover:bg-transparent"
+                                                    onClick={() => setStockMode("SET")}
+                                                >
+                                                    Corregir stock total
+                                                </Button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    id="stockToAdd"
+                                                    name="stockToAdd"
+                                                    type="number"
+                                                    min="0"
+                                                    step={stockInputStep}
+                                                    value={stockToAdd}
+                                                    onChange={(e) => setStockToAdd(e.target.value)}
+                                                    placeholder="0"
+                                                />
+                                                <span className="text-sm text-muted-foreground whitespace-nowrap">{unit}</span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Nuevo stock: {formatQuantity(currentStock + parsedStockToAdd)} {unit}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                        <Label htmlFor="stock" className="text-right pt-2">
+                                            Stock total
+                                        </Label>
+                                        <div className="col-span-3 space-y-2">
+                                            <input type="hidden" name="stockMode" value="SET" />
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    id="stock"
+                                                    name="stock"
+                                                    type="number"
+                                                    min="0"
+                                                    step={stockInputStep}
+                                                    defaultValue={product.stock || 0}
+                                                />
+                                                <span className="text-sm text-muted-foreground whitespace-nowrap">{unit}</span>
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-xs text-blue-600 hover:text-blue-800 hover:bg-transparent"
+                                                    onClick={() => setStockMode("ADD")}
+                                                >
+                                                    Volver a sumar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="stock" className="text-right">Stock</Label>
+                                    <Input id="stock" name="stock" type="number" min="0" step={stockInputStep} defaultValue={0} className="col-span-3" />
+                                </div>
+                            )
                         )}
                         {category === "SERVICIO" && <input type="hidden" name="stock" value="0" />}
 
@@ -413,6 +520,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs text-muted-foreground">Costo</Label>
                                                     <Input
                                                         type="number"
+                                                        step="any"
+                                                        min="0"
                                                         value={variant.cost}
                                                         onChange={(e) => updateVariant(index, "cost", parseFloat(e.target.value))}
                                                         className="h-8 text-sm"
@@ -422,6 +531,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs font-bold text-green-700">Precio</Label>
                                                     <Input
                                                         type="number"
+                                                        step="any"
+                                                        min="0"
                                                         value={variant.price}
                                                         onChange={(e) => updateVariant(index, "price", parseFloat(e.target.value))}
                                                         className="h-8 text-sm font-bold"
@@ -431,6 +542,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs">Stock</Label>
                                                     <Input
                                                         type="number"
+                                                        min="0"
                                                         step={stockInputStep}
                                                         value={variant.stock}
                                                         onChange={(e) => updateVariant(index, "stock", Number(e.target.value) || 0)}

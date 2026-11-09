@@ -3,7 +3,7 @@
 import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { isMeasuredMode } from "@/lib/product-measurements"
-import type { InvoiceItem } from "@/types"
+import type { InvoiceItem, InvoicePayment } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
@@ -412,6 +412,36 @@ export async function getInvoiceById(id: string) {
         measurementUnit: item.productId ? productsMap[item.productId]?.measurementUnit : null
     }))
 
+    let payments: InvoicePayment[] = []
+    try {
+        const { data: paymentRows, error: paymentsError } = await insforge.database
+            .from('Payment')
+            .select('id, amount, method, reference, date, createdAt')
+            .eq('invoiceId', id)
+            .order('date', { ascending: true })
+
+        if (paymentsError) {
+            console.error(`Failed to load payments for invoice ${id}:`, paymentsError)
+        } else if (paymentRows) {
+            payments = paymentRows.map((payment: {
+                id: string
+                amount: number | string
+                method: string
+                reference?: string | null
+                date?: string | null
+                createdAt?: string | null
+            }) => ({
+                id: payment.id,
+                amount: Number(payment.amount),
+                method: payment.method,
+                reference: payment.reference ?? null,
+                date: payment.date || payment.createdAt || ''
+            }))
+        }
+    } catch (err) {
+        console.error(`Unexpected error loading payments for invoice ${id}:`, err)
+    }
+
     return {
         ...invoice,
         total: Number(invoice.total),
@@ -420,7 +450,8 @@ export async function getInvoiceById(id: string) {
         tax: invoice.tax ? Number(invoice.tax) : 0,
         discount: Number(invoice.discount ?? 0),
         hasNcf: invoice.hasNcf,
-        items: enrichedItems
+        items: enrichedItems,
+        payments
     }
 }
 
