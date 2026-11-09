@@ -15,6 +15,7 @@ Users previously created duplicate products with identical or slightly differing
 - T6 — DB merge of 7 duplicate product groups + unique index on normalized name — run by the orchestrator after user approval.
 - T7 — Purchase form: add-to-stock UX, unit from product, keep current price mode.
 - T8 — Product edit dialog: add-to-stock mode.
+- T9 — Show partial payments (abonos) on invoice ticket and A4 templates, loaded in getInvoiceById.
 
 ## Constraints
 - All user-facing UI copy in Spanish (existing project convention).
@@ -36,5 +37,10 @@ Users previously created duplicate products with identical or slightly differing
 - [x] T4 `components/modules/invoices/invoice-form.tsx`: editable unit price input per line (commit 03862f2)
 - [x] T5 `odd/tasks/product-dedupe-line-price.md`: task specification document (commit 03862f2)
 - [x] T6 DB merge of 7 duplicate product groups + unique index on normalized name — run by the orchestrator after user approval (T6 DB merge done 2026-11-09: 8 duplicate rows removed, 175->167 products, unique index product_name_normalized_unique)
-- [ ] T7 Purchase form: add-to-stock UX, unit from product, keep current price mode
-- [ ] T8 Product edit dialog: add-to-stock mode
+- [x] T7 Purchase form: add-to-stock UX, unit from product, keep current price mode (commit 93a715f)
+- [x] T8 Product edit dialog: add-to-stock mode (commit 62d9e28)
+- [x] T9 Show partial payments (abonos) on invoice ticket and A4 templates, loaded in getInvoiceById
+
+## Data changes (2026-11-09)
+- Supplier 'Compra interna' created.
+- +100000 cm stock added to product bf019b4d (rolling door, CENTIMETERS).

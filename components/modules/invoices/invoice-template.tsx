@@ -2,6 +2,8 @@ import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { calculateDerivedInvoiceDiscount, calculateInvoiceSubtotal } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
+import { formatPaymentMethod } from "@/lib/payment-methods"
+import type { InvoicePayment } from "@/types"
 
 interface InvoiceTemplateProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +30,8 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
     const balance = Number(invoice.balance || 0)
     const fiscalType = invoice.ncf?.startsWith("B01") ? "Crédito Fiscal" : (invoice.ncfType || "Consumo")
+    const payments: InvoicePayment[] = Array.isArray(invoice.payments) ? invoice.payments : []
+    const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0)
 
     // Helper for Santo Domingo timezone date
     const formatDate = (date: Date | string) => {
@@ -159,22 +163,51 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
 
             {/* Payment Details */}
             <div className="border-t border-dashed border-black my-2"></div>
-            <div className="text-right space-y-1">
+            <div className="space-y-1">
                 <div className="flex justify-between">
                     <span>Estado:</span>
                     <span className="font-bold">{invoice.status === 'PAID' ? 'PAGADO' : 'PENDIENTE'}</span>
                 </div>
-                {invoice.status === 'PENDING' && (
+                {payments.length > 0 ? (
                     <>
-                        <div className="flex justify-between">
-                            <span>Abonado:</span>
-                            <span>{formatCurrency(total - balance)}</span>
+                        <div className="border-t border-dashed border-black my-2"></div>
+                        <div className="font-bold text-xs uppercase mb-1">Abonos</div>
+                        <div className="space-y-1 text-xs">
+                            {payments.map((p) => (
+                                <div key={p.id} className="flex justify-between items-start">
+                                    <div className="text-left">
+                                        <span>{p.date ? formatDate(p.date) : ""} - {formatPaymentMethod(p.method)}</span>
+                                        {p.reference && (
+                                            <span className="block text-[11px] text-gray-600">Ref: {p.reference}</span>
+                                        )}
+                                    </div>
+                                    <span className="font-medium">{formatCurrency(Number(p.amount))}</span>
+                                </div>
+                            ))}
                         </div>
-                        <div className="flex justify-between font-bold text-base mt-2">
+                        <div className="border-t border-dashed border-black my-1"></div>
+                        <div className="flex justify-between text-xs">
+                            <span>Total abonado:</span>
+                            <span className="font-medium">{formatCurrency(totalPaid)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-base mt-1">
                             <span>RESTA:</span>
                             <span>{formatCurrency(balance)}</span>
                         </div>
                     </>
+                ) : (
+                    invoice.status === 'PENDING' && (
+                        <>
+                            <div className="flex justify-between">
+                                <span>Abonado:</span>
+                                <span>{formatCurrency(total - balance)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-base mt-2">
+                                <span>RESTA:</span>
+                                <span>{formatCurrency(balance)}</span>
+                            </div>
+                        </>
+                    )
                 )}
             </div>
 

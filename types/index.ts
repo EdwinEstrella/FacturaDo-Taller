@@ -63,6 +63,14 @@ export interface InvoiceItem {
     createdAt: string
 }
 
+export interface InvoicePayment {
+    id: string
+    amount: number
+    method: string
+    reference?: string | null
+    date: string
+}
+
 export interface Invoice {
     id: string
     clientId: string | null
@@ -84,6 +92,7 @@ export interface Invoice {
     createdById: string
     creatorName: string | null
     sequenceNumber: number
+    payments?: InvoicePayment[]
 }
 
 export interface QuoteItem {

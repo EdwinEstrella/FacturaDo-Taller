@@ -4,6 +4,8 @@ import { formatCurrency, formatQuantity } from "@/lib/utils"
 import { getMeasurementModeFromProduct, getMeasurementShortLabel } from "@/lib/product-measurements"
 import { calculateDerivedInvoiceDiscount } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
+import { formatPaymentMethod } from "@/lib/payment-methods"
+import type { InvoicePayment } from "@/types"
 
 interface InvoiceOdooTemplateProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +38,18 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
   const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
   const balance = Number(invoice.balance ?? 0)
   const isPending = invoice.status === "PENDING" || balance > 0
+  const payments: InvoicePayment[] = Array.isArray(invoice.payments) ? invoice.payments : []
+  const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0)
+
+  const formatPaymentDate = (date: string | null | undefined) => {
+    if (!date) return ""
+    try {
+      const d = new Date(date)
+      return isNaN(d.getTime()) ? date : format(d, "dd/MM/yyyy")
+    } catch {
+      return date
+    }
+  }
   const documentNumber = `#${String(invoice.sequenceNumber ?? "").padStart(6, "0")}`
   const clientName = invoice.clientName || invoice.client?.name || "Consumidor Final"
   const clientIdentifier = invoice.client?.rnc || invoice.clientRnc || invoice.client?.cedula
@@ -224,11 +238,42 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
                 <span>{formatCurrency(total)}</span>
               </div>
             </div>
-            {isPending && (
-              <div className="mt-2 flex justify-between text-[12px] font-black">
-                <span>Pendiente</span>
-                <span>{formatCurrency(balance)}</span>
+            {payments.length > 0 ? (
+              <div className="mt-3 border-t border-[#5a9bc0] pt-2">
+                <div className="mb-1 text-[12px] font-black uppercase text-[#315f8a]">
+                  Abonos
+                </div>
+                <div className="space-y-1">
+                  {payments.map((p) => (
+                    <div key={p.id} className="flex justify-between py-[2px] text-[11px]">
+                      <span className="text-[#4b5563]">
+                        {formatPaymentDate(p.date)} - {formatPaymentMethod(p.method)}
+                        {p.reference ? ` (${p.reference})` : ""}
+                      </span>
+                      <span className="font-medium text-[#18212b]">
+                        {formatCurrency(Number(p.amount))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 border-t border-gray-200 pt-1">
+                  <div className="flex justify-between py-[3px] text-[11px]">
+                    <span className="text-[#4b5563]">Total abonado</span>
+                    <span className="font-medium text-[#18212b]">{formatCurrency(totalPaid)}</span>
+                  </div>
+                  <div className="flex justify-between py-[3px] text-[12px] font-black">
+                    <span>Pendiente</span>
+                    <span>{formatCurrency(balance)}</span>
+                  </div>
+                </div>
               </div>
+            ) : (
+              isPending && (
+                <div className="mt-2 flex justify-between text-[12px] font-black">
+                  <span>Pendiente</span>
+                  <span>{formatCurrency(balance)}</span>
+                </div>
+              )
             )}
           </div>
         </section>
