@@ -229,6 +229,23 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         }))
     }
 
+    const updatePrice = (lineId: string, value: string) => {
+        setItems((current) => current.map((item) => {
+            if (item.lineId !== lineId) return item
+
+            if (value === "") {
+                return { ...item, price: 0 }
+            }
+
+            const parsed = Number(value)
+            if (!Number.isFinite(parsed) || parsed < 0) {
+                return item
+            }
+
+            return { ...item, price: parsed }
+        }))
+    }
+
     const addCharacteristic = (lineId: string) => {
         setItems((currentItems) => currentItems.map((item) => (
             item.lineId === lineId
@@ -666,12 +683,36 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                             <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} x {formatQuantity(Number(item.quantity || 0))} {getMeasurementShortLabel(item.measurementMode)}</p>
                                         </div>
                                         <div className="flex items-center space-x-2">
+                                            <div className="flex items-center space-x-1">
+                                                <span className="text-xs text-muted-foreground font-medium">RD$</span>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    aria-label="Precio unitario"
+                                                    value={item.price}
+                                                    onChange={(e) => updatePrice(item.lineId, e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault()
+                                                            e.stopPropagation()
+                                                        }
+                                                    }}
+                                                    className="w-28 h-8"
+                                                />
+                                            </div>
                                             <Input
                                                 type="number"
                                                 step={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                                 min={isMeasuredMode(item.measurementMode) ? "0.01" : "1"}
                                                 value={item.quantity}
                                                 onChange={(e) => updateQuantity(item.lineId, e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault()
+                                                        e.stopPropagation()
+                                                    }
+                                                }}
                                                 className="w-24 h-8"
                                             />
                                             <div className="font-bold min-w-28 text-right px-2">

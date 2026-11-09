@@ -86,6 +86,7 @@ function SubmitButton({ isEdit }: { isEdit: boolean }) {
 
 export function ProductDialog({ product }: { product?: Omit<Product, 'price' | 'cost'> & { price: number; cost: number; unitType?: string } }) {
     const [open, setOpen] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
     const [measurementMode, setMeasurementMode] = useState<ProductMeasurementMode>(() => getMeasurementModeFromProduct(product))
@@ -126,24 +127,25 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (nextOpen) {
-        const nextCategory = product?.category || "ARTICULO"
-        const nextMeasurementMode = getMeasurementModeFromProduct(product)
-        const nextCost = product?.cost || 0
-        const nextPrice = product?.price || 0
+            setErrorMessage(null)
+            const nextCategory = product?.category || "ARTICULO"
+            const nextMeasurementMode = getMeasurementModeFromProduct(product)
+            const nextCost = product?.cost || 0
+            const nextPrice = product?.price || 0
 
-        setCategory(nextCategory)
-        setMeasurementMode(nextMeasurementMode)
-        setCost(nextCost)
-        setPrice(nextPrice)
-        setMargin(calculateMargin(nextCost, nextPrice))
-        setVariants(getInitialVariants(product))
-        setCharacteristics(getInitialCharacteristics(product))
+            setCategory(nextCategory)
+            setMeasurementMode(nextMeasurementMode)
+            setCost(nextCost)
+            setPrice(nextPrice)
+            setMargin(calculateMargin(nextCost, nextPrice))
+            setVariants(getInitialVariants(product))
+            setCharacteristics(getInitialCharacteristics(product))
         }
 
         setOpen(nextOpen)
     }
 
-    const stockInputStep = isMeasuredMode(measurementMode) ? "0.01" : "1"
+    const stockInputStep = isMeasuredMode(measurementMode) ? "any" : "1"
 
     const addVariant = () => {
         setVariants([...variants, { clientKey: crypto.randomUUID(), name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
@@ -214,17 +216,36 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         }
                     }
                     formData.set("characteristics", JSON.stringify(completedCharacteristics))
-                    // Ensure price/cost are set from state if controlled
-                    // But input fields with name attribute will override?
-                    // Best to use hidden inputs or ensure inputs have correct values
+
+                    let result: { message?: string; error?: string; errors?: Record<string, string[] | undefined> }
                     if (isEdit && product) {
-                        await updateProduct(product.id, null, formData)
+                        result = await updateProduct(product.id, null, formData)
                     } else {
-                        await createProduct(null, formData)
+                        result = await createProduct(null, formData)
                     }
+
+                    if (result?.error) {
+                        setErrorMessage(result.error)
+                        return
+                    }
+
+                    if (result?.errors) {
+                        const firstKey = Object.keys(result.errors)[0]
+                        const fieldErrors = firstKey ? result.errors[firstKey] : null
+                        const firstMsg = fieldErrors && fieldErrors.length > 0 ? fieldErrors[0] : "Error de validación"
+                        setErrorMessage(firstMsg)
+                        return
+                    }
+
+                    setErrorMessage(null)
                     setOpen(false)
                 }}>
                     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                        {errorMessage && (
+                            <p className="text-sm text-destructive" role="alert">
+                                {errorMessage}
+                            </p>
+                        )}
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="category" className="text-right">Categoría</Label>
                             <div className="col-span-3">
@@ -279,7 +300,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 id="cost"
                                 name="cost"
                                 type="number"
-                                step="0.01"
+                                step="any"
+                                min="0"
                                 value={cost}
                                 onChange={(e) => handleCostChange(parseFloat(e.target.value) || 0)}
                                 className="col-span-3"
@@ -291,7 +313,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 <Input
                                     id="margin"
                                     type="number"
-                                    step="0.1"
+                                    step="any"
                                     value={margin}
                                     onChange={(e) => handleMarginChange(parseFloat(e.target.value) || 0)}
                                     className="w-24"
@@ -305,7 +327,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                 id="price"
                                 name="price"
                                 type="number"
-                                step="0.01"
+                                step="any"
+                                min="0"
                                 value={price}
                                 onChange={(e) => handlePriceChange(parseFloat(e.target.value) || 0)}
                                 className="col-span-3 font-bold"
@@ -316,7 +339,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         {category !== "SERVICIO" && variants.length === 0 && (
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="stock" className="text-right">Stock</Label>
-                                <Input id="stock" name="stock" type="number" step={stockInputStep} defaultValue={product?.stock || 0} className="col-span-3" />
+                                <Input id="stock" name="stock" type="number" min="0" step={stockInputStep} defaultValue={product?.stock || 0} className="col-span-3" />
                             </div>
                         )}
                         {category === "SERVICIO" && <input type="hidden" name="stock" value="0" />}
@@ -413,6 +436,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs text-muted-foreground">Costo</Label>
                                                     <Input
                                                         type="number"
+                                                        step="any"
+                                                        min="0"
                                                         value={variant.cost}
                                                         onChange={(e) => updateVariant(index, "cost", parseFloat(e.target.value))}
                                                         className="h-8 text-sm"
@@ -422,6 +447,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs font-bold text-green-700">Precio</Label>
                                                     <Input
                                                         type="number"
+                                                        step="any"
+                                                        min="0"
                                                         value={variant.price}
                                                         onChange={(e) => updateVariant(index, "price", parseFloat(e.target.value))}
                                                         className="h-8 text-sm font-bold"
@@ -431,6 +458,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                                     <Label className="text-xs">Stock</Label>
                                                     <Input
                                                         type="number"
+                                                        min="0"
                                                         step={stockInputStep}
                                                         value={variant.stock}
                                                         onChange={(e) => updateVariant(index, "stock", Number(e.target.value) || 0)}

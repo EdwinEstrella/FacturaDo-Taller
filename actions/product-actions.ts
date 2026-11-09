@@ -3,16 +3,17 @@
 
 import { requireAuth } from "@/actions/auth-actions";
 import { createServerClient } from "@/lib/insforge/client"
+import { cleanProductName, normalizeProductName } from "@/lib/product-name"
 import { measurementModeToPersistence, type ProductMeasurementMode } from "@/lib/product-measurements"
 import type { ProductCharacteristic, ProductUpdate, ProductVariant } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "@/actions/auth-actions"
 
-
+type DatabaseClient = ReturnType<typeof createServerClient>
 
 const ProductSchema = z.object({
-    name: z.string().min(1),
+    name: z.string().transform(cleanProductName).pipe(z.string().min(1)),
     description: z.string().optional(),
     price: z.coerce.number().min(0),
     cost: z.coerce.number().min(0).optional(),
@@ -40,6 +41,30 @@ const ProductCharacteristicsSchema = z.array(z.object({
 
 function parseCharacteristics(value: string | undefined): ProductCharacteristic[] {
     return ProductCharacteristicsSchema.parse(JSON.parse(value || "[]"))
+}
+
+async function findDuplicateProductName(
+    insforge: DatabaseClient,
+    name: string,
+    excludeId?: string
+): Promise<string | null> {
+    const { data, error } = await insforge.database
+        .from('Product')
+        .select('id, name')
+
+    if (error) {
+        throw new Error(error.message || "Failed to check for duplicate product name")
+    }
+
+    const targetNormalized = normalizeProductName(name)
+    const duplicate = (data || []).find((row: { id: string; name: string }) => {
+        if (excludeId && row.id === excludeId) {
+            return false
+        }
+        return row.name ? normalizeProductName(row.name) === targetNormalized : false
+    })
+
+    return duplicate ? duplicate.name : null
 }
 
 export async function createProduct(prevState: unknown, formData: FormData) {
@@ -73,6 +98,13 @@ export async function createProduct(prevState: unknown, formData: FormData) {
     const insforge = createServerClient()
 
     try {
+        const existingName = await findDuplicateProductName(insforge, validatedFields.data.name)
+        if (existingName) {
+            return {
+                error: `Ya existe un producto llamado "${existingName}". Usa ese producto y ajusta el precio en la factura o cotización.`
+            }
+        }
+
         const { category, variants, measurementMode, characteristics, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const parsedCharacteristics = parseCharacteristics(characteristics)
@@ -132,7 +164,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
         return { message: "Producto creado correctamente" }
     } catch (e) {
         console.error(e)
-        return { message: "Failed to create product" }
+        return { error: "No se pudo guardar el producto" }
     }
 }
 
@@ -205,6 +237,13 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
     const insforge = createServerClient()
 
     try {
+        const existingName = await findDuplicateProductName(insforge, validatedFields.data.name, id)
+        if (existingName) {
+            return {
+                error: `Ya existe un producto llamado "${existingName}". Usa ese producto y ajusta el precio en la factura o cotización.`
+            }
+        }
+
         const { category, variants, measurementMode, characteristics, ...rest } = validatedFields.data
         const parsedVariants = variants ? JSON.parse(variants) : []
         const parsedCharacteristics = parseCharacteristics(characteristics)
@@ -300,7 +339,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
         return { message: "Producto actualizado correctamente" }
     } catch (e) {
         console.error(e)
-        return { message: "Error al actualizar producto" }
+        return { error: "No se pudo guardar el producto" }
     }
 }
 
