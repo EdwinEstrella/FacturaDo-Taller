@@ -34,6 +34,14 @@ const ProductSchema = z.object({
     }
 })
 
+const StockAdjustmentSchema = z.object({
+    stockMode: z.enum(["ADD", "SET"]).default("SET"),
+    stockToAdd: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined ? 0 : val),
+        z.coerce.number().min(0).default(0)
+    ),
+})
+
 const ProductCharacteristicsSchema = z.array(z.object({
     label: z.string().trim().min(1),
     value: z.string().trim().min(1),
@@ -234,6 +242,21 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
         return { errors: validatedFields.error.flatten().fieldErrors }
     }
 
+    const stockAdjustment = StockAdjustmentSchema.safeParse({
+        stockMode: formData.get("stockMode") || undefined,
+        stockToAdd: formData.get("stockToAdd") ?? undefined,
+    })
+
+    if (!stockAdjustment.success) {
+        return { errors: stockAdjustment.error.flatten().fieldErrors }
+    }
+
+    const { stockMode, stockToAdd } = stockAdjustment.data
+
+    if (validatedFields.data.measurementMode === "UNIT" && !Number.isInteger(stockToAdd)) {
+        return { error: "Los productos por unidad requieren cantidades enteras" }
+    }
+
     const insforge = createServerClient()
 
     try {
@@ -254,9 +277,24 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
             return { error: "Los productos por unidad requieren stock entero en cada variación" }
         }
 
-        const totalStock = hasVariants
+        let totalStock = hasVariants
             ? parsedVariants.reduce((acc: number, v: Record<string, unknown>) => acc + (Number(v.stock) || 0), 0)
             : rest.stock
+
+        if (stockMode === "ADD" && !hasVariants) {
+            const { data: currentProduct, error: currentProductError } = await insforge.database
+                .from('Product')
+                .select('stock')
+                .eq('id', id)
+                .single()
+
+            if (currentProductError || !currentProduct) {
+                return { error: "No se pudo leer el stock actual" }
+            }
+
+            const currentStock = (currentProduct as { stock?: number | string | null }).stock
+            totalStock = Number(currentStock || 0) + stockToAdd
+        }
 
         const updateData: ProductUpdate = {
             ...rest,

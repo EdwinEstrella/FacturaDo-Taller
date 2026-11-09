@@ -24,10 +24,12 @@ import { createProduct, updateProduct } from "@/actions/product-actions"
 import {
     getMeasurementLabel,
     getMeasurementModeFromProduct,
+    getMeasurementShortLabel,
     isMeasuredMode,
     PRODUCT_MEASUREMENT_OPTIONS,
     type ProductMeasurementMode,
 } from "@/lib/product-measurements"
+import { formatQuantity } from "@/lib/utils"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
 import type { Product, ProductCharacteristic } from "@/types"
@@ -90,6 +92,8 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
     const [measurementMode, setMeasurementMode] = useState<ProductMeasurementMode>(() => getMeasurementModeFromProduct(product))
+    const [stockMode, setStockMode] = useState<"ADD" | "SET">("ADD")
+    const [stockToAdd, setStockToAdd] = useState<string>("")
 
     // Price/Cost/Margin State
     const initialCost = product?.cost || 0
@@ -140,12 +144,17 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
             setMargin(calculateMargin(nextCost, nextPrice))
             setVariants(getInitialVariants(product))
             setCharacteristics(getInitialCharacteristics(product))
+            setStockMode("ADD")
+            setStockToAdd("")
         }
 
         setOpen(nextOpen)
     }
 
     const stockInputStep = isMeasuredMode(measurementMode) ? "any" : "1"
+    const unit = getMeasurementShortLabel(measurementMode)
+    const currentStock = Number(product?.stock || 0)
+    const parsedStockToAdd = parseFloat(stockToAdd) || 0
 
     const addVariant = () => {
         setVariants([...variants, { clientKey: crypto.randomUUID(), name: "", price: price, cost: cost, stock: 0, sku: "", margin: margin }])
@@ -337,10 +346,85 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                         </div>
 
                         {category !== "SERVICIO" && variants.length === 0 && (
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="stock" className="text-right">Stock</Label>
-                                <Input id="stock" name="stock" type="number" min="0" step={stockInputStep} defaultValue={product?.stock || 0} className="col-span-3" />
-                            </div>
+                            isEdit && product ? (
+                                stockMode === "ADD" ? (
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                        <Label htmlFor="stockToAdd" className="text-right pt-2">
+                                            Cantidad a sumar
+                                        </Label>
+                                        <div className="col-span-3 space-y-2">
+                                            <input type="hidden" name="stockMode" value="ADD" />
+                                            <input type="hidden" name="stock" value={product.stock} />
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-muted-foreground">
+                                                    Stock actual: {formatQuantity(product.stock)} {unit}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-xs text-blue-600 hover:text-blue-800 hover:bg-transparent"
+                                                    onClick={() => setStockMode("SET")}
+                                                >
+                                                    Corregir stock total
+                                                </Button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    id="stockToAdd"
+                                                    name="stockToAdd"
+                                                    type="number"
+                                                    min="0"
+                                                    step={stockInputStep}
+                                                    value={stockToAdd}
+                                                    onChange={(e) => setStockToAdd(e.target.value)}
+                                                    placeholder="0"
+                                                />
+                                                <span className="text-sm text-muted-foreground whitespace-nowrap">{unit}</span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Nuevo stock: {formatQuantity(currentStock + parsedStockToAdd)} {unit}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-4 items-start gap-4">
+                                        <Label htmlFor="stock" className="text-right pt-2">
+                                            Stock total
+                                        </Label>
+                                        <div className="col-span-3 space-y-2">
+                                            <input type="hidden" name="stockMode" value="SET" />
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    id="stock"
+                                                    name="stock"
+                                                    type="number"
+                                                    min="0"
+                                                    step={stockInputStep}
+                                                    defaultValue={product.stock || 0}
+                                                />
+                                                <span className="text-sm text-muted-foreground whitespace-nowrap">{unit}</span>
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-xs text-blue-600 hover:text-blue-800 hover:bg-transparent"
+                                                    onClick={() => setStockMode("ADD")}
+                                                >
+                                                    Volver a sumar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="stock" className="text-right">Stock</Label>
+                                    <Input id="stock" name="stock" type="number" min="0" step={stockInputStep} defaultValue={0} className="col-span-3" />
+                                </div>
+                            )
                         )}
                         {category === "SERVICIO" && <input type="hidden" name="stock" value="0" />}
 
