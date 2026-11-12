@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     // Additional ignores:
     "dist/**",
     "node_modules/**",
+    "insforge-functions",
   ]),
 ]);
 
