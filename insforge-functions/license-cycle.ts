@@ -1,11 +1,9 @@
-import { createClient } from "npm:@insforge/sdk";
-
-// Minimal ambient declaration for Deno runtime environment variables
-declare const Deno: {
-  env: {
-    get(key: string): string | undefined;
-  };
-};
+/**
+ * Deployed to the InsForge edge function runner, which evaluates this file as CommonJS
+ * JavaScript without TypeScript transpilation; therefore it uses module.exports, no type
+ * annotations, and loads the SDK with a dynamic await import("npm:@insforge/sdk") inside
+ * the handler (a top-level ESM import or export default fails with HTTP 500).
+ */
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 30 characters (no I, L, O, 0, 1)
 const ALPHABET_LEN = ALPHABET.length;
@@ -16,8 +14,8 @@ const MONTHLY_FEE_DOP = 5000;
 /**
  * Escapes characters for safe interpolation into HTML templates.
  */
-function escapeHtml(str: string): string {
-  return str
+function escapeHtml(str) {
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -29,8 +27,8 @@ function escapeHtml(str: string): string {
  * Generates an 8-character payment code using cryptographic rejection sampling to avoid modulo bias.
  * Formatted as XXXX-XXXX.
  */
-function generatePaymentCode(): { formatted: string; raw: string } {
-  const chars: string[] = [];
+function generatePaymentCode() {
+  const chars = [];
   const buffer = new Uint8Array(16);
 
   // 256 - (256 % 30) = 240. Values >= 240 are rejected to ensure a uniform distribution.
@@ -52,7 +50,7 @@ function generatePaymentCode(): { formatted: string; raw: string } {
 /**
  * Computes the current date in America/Santo_Domingo.
  */
-function getSantoDomingoDate(): { year: string; month: string; day: number; period: string } {
+function getSantoDomingoDate() {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Santo_Domingo",
     year: "numeric",
@@ -70,7 +68,7 @@ function getSantoDomingoDate(): { year: string; month: string; day: number; peri
 /**
  * Edge function handler executed daily via cron.
  */
-export default async function handleLicenseCycleRequest(req: Request): Promise<Response> {
+module.exports = async function handleLicenseCycleRequest(req) {
   // Check required environment variables and secrets
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   const licenseFromEmail = Deno.env.get("LICENSE_FROM_EMAIL");
@@ -78,7 +76,7 @@ export default async function handleLicenseCycleRequest(req: Request): Promise<R
   const insforgeBaseUrl = Deno.env.get("INSFORGE_BASE_URL");
   const apiKey = Deno.env.get("API_KEY");
 
-  const missingSecrets: string[] = [];
+  const missingSecrets = [];
   if (!resendApiKey) missingSecrets.push("RESEND_API_KEY");
   if (!licenseFromEmail) missingSecrets.push("LICENSE_FROM_EMAIL");
   if (!licenseNotifyEmail) missingSecrets.push("LICENSE_NOTIFY_EMAIL");
@@ -101,10 +99,19 @@ export default async function handleLicenseCycleRequest(req: Request): Promise<R
     );
   }
 
+  // Load InsForge SDK dynamically inside CommonJS handler
+  const { createClient } = await import("npm:@insforge/sdk");
+
+  // Normalize base URL if scheme is missing (reserved secret INSFORGE_BASE_URL is 'base.azokia.com')
+  const normalizedBaseUrl =
+    insforgeBaseUrl.startsWith("http://") || insforgeBaseUrl.startsWith("https://")
+      ? insforgeBaseUrl
+      : `https://${insforgeBaseUrl}`;
+
   // API_KEY is the project admin key and bypasses RLS; verify with a smoke test after deploy because LicenseCycle has RLS with no policies.
   const insforge = createClient({
-    baseUrl: insforgeBaseUrl!,
-    anonKey: apiKey!,
+    baseUrl: normalizedBaseUrl,
+    anonKey: apiKey,
   });
 
   // 2. Check if a cycle for this period already exists
@@ -314,4 +321,4 @@ Envíale este código al cliente cuando confirme su pago.`;
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
-}
+};
