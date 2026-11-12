@@ -5,8 +5,13 @@ import { KeyRound, Lock, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PaymentCodeDialog } from "@/components/modules/license/payment-code-dialog"
 import { logout } from "@/actions/auth-actions"
+import { formatCurrency } from "@/lib/utils"
 
-export function LicenseLockScreen() {
+interface LicenseLockScreenProps {
+  amount?: number
+}
+
+export function LicenseLockScreen({ amount }: LicenseLockScreenProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [isLoggingOut, setIsLoggingOut] = React.useState(false)
 
@@ -29,6 +34,12 @@ export function LicenseLockScreen() {
         <h1 className="text-2xl font-bold tracking-tight text-white mb-3">
           Pago pendiente — sistema bloqueado
         </h1>
+
+        {amount != null && (
+          <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-rose-500/10 px-4 py-1.5 text-sm font-semibold text-rose-300 border border-rose-500/20">
+            Monto pendiente: {formatCurrency(amount)}
+          </div>
+        )}
 
         <p className="text-sm leading-relaxed text-slate-400 mb-8">
           El período de gracia para tu suscripción mensual ha concluido. Para restaurar el acceso al sistema, comunícate con el proveedor del servicio tras confirmar tu pago e ingresa el código de activación correspondiente.

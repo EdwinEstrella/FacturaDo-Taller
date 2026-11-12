@@ -4,6 +4,7 @@ import * as React from "react"
 import { AlertTriangle, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PaymentCodeDialog } from "@/components/modules/license/payment-code-dialog"
+import { formatCurrency } from "@/lib/utils"
 import type { LicenseStatusResult } from "@/actions/license-actions"
 
 interface LicenseGraceBannerProps {
@@ -26,15 +27,16 @@ export function LicenseGraceBanner({ license }: LicenseGraceBannerProps) {
   const message = React.useMemo(() => {
     const days = license.daysLeft ?? 0
     const dateSuffix = formattedDate ? ` (hasta el ${formattedDate})` : ""
+    const amountStr = license.amount != null ? ` (${formatCurrency(license.amount)})` : ""
 
     if (days <= 0) {
-      return `Pago pendiente: hoy es el último día de gracia${dateSuffix}.`
+      return `Pago pendiente${amountStr}: hoy es el último día de gracia${dateSuffix}.`
     }
     if (days === 1) {
-      return `Pago pendiente: te queda 1 día de gracia${dateSuffix}.`
+      return `Pago pendiente${amountStr}: te queda 1 día de gracia${dateSuffix}.`
     }
-    return `Pago pendiente: te quedan ${days} días de gracia${dateSuffix}.`
-  }, [license.daysLeft, formattedDate])
+    return `Pago pendiente${amountStr}: te quedan ${days} días de gracia${dateSuffix}.`
+  }, [license.daysLeft, license.amount, formattedDate])
 
   return (
     <>

@@ -12,6 +12,7 @@ export type LicenseStatusResult = {
   dueDate?: string
   graceUntil?: string
   daysLeft?: number
+  amount?: number
 }
 
 export type RedeemResult = {
@@ -35,12 +36,21 @@ export async function getLicenseStatus(): Promise<LicenseStatusResult> {
 
     const payload = typeof data === "string" ? JSON.parse(data) : data
 
+    let amount: number | undefined
+    if (payload.amount !== null && payload.amount !== undefined) {
+      const parsed = Number(payload.amount)
+      if (!Number.isNaN(parsed)) {
+        amount = parsed
+      }
+    }
+
     return {
       state: payload.state ?? "OK",
       period: payload.period ?? undefined,
       dueDate: payload.due_date ?? payload.dueDate ?? undefined,
       graceUntil: payload.grace_until ?? payload.graceUntil ?? undefined,
       daysLeft: typeof payload.days_left === "number" ? payload.days_left : undefined,
+      amount,
     }
   } catch (err) {
     console.error("Exception fetching license status, failing open:", err)

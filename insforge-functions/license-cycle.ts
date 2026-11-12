@@ -10,6 +10,9 @@ declare const Deno: {
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 30 characters (no I, L, O, 0, 1)
 const ALPHABET_LEN = ALPHABET.length;
 
+/** Single place to change the monthly price; it is stored on each cycle. */
+const MONTHLY_FEE_DOP = 5000;
+
 /**
  * Escapes characters for safe interpolation into HTML templates.
  */
@@ -144,6 +147,7 @@ export default async function handleLicenseCycleRequest(req: Request): Promise<R
         period,
         dueDate,
         graceUntil,
+        amount: MONTHLY_FEE_DOP,
         codeHash,
         status: "PENDING",
       },
@@ -186,9 +190,15 @@ export default async function handleLicenseCycleRequest(req: Request): Promise<R
     console.error("Failed to read COMPANY_NAME setting, falling back to default:", err instanceof Error ? err.message : String(err));
   }
 
+  const formattedAmount = new Intl.NumberFormat("es-DO", {
+    style: "currency",
+    currency: "DOP",
+  }).format(MONTHLY_FEE_DOP);
+
   const safeCompanyName = escapeHtml(companyName);
   const safePeriod = escapeHtml(period);
   const safeFormattedCode = escapeHtml(formattedCode);
+  const safeFormattedAmount = escapeHtml(formattedAmount);
   const safeMonth = escapeHtml(month);
   const safeYear = escapeHtml(year);
 
@@ -196,6 +206,7 @@ export default async function handleLicenseCycleRequest(req: Request): Promise<R
   const textBody = `${companyName} — Código de pago mensual (${period})
 
 Período: ${period}
+Monto: ${formattedAmount}
 Código de pago: ${formattedCode}
 
 Fecha de vencimiento: 11/${month}/${year}
@@ -222,6 +233,10 @@ Envíale este código al cliente cuando confirme su pago.`;
     </div>
 
     <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+      <tr>
+        <td style="padding: 8px 0; color: #64748b;">Monto:</td>
+        <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">${safeFormattedAmount}</td>
+      </tr>
       <tr>
         <td style="padding: 8px 0; color: #64748b;">Vencimiento:</td>
         <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">11/${safeMonth}/${safeYear}</td>
@@ -295,6 +310,7 @@ Envíale este código al cliente cuando confirme su pago.`;
       period,
       dueDate,
       graceUntil,
+      amount: MONTHLY_FEE_DOP,
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );

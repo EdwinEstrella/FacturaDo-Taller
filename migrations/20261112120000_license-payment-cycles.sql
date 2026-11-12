@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public."LicenseCycle" (
   period text UNIQUE NOT NULL,
   "dueDate" date NOT NULL,
   "graceUntil" date NOT NULL,
+  amount numeric(12,2) NOT NULL DEFAULT 5000 CHECK (amount > 0),
   "codeHash" text NOT NULL,
   status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID')),
   "failedAttempts" integer NOT NULL DEFAULT 0,
@@ -49,7 +50,8 @@ BEGIN
       'period', NULL,
       'due_date', NULL,
       'grace_until', NULL,
-      'days_left', NULL
+      'days_left', NULL,
+      'amount', NULL
     );
   END IF;
 
@@ -61,7 +63,8 @@ BEGIN
       'period', v_cycle.period,
       'due_date', v_cycle."dueDate",
       'grace_until', v_cycle."graceUntil",
-      'days_left', v_days_left
+      'days_left', v_days_left,
+      'amount', v_cycle.amount
     );
   ELSE
     RETURN json_build_object(
@@ -69,7 +72,8 @@ BEGIN
       'period', v_cycle.period,
       'due_date', v_cycle."dueDate",
       'grace_until', v_cycle."graceUntil",
-      'days_left', v_days_left
+      'days_left', v_days_left,
+      'amount', v_cycle.amount
     );
   END IF;
 END;

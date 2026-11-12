@@ -16,7 +16,7 @@ export default async function DashboardLayout({
     ])
 
     if (license.state === "LOCKED") {
-        return <LicenseLockScreen />
+        return <LicenseLockScreen amount={license.amount} />
     }
 
     return (
