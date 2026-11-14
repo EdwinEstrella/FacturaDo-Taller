@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     "dist/**",
     "node_modules/**",
     "insforge-functions",
+    "lib/ecf/**",
   ]),
 ]);
 

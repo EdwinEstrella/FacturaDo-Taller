@@ -31,9 +31,8 @@ This architecture supersedes any in-app or client-side runner proposal:
 - **Dialogs & Focus:** Strictly no native browser dialogs (`alert`, `confirm`, `prompt`, native `<select>`). All interactions must use internal modal dialogs (Radix UI / shadcn) to prevent focus loss in Electron.
 
 ## Test-Driven Development (TDD)
-- **Status:** Unresolved.
-- **Current State:** `package.json` contains no test runner configuration (no Jest, Vitest, or Node test runner scripts).
-- **Resolution Requirement:** Test framework and execution strategy must be resolved before executing ECF-1.
+- **Status:** Resolved: OFF (user choice, 2026-11-13).
+- **Execution Strategy:** Ordinary functional checks per task (no test runner added; avoids adding Vitest/Jest; throwaway or targeted verification scripts per task).
 
 ## Open Questions
 
@@ -136,14 +135,14 @@ All tasks must pass the following verification gates before commit approval:
 - **Type Check:** `npx tsc --noEmit`
 - **Linting:** `npx eslint <changed-files>`
 - **Production Build:** `npm run build -- --webpack`
-- **TDD / Unit Tests:** Test runner verification (once resolved).
+- **Functional Verification:** Ordinary functional checks per task (no test runner).
 
 | Verification Gate | Command | Result |
 |---|---|---|
 | TypeScript compilation | `npx tsc --noEmit` | Pending |
 | ESLint check | `npx eslint <files>` | Pending |
 | Next.js production build | `npm run build -- --webpack` | Pending |
-| Unit tests | TBD | Pending |
+| Functional verification | Throwaway/targeted script per task | Pending |
 
 ## Progress
 - **Completed Tasks:** 0 / 10 (9 feature tasks + 1 production deployment task)
@@ -151,4 +150,4 @@ All tasks must pass the following verification gates before commit approval:
 - **Current Branch:** `feat/electronic-invoicing`
 
 ## Next Step
-Resolve the TDD runner approach, then commence execution of **ECF-1: Core DGII Library Integration**.
+Commence execution of **ECF-1: Core DGII Library Integration**.
