@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/actions/auth-actions"
-import { SETTINGS_TABS } from "@/components/modules/settings/settings-nav"
+import { SETTINGS_TABS } from "@/components/modules/settings/settings-tabs"
 import { canAccess } from "@/lib/navigation"
 
 export default async function SettingsIndex() {

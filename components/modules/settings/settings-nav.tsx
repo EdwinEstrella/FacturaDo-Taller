@@ -2,16 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, FileText, FileBadge2, UserCog } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { canAccess } from "@/lib/navigation"
-
-export const SETTINGS_TABS = [
-    { href: "/settings/general", label: "Empresa", description: "Datos, logo, factura e impresoras", icon: Building2 },
-    { href: "/settings/fiscal", label: "Comprobantes fiscales", description: "Secuencias NCF", icon: FileText },
-    { href: "/settings/ecf", label: "Facturación electrónica", description: "Certificado y certificación DGII", icon: FileBadge2 },
-    { href: "/settings/users", label: "Usuarios", description: "Accesos y roles del equipo", icon: UserCog },
-]
+import { SETTINGS_TABS } from "./settings-tabs"
 
 export function SettingsNav({ role }: { role?: string }) {
     const pathname = usePathname()
