@@ -85,13 +85,13 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
 ]
 
 const BLOCKED_BY_ROLE: Record<string, string[]> = {
-    SELLER: ["/liquidations", "/settings/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
-    CUSTOM: ["/liquidations", "/settings/fiscal", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
-    ACCOUNTANT: ["/products", "/settings/users", "/settings/general"],
-    MANAGER: ["/liquidations", "/settings/users"],
+    SELLER: ["/liquidations", "/settings/fiscal", "/settings/ecf", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
+    CUSTOM: ["/liquidations", "/settings/fiscal", "/settings/ecf", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
+    ACCOUNTANT: ["/products", "/settings/ecf", "/settings/users", "/settings/general"],
+    MANAGER: ["/liquidations", "/settings/ecf", "/settings/users"],
 }
 
-const SETTINGS_PAGES = ["/settings/general", "/settings/fiscal", "/settings/users"]
+const SETTINGS_PAGES = ["/settings/general", "/settings/fiscal", "/settings/ecf", "/settings/users"]
 
 export function canAccess(role: string | undefined, href: string): boolean {
     // "Ajustes" agrupa varias páginas: se muestra si el rol puede entrar al menos a una.

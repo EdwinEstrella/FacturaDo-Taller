@@ -62,7 +62,7 @@ Route for all development tasks: `delegated direct` via agy, verified by Claude.
   - **Commit Evidence:** `Commit: c153b0b` (validated on in-memory Postgres/PGlite with stub Invoice/CreditNote: applies twice, sequence reserve/exhausted/expired, doc status sync, unique-per-invoice, re-enqueue idempotency, FK restrict). NOT applied to any real DB. Assumption to confirm at apply time: `CreditNote.id` is uuid (`Invoice.id` confirmed uuid).
   - **Design notes:** Q1 resolved as dedicated `FiscalConfig` single-row table + `EcfSequence` per type. RPCs granted to anon/authenticated because `createServerClient` uses the anon key (authorization stays app-level via `requireAuth`). ECF-5 will add the atomic `enqueue` RPC (reserve + EcfDocument + FiscalOutbox + set `Invoice.ncf`).
 
-- [ ] **ECF-3: DGII XML Mapper & Certificate Custody**
+- [ ] **ECF-3: DGII XML Mapper & Certificate Custody** — *custody DONE (`9f647dd`: `lib/fiscal/{crypto,errors,certificate-custody}.ts`, encrypted p12 + passphrase in `EcfCertificateMetadata`, `store_ecf_certificate` RPC; deviation from cyberbistro: encrypted in DB instead of Storage bucket, avoids creating a prod bucket); XML mapper PENDING (`lib/fiscal/mapper.ts`, port of cyberbistro `worker/fiscal/mapper.ts`).*
   - **Objective:** Map FacturaDo `Invoice` data into DGII-compliant XML schema (E31, E32, E34) and implement AES-256-GCM certificate custody.
   - **Files:** `lib/fiscal/mapper.ts`, `lib/fiscal/crypto.ts`, `lib/fiscal/certificate-custody.ts`.
   - **Estimate:** ~550 authored lines.
@@ -106,7 +106,18 @@ Route for all development tasks: `delegated direct` via agy, verified by Claude.
   - **Route:** `delegated direct` via agy.
   - **Commit Evidence:** `Commit: [ ]`
 
-- [ ] **ECF-8: DGII Onboarding & Certification Wizard**
+- [x] **ECF-8a: 15-step certification stepper + certificate upload in Ajustes** (user request 2026-11-14)
+  - **Files:** `migrations/20261114010000_ecf-certification-progress.sql`, `lib/fiscal/shared/{certification-steps,receptor-urls}.ts`, `actions/ecf-actions.ts`, `components/modules/fiscal/{certification-stepper,certificate-card,receptor-url-fields}.tsx`, `app/(dashboard)/settings/ecf/page.tsx`, nav + role gating (admin only).
+  - **Route:** direct inline by Claude (user-authorized).
+  - **Verified:** PGlite checks for the progress table/RPC; helper script (15 steps, restore/advance, RNC -> `facturado.lat/{RNC}`); `tsc` clean; eslint clean on new files; `npm run build -- --webpack` lists `/settings/ecf`. NOT verified visually (needs the migrations applied + login).
+  - **Honest gaps:** steps 1 (XML signing), 2-5, 8-11, 13 show "herramienta automática pendiente" and are confirmed manually until their tools exist (signing needs a server with DB access: planned inside the receptor/worker service).
+  - **Commit Evidence:** `Commit: see git log (feat(ecf): add certification stepper)`.
+
+- [ ] **ECF-8b: Remaining wizard tools** — issuer data form (`FiscalConfig`), sequences UI (`EcfSequence`), test-set runner, printed representation runner, in-system XML signing, received-evidence panels.
+
+- [ ] **ECF-10: Inbound receptor service on `facturado.lat`** (Q3 resolved IN scope) — public endpoints `/{RNC}/fe/{autenticacion,recepcion,aprobacioncomercial}/api/...`, routing via the Dokploy compose; feeds steps 8-11 evidence. Production routing/ops need explicit user OK.
+
+- [ ] **ECF-8 (legacy umbrella): DGII Onboarding & Certification Wizard**
   - **Objective:** Implement step-by-step wizard for issuer configuration, certificate upload, sequence ranges, and DGII test set validation.
   - **Files:** `components/modules/fiscal/activation-wizard.tsx`, `components/modules/fiscal/certificate-uploader.tsx`, `components/modules/fiscal/test-set-runner.tsx`.
   - **Estimate:** ~800 authored lines.
