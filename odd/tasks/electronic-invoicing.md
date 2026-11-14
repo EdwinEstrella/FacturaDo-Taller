@@ -40,26 +40,27 @@ This architecture supersedes any in-app or client-side runner proposal:
 |---|---|---|---|
 | **Q1** | **Single-Tenant Config Storage** | Should e-CF settings and sequence ranges be stored as JSON/key-value entries in the existing `Setting` table, or in a dedicated single-row `FiscalConfig` table? | Pending architectural decision. |
 | **Q2** | **LicenseCycle vs tenantDebt Gate** | FacturaDo-Taller already features a monthly payment code licensing system (`LicenseCycle` table, `license_status()` RPC, `license-lock-screen.tsx`). Should cyberbistro's `tenantDebt` (WhatsApp contact screen) be harmonized into the existing `LicenseCycle` lock screen or omitted? | **Blocks ECF-9**. |
-| **Q3** | **Inbound Receptor Scope** | Is inbound DGII reception (`ecf-receptor` for receiving supplier e-CFs, commercial approvals ARECF/ACECF) required for the workshop initial phase, or is outbound issuance (E31, E32, E34) sufficient? | Pending scope confirmation (default: outbound only for v1). |
-| **Q4** | **.p12 Provisioning Mode** | Will digital certificates (`.p12`) and their master encryption key be provisioned via environment variables / server storage files, or must a full UI upload wizard with cloud custody be ported? | **Blocks ECF-3 / ECF-8**. |
+| **Q3** | **Inbound Receptor Scope** | Is inbound DGII reception (`ecf-receptor` for receiving supplier e-CFs, commercial approvals ARECF/ACECF) required for the workshop initial phase, or is outbound issuance (E31, E32, E34) sufficient? | **Resolved (2026-11-14): IN scope.** DGII certification steps 8-11 require a public receptor. Public domain: `facturado.lat`; URLs registered at DGII are `facturado.lat/{RNC}` (portal appends `/fe/recepcion/api/ecf`, `/fe/aprobacioncomercial/api/ecf`, `/fe/autenticacion/api/[semilla\|validacioncertificado]`). Subdomain/routing to be confirmed when the receptor task starts. |
+| **Q4** | **.p12 Provisioning Mode** | Will digital certificates (`.p12`) and their master encryption key be provisioned via environment variables / server storage files, or must a full UI upload wizard with cloud custody be ported? | **Resolved (2026-11-14): option B.** Upload `.p12` in the app + type passphrase, AES-256-GCM custody in server Storage, same as cyberbistro. |
 
 ## Tasks & Checklist
 
 Route for all development tasks: `delegated direct` via agy, verified by Claude.
 
-- [ ] **ECF-1: Core DGII Library Integration**
+- [x] **ECF-1: Core DGII Library Integration**
   - **Objective:** Port and vendorize `dgii-ecf` (v1.8.0) into FacturaDo-Taller with test coverage for XMLDSig signing, canonicalization, and seed authentication.
   - **Files:** `package.json`, `lib/ecf/` (`P12Reader.ts`, `Signature.ts`, `Digest.ts`, `ECF.ts`, `RestApi.ts`, `restClient.ts`, `Transformer.ts`, `utils/`), test suite.
   - **Estimate:** ~350 authored lines (excluding vendored core files).
-  - **Route:** `delegated direct` via agy.
-  - **Commit Evidence:** `Commit: [ ]`
+  - **Route:** direct inline by Claude (user-authorized override of agy routing, 2026-11-14, until user says to switch back to agy).
+  - **Commit Evidence:** `Commit: 2e0d818` (tsc clean, build --webpack OK, throwaway smoke: p12 -> sign -> security code -> validate + tamper rejected).
 
-- [ ] **ECF-2: Database Schema & Migrations**
+- [x] **ECF-2: Database Schema & Migrations**
   - **Objective:** Create PostgreSQL tables, constraints, indexes, and sequence allocation triggers for electronic invoicing.
   - **Files:** `migrations/20261114000000_create-ecf-schema.sql` (`EcfDocument`, `FiscalOutbox`, `EcfCertificateMetadata`, `FiscalConfig`, sequence reservation RPCs).
   - **Estimate:** ~320 authored lines (SQL).
-  - **Route:** `delegated direct` via agy.
-  - **Commit Evidence:** `Commit: [ ]`
+  - **Route:** direct inline by Claude (user-authorized, 2026-11-14).
+  - **Commit Evidence:** `Commit: c153b0b` (validated on in-memory Postgres/PGlite with stub Invoice/CreditNote: applies twice, sequence reserve/exhausted/expired, doc status sync, unique-per-invoice, re-enqueue idempotency, FK restrict). NOT applied to any real DB. Assumption to confirm at apply time: `CreditNote.id` is uuid (`Invoice.id` confirmed uuid).
+  - **Design notes:** Q1 resolved as dedicated `FiscalConfig` single-row table + `EcfSequence` per type. RPCs granted to anon/authenticated because `createServerClient` uses the anon key (authorization stays app-level via `requireAuth`). ECF-5 will add the atomic `enqueue` RPC (reserve + EcfDocument + FiscalOutbox + set `Invoice.ncf`).
 
 - [ ] **ECF-3: DGII XML Mapper & Certificate Custody**
   - **Objective:** Map FacturaDo `Invoice` data into DGII-compliant XML schema (E31, E32, E34) and implement AES-256-GCM certificate custody.

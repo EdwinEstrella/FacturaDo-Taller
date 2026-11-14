@@ -56,15 +56,19 @@ CREATE TABLE IF NOT EXISTS public."EcfCertificateMetadata" (
   "serialNumber" text NOT NULL,
   "validFrom" timestamptz NOT NULL,
   "validUntil" timestamptz NOT NULL,
-  "storageKey" text NOT NULL,
+  -- AES-256-GCM envelopes ("aes256gcm:<iv>:<tag>:<ciphertext>", hex) produced by the app
+  -- with ECF_ENCRYPTION_KEY. The key never lives in the database.
+  "p12Encrypted" text NOT NULL,
+  "passphraseEncrypted" text NOT NULL,
   "isReady" boolean NOT NULL DEFAULT false,
   "lastValidationError" text,
   "createdAt" timestamptz NOT NULL DEFAULT now(),
   "updatedAt" timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS ecfcertificatemetadata_env_ready_idx
-  ON public."EcfCertificateMetadata" (environment, "isReady", "validUntil" DESC);
+-- One certificate row per environment (the same certificate serves all three).
+CREATE UNIQUE INDEX IF NOT EXISTS ecfcertificatemetadata_env_unique_idx
+  ON public."EcfCertificateMetadata" (environment);
 
 -- ---------------------------------------------------------------------------
 -- EcfBatch: RFCE summary batches (consumer invoices under the threshold)
@@ -350,7 +354,68 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Access control: tables are server-side only; RPCs are callable by the app
+-- RPC: store the (already encrypted) certificate for all environments.
+-- The app encrypts p12 + passphrase before calling; the DB never sees plaintext.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.store_ecf_certificate(
+  p_subject text,
+  p_issuer text,
+  p_serial_number text,
+  p_valid_from timestamptz,
+  p_valid_until timestamptz,
+  p_p12_encrypted text,
+  p_passphrase_encrypted text
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v_env text;
+BEGIN
+  IF p_p12_encrypted IS NULL OR p_p12_encrypted !~ '^aes256gcm:[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]+$'
+     OR p_passphrase_encrypted IS NULL OR p_passphrase_encrypted !~ '^aes256gcm:[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]+$' THEN
+    RAISE EXCEPTION 'ECF_CERTIFICATE_NOT_ENCRYPTED: certificate material must be an aes256gcm envelope'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_valid_until <= now() THEN
+    RAISE EXCEPTION 'ECF_CERTIFICATE_EXPIRED: certificate is already expired'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  FOREACH v_env IN ARRAY ARRAY['test', 'certification', 'production'] LOOP
+    INSERT INTO public."EcfCertificateMetadata" (
+      environment, subject, issuer, "serialNumber", "validFrom", "validUntil",
+      "p12Encrypted", "passphraseEncrypted", "isReady", "lastValidationError"
+    )
+    VALUES (
+      v_env, p_subject, p_issuer, p_serial_number, p_valid_from, p_valid_until,
+      p_p12_encrypted, p_passphrase_encrypted, true, NULL
+    )
+    ON CONFLICT (environment) DO UPDATE
+    SET subject = EXCLUDED.subject,
+        issuer = EXCLUDED.issuer,
+        "serialNumber" = EXCLUDED."serialNumber",
+        "validFrom" = EXCLUDED."validFrom",
+        "validUntil" = EXCLUDED."validUntil",
+        "p12Encrypted" = EXCLUDED."p12Encrypted",
+        "passphraseEncrypted" = EXCLUDED."passphraseEncrypted",
+        "isReady" = true,
+        "lastValidationError" = NULL,
+        "updatedAt" = now();
+  END LOOP;
+
+  RETURN json_build_object('ok', true, 'subject', p_subject);
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Access control. Fiscal tables are readable by the app (no secrets in them);
+-- writes go through the RPCs above/the fiscal-worker. The certificate table
+-- exposes only non-secret columns, so the encrypted material is never
+-- selectable with the public anon key.
 -- ---------------------------------------------------------------------------
 ALTER TABLE public."FiscalConfig" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public."EcfSequence" ENABLE ROW LEVEL SECURITY;
@@ -368,7 +433,38 @@ REVOKE ALL ON TABLE public."EcfDocument" FROM anon, authenticated;
 REVOKE ALL ON TABLE public."FiscalOutbox" FROM anon, authenticated;
 REVOKE ALL ON TABLE public."EcfDocumentEvent" FROM anon, authenticated;
 
+GRANT SELECT ON TABLE
+  public."FiscalConfig",
+  public."EcfSequence",
+  public."EcfBatch",
+  public."EcfDocument",
+  public."FiscalOutbox",
+  public."EcfDocumentEvent"
+TO anon, authenticated;
+
+GRANT SELECT (
+  id, environment, subject, issuer, "serialNumber", "validFrom", "validUntil",
+  "isReady", "lastValidationError", "createdAt", "updatedAt"
+) ON public."EcfCertificateMetadata" TO anon, authenticated;
+
+DROP POLICY IF EXISTS fiscalconfig_app_select ON public."FiscalConfig";
+CREATE POLICY fiscalconfig_app_select ON public."FiscalConfig" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS ecfsequence_app_select ON public."EcfSequence";
+CREATE POLICY ecfsequence_app_select ON public."EcfSequence" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS ecfbatch_app_select ON public."EcfBatch";
+CREATE POLICY ecfbatch_app_select ON public."EcfBatch" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS ecfdocument_app_select ON public."EcfDocument";
+CREATE POLICY ecfdocument_app_select ON public."EcfDocument" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS fiscaloutbox_app_select ON public."FiscalOutbox";
+CREATE POLICY fiscaloutbox_app_select ON public."FiscalOutbox" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS ecfdocumentevent_app_select ON public."EcfDocumentEvent";
+CREATE POLICY ecfdocumentevent_app_select ON public."EcfDocumentEvent" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS ecfcertificatemetadata_app_select ON public."EcfCertificateMetadata";
+CREATE POLICY ecfcertificatemetadata_app_select ON public."EcfCertificateMetadata" FOR SELECT TO anon, authenticated USING (true);
+
 REVOKE ALL ON FUNCTION public.reserve_encf(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.reenqueue_ecf_document(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.store_ecf_certificate(text, text, text, timestamptz, timestamptz, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.reserve_encf(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reenqueue_ecf_document(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.store_ecf_certificate(text, text, text, timestamptz, timestamptz, text, text) TO anon, authenticated;
