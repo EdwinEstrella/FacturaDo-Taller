@@ -5,7 +5,7 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls" | "sign"
+export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet"
 
 export interface CertificationStepDef {
     id: number
@@ -29,8 +29,7 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
         id: 2,
         label: "Set de Pruebas ECF y RFCE",
         summary: "Descarga el Set de Pruebas ECF y RFCE desde el portal de certificación y prepáralo para cargarlo.",
-        actions: ["portal"],
-        pendingTool: "Carga y envío automático del set de pruebas",
+        actions: ["portal", "testSet"],
     },
     {
         id: 3,
