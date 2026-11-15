@@ -112,7 +112,9 @@ export function CertificationStepper({ initialProgress, companyRnc }: {
 
                 {step.actions.includes("sign") && <XmlSigner />}
 
-                {step.actions.includes("testSet") && <TestSetRunner />}
+                {step.actions.includes("testSet") && <TestSetRunner runType="test_set" />}
+
+                {step.actions.includes("approvals") && <TestSetRunner runType="commercial_approval" />}
 
                 {step.actions.includes("portal") && (
                     <Button type="button" variant="outline" onClick={openPortal} className="w-full sm:w-auto">

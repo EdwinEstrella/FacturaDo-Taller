@@ -17,6 +17,7 @@ import {
 import {
     KIND_LABELS,
     STATUS_LABELS,
+    RUN_COPY,
     describeProgress,
     describeRunError,
     nextLoopAction,
@@ -25,6 +26,7 @@ import {
     statusTone,
     summariesAccepted,
     validateTestSetFile,
+    type CertificationRunType,
     type RunView,
     type StatusTone,
 } from "@/lib/fiscal/shared/certification-run"
@@ -55,7 +57,8 @@ function saveXml(fileName: string, text: string) {
 
 type Busy = "auth" | "start" | "send" | "status" | "download" | null
 
-export function TestSetRunner() {
+export function TestSetRunner({ runType = "test_set" }: { runType?: CertificationRunType }) {
+    const copy = RUN_COPY[runType]
     const [file, setFile] = useState<File | null>(null)
     const [run, setRun] = useState<RunView | null>(null)
     const [busy, setBusy] = useState<Busy>(null)
@@ -75,13 +78,13 @@ export function TestSetRunner() {
 
     useEffect(() => {
         let cancelled = false
-        void getLatestCertificationRun().then((result) => {
+        void getLatestCertificationRun(runType).then((result) => {
             if (!cancelled && result.success && result.run) setRun(result.run)
         })
         return () => {
             cancelled = true
         }
-    }, [])
+    }, [runType])
 
     const poll = useCallback(
         async (runId: string) => apply(await refreshCertificationRun(runId)),
@@ -112,7 +115,7 @@ export function TestSetRunner() {
     const selectFile = (selected: File | null) => {
         setStatus(null)
         if (!selected) return setFile(null)
-        const problem = validateTestSetFile(selected)
+        const problem = validateTestSetFile(selected, runType)
         if (problem) {
             setFile(null)
             setStatus({ kind: "error", text: problem })
@@ -139,8 +142,9 @@ export function TestSetRunner() {
         setStatus(null)
         const formData = new FormData()
         formData.set("workbook", file)
+        formData.set("runType", runType)
         const loaded = apply(await startCertificationRun(formData))
-        if (loaded) setStatus({ kind: "success", text: `Set de Pruebas cargado: ${loaded.items.length} documentos listos para enviar.` })
+        if (loaded) setStatus({ kind: "success", text: copy.loaded(loaded.items.length) })
         autoPollRounds.current = 0
         setBusy(null)
     }
@@ -160,7 +164,7 @@ export function TestSetRunner() {
                 if (action === "stop") return setStatus({ kind: "error", text: describeRunError(current.stoppedReason ?? undefined) })
                 if (action === "done") {
                     await poll(run.runId)
-                    return setStatus({ kind: "success", text: "Todos los documentos fueron enviados. Consulta el estado hasta que la DGII termine de procesarlos." })
+                    return setStatus({ kind: "success", text: copy.sentAll })
                 }
                 if (action === "poll") {
                     if (++pollRounds > MAX_POLL_ROUNDS) {
@@ -197,16 +201,14 @@ export function TestSetRunner() {
         setBusy(null)
     }
 
-    const downloads = run ? portalDownloads(run) : []
+    const downloads = run && runType === "test_set" ? portalDownloads(run) : []
 
     return (
         <div className="space-y-4 rounded-xl border border-dashed border-blue-300 bg-slate-50 p-5">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                <FileKey2 className="size-4 text-blue-600" /> Set de Pruebas de la DGII (.xlsx)
+                <FileKey2 className="size-4 text-blue-600" /> {copy.title}
             </div>
-            <p className="text-xs leading-relaxed text-slate-500">
-                Descarga el Excel del Set de Pruebas desde el portal de la DGII y cárgalo aquí. El sistema arma cada e-CF y RFCE, los firma con tu certificado y los envía a la DGII en el orden correcto.
-            </p>
+            <p className="text-xs leading-relaxed text-slate-500">{copy.description}</p>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Input

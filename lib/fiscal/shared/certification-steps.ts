@@ -5,7 +5,7 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet"
+export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals"
 
 export interface CertificationStepDef {
     id: number
@@ -35,8 +35,7 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
         id: 3,
         label: "Aprobación Comercial (ACECF)",
         summary: "Descarga el set de datos de Aprobación Comercial desde el portal de certificación y cárgalo para enviarlo.",
-        actions: ["portal"],
-        pendingTool: "Envío automático de aprobaciones comerciales",
+        actions: ["portal", "approvals"],
     },
     {
         id: 4,

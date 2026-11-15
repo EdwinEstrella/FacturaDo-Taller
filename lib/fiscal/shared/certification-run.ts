@@ -20,8 +20,11 @@ export interface RunItemView {
     signed: boolean
 }
 
+export type CertificationRunType = "test_set" | "commercial_approval"
+
 export interface RunView {
     runId: string
+    runType: CertificationRunType
     environment: "test" | "certification"
     status: string
     createdAt: string
@@ -31,6 +34,33 @@ export interface RunView {
     items: RunItemView[]
     waitingFor?: string | null
     stoppedReason?: string | null
+}
+
+export interface RunCopy {
+    title: string
+    description: string
+    fileHint: string
+    loaded: (count: number) => string
+    sentAll: string
+}
+
+export const RUN_COPY: Record<CertificationRunType, RunCopy> = {
+    test_set: {
+        title: "Set de Pruebas de la DGII (.xlsx)",
+        description:
+            "Descarga el Excel del Set de Pruebas desde el portal de la DGII y cárgalo aquí. El sistema arma cada e-CF y RFCE, los firma con tu certificado y los envía a la DGII en el orden correcto.",
+        fileHint: "Selecciona el archivo .xlsx del Set de Pruebas.",
+        loaded: (count) => `Set de Pruebas cargado: ${count} documentos listos para enviar.`,
+        sentAll: "Todos los documentos fueron enviados. Consulta el estado hasta que la DGII termine de procesarlos.",
+    },
+    commercial_approval: {
+        title: "Set de Aprobaciones Comerciales de la DGII (.xlsx)",
+        description:
+            "Descarga el set de datos del Paso 3 en el portal de la DGII y cárgalo aquí. El sistema genera cada aprobación comercial (ACECF), la firma con tu certificado y la envía a la DGII.",
+        fileHint: "Selecciona el archivo .xlsx del Set de Aprobaciones Comerciales.",
+        loaded: (count) => `Set de Aprobaciones Comerciales cargado: ${count} aprobaciones listas para enviar.`,
+        sentAll: "Todas las aprobaciones comerciales fueron enviadas. Revisa el estado de cada una en la tabla.",
+    },
 }
 
 export const TEST_SET_MAX_BYTES = 2 * 1024 * 1024
@@ -72,7 +102,7 @@ export function statusTone(status: SubmissionStatus): StatusTone {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-    INVALID_TEST_SET: "El archivo no es un Set de Pruebas válido de la DGII.",
+    INVALID_TEST_SET: "El archivo no es un set válido de la DGII.",
     RNC_MISMATCH: "El RNC del Set de Pruebas no coincide con el RNC de tu negocio. Descarga el archivo de la empresa correcta.",
     CERTIFICATE_NOT_FOUND: "No hay un certificado digital válido. Súbelo en la sección «Certificado digital» de esta página.",
     CERTIFICATE_EXPIRED: "El certificado digital se encuentra vencido.",
@@ -94,8 +124,8 @@ export function describeRunError(code: string | undefined, detail?: string): str
     return (code && ERROR_MESSAGES[code]) || GENERIC_RUN_ERROR
 }
 
-export function validateTestSetFile(file: { name: string; size: number }): string | null {
-    if (!/\.xlsx$/i.test(file.name)) return "Selecciona el archivo .xlsx del Set de Pruebas."
+export function validateTestSetFile(file: { name: string; size: number }, runType: CertificationRunType = "test_set"): string | null {
+    if (!/\.xlsx$/i.test(file.name)) return RUN_COPY[runType].fileHint
     if (file.size <= 0) return "El archivo está vacío."
     if (file.size > TEST_SET_MAX_BYTES) return "El archivo es demasiado grande (máximo 2 MB)."
     return null
@@ -106,6 +136,9 @@ export function describeProgress(run: RunView): string {
     const total = run.items.length
     const accepted = c.accepted + c.accepted_conditional + c.ready_for_portal
     const failed = c.rejected + c.error
+    if (run.runType === "commercial_approval") {
+        return `${accepted + failed} de ${total} terminadas · ${accepted} aceptadas · ${failed} con error · ${c.pending} pendientes`
+    }
     return `${accepted + failed} de ${total} terminados · ${accepted} aceptados o firmados · ${failed} con error · ${c.sent} en proceso · ${c.pending} pendientes`
 }
 

@@ -8,7 +8,13 @@ import { FiscalError } from "@/lib/fiscal/errors"
 import { createDgiiClient, DgiiError } from "@/lib/fiscal/certification/dgii-client"
 import { createInsforgeRunStore } from "@/lib/fiscal/certification/store"
 import * as certification from "@/lib/fiscal/certification/run"
-import { describeRunError, GENERIC_RUN_ERROR, TEST_SET_MAX_BYTES, type RunView } from "@/lib/fiscal/shared/certification-run"
+import {
+    describeRunError,
+    GENERIC_RUN_ERROR,
+    TEST_SET_MAX_BYTES,
+    type CertificationRunType,
+    type RunView,
+} from "@/lib/fiscal/shared/certification-run"
 
 /** The test set is executed in the DGII certification environment (CerteCF). */
 const ENVIRONMENT: certification.RunEnvironment = "certification"
@@ -67,7 +73,13 @@ async function guarded<T>(work: () => Promise<T>): Promise<RunActionResult<T>> {
     }
 }
 
+function parseRunType(value: unknown): CertificationRunType | null {
+    return value === "test_set" || value === "commercial_approval" ? value : null
+}
+
 export async function startCertificationRun(formData: FormData): Promise<RunActionResult> {
+    const runType = parseRunType(formData.get("runType"))
+    if (!runType) return { success: false, error: GENERIC_RUN_ERROR }
     const file = formData.get("workbook")
     if (!(file instanceof File) || file.size === 0) {
         return { success: false, error: "Selecciona el archivo .xlsx del Set de Pruebas." }
@@ -78,14 +90,17 @@ export async function startCertificationRun(formData: FormData): Promise<RunActi
         const user = await requireAdmin()
         return (await certification.startRun(buildDeps(), {
             environment: ENVIRONMENT,
+            runType,
             xlsx: new Uint8Array(await file.arrayBuffer()),
             createdBy: user.username ?? null,
         })) as RunView
     })
 }
 
-export async function getLatestCertificationRun(): Promise<RunActionResult<RunView | null>> {
-    return guarded(async () => (await certification.latestRun(buildDeps(), ENVIRONMENT)) as RunView | null)
+export async function getLatestCertificationRun(runType: CertificationRunType): Promise<RunActionResult<RunView | null>> {
+    const parsed = parseRunType(runType)
+    if (!parsed) return { success: false, error: GENERIC_RUN_ERROR }
+    return guarded(async () => (await certification.latestRun(buildDeps(), ENVIRONMENT, parsed)) as RunView | null)
 }
 
 export async function sendCertificationBatch(runId: string): Promise<RunActionResult> {
