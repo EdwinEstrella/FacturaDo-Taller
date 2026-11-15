@@ -119,7 +119,7 @@ export async function downloadCertificationDocument(
     runId: string,
     caseId: string,
     kind?: "rfce"
-): Promise<RunActionResult<{ fileName: string; signedXml: string }>> {
+): Promise<RunActionResult<{ fileName: string; signedXml: string; securityCode: string | null }>> {
     return guarded(() => certification.downloadSigned(buildDeps(), runId, caseId, kind === "rfce" ? "rfce" : undefined))
 }
 

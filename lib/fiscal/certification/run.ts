@@ -582,7 +582,7 @@ export async function downloadSigned(
     runId: string,
     caseId: string,
     kind?: "rfce"
-): Promise<{ fileName: string; signedXml: string }> {
+): Promise<{ fileName: string; signedXml: string; securityCode: string | null }> {
     const run = await requireRun(deps, runId)
     const subs = (await deps.store.listSubmissions(run.id)).filter((item) => item.caseId === caseId)
     let sub: Submission | undefined
@@ -595,7 +595,7 @@ export async function downloadSigned(
     if (!sub?.signedXml) throw new CertificationError("NOT_READY", "The signed document is not available for download.")
     deps.log("download", { tipoEcf: sub.tipoEcf, kind: sub.kind })
     const suffix = sub.kind === "rfce" ? "-RFCE" : ""
-    return { fileName: `${sub.caseId}${suffix}.xml`, signedXml: sub.signedXml }
+    return { fileName: `${sub.caseId}${suffix}.xml`, signedXml: sub.signedXml, securityCode: sub.securityCode }
 }
 
 /** Authenticates against DGII with the stored certificate; sends no document. */

@@ -5,7 +5,7 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals" | "simulation"
+export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals" | "simulation" | "printed"
 
 export interface CertificationStepDef {
     id: number
@@ -56,8 +56,7 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
             "La suma de todos los archivos no puede superar 10MB (cada PDF pesa menos de 30KB).",
             "Es responsabilidad del contribuyente que la representación cumpla la Ley 32-23 y el Formato e-CF.",
         ],
-        actions: ["portal"],
-        pendingTool: "Generación de los PDF de representación impresa",
+        actions: ["portal", "printed"],
     },
     {
         id: 6,
