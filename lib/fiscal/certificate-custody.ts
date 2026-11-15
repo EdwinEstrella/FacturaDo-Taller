@@ -116,7 +116,7 @@ export function prepareCertificateForStorage(input: {
     }
 }
 
-interface CertificateRow {
+export interface CertificateRow {
     id: string
     environment: EcfEnvironment
     p12Encrypted: string
@@ -139,7 +139,15 @@ export async function loadSigningMaterial(
         [environment]
     )
 
-    const row = result.rows[0]
+    return decryptSigningMaterial(result.rows[0], encryptionKey, now)
+}
+
+/** Decrypts a stored certificate row into signing material (shared by the worker and the app server). */
+export function decryptSigningMaterial(
+    row: CertificateRow | undefined,
+    encryptionKey: string | undefined,
+    now: Date = new Date()
+): SigningMaterial {
     if (!row || !row.isReady) {
         throw new FiscalError("CERTIFICATE_NOT_FOUND", "No hay un certificado digital listo para este ambiente.")
     }

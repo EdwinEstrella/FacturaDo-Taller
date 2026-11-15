@@ -25,8 +25,6 @@ function downloadXml(content: string, fileName: string) {
 
 export function XmlSigner() {
     const [xmlName, setXmlName] = useState("")
-    const [certName, setCertName] = useState("")
-    const [passphrase, setPassphrase] = useState("")
     const [error, setError] = useState("")
     const [signed, setSigned] = useState<{ content: string; fileName: string } | null>(null)
     const [pending, startTransition] = useTransition()
@@ -44,7 +42,6 @@ export function XmlSigner() {
             }
             const fileName = signedFileName(xmlName)
             setSigned({ content: result.signedXml, fileName })
-            setPassphrase("")
             downloadXml(result.signedXml, fileName)
             toast.success("XML firmado y descargado")
         })
@@ -55,7 +52,7 @@ export function XmlSigner() {
             <div>
                 <p className="text-sm font-semibold text-slate-900">Firmar XML con tu certificado</p>
                 <p className="text-xs leading-relaxed text-slate-500">
-                    El certificado y la contraseña se usan solo para esta firma y no se guardan.
+                    Se firma con el certificado digital que ya guardaste en el sistema.
                 </p>
             </div>
             <div className="space-y-2">
@@ -68,30 +65,9 @@ export function XmlSigner() {
                     onChange={(e) => { setXmlName(e.target.files?.[0]?.name ?? ""); setSigned(null) }}
                 />
             </div>
-            <div className="space-y-2">
-                <label htmlFor="ecf-sign-certificate" className="text-sm font-medium">Certificado (.p12)</label>
-                <Input
-                    id="ecf-sign-certificate"
-                    name="certificate"
-                    type="file"
-                    accept=".p12,.pfx"
-                    onChange={(e) => setCertName(e.target.files?.[0]?.name ?? "")}
-                />
-            </div>
-            <div className="space-y-2">
-                <label htmlFor="ecf-sign-passphrase" className="text-sm font-medium">Contraseña del certificado</label>
-                <Input
-                    id="ecf-sign-passphrase"
-                    name="passphrase"
-                    type="password"
-                    autoComplete="off"
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                />
-            </div>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <div className="flex flex-wrap gap-2">
-                <Button type="submit" disabled={pending || !xmlName || !certName || !passphrase}>
+                <Button type="submit" disabled={pending || !xmlName}>
                     {pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <FileSignature className="mr-2 size-4" />}
                     Firmar y descargar
                 </Button>

@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { prepareCertificateForStorage } from "@/lib/fiscal/certificate-custody"
 import { FiscalError } from "@/lib/fiscal/errors"
-import { signXmlWithP12 } from "@/lib/fiscal/sign-document"
+import { signXmlWithMaterial } from "@/lib/fiscal/sign-document"
+import { loadStoredSigningMaterial } from "@/lib/fiscal/stored-certificate"
 import {
     CERTIFICATION_TOTAL_STEPS,
     INITIAL_CERTIFICATION_PROGRESS,
@@ -93,36 +94,32 @@ export type SignXmlResult = { success: true; signedXml: string } | { success: fa
 
 const MAX_XML_BYTES = 2 * 1024 * 1024
 
-/** Signs an uploaded XML with a .p12 provided for this call only; neither file is stored. */
+/** Signs an uploaded XML with the certificate already stored in the system. */
 export async function signXmlDocument(formData: FormData): Promise<SignXmlResult> {
     await requireAdmin()
 
     const xmlFile = formData.get("xml")
-    const certificate = formData.get("certificate")
-    const passphrase = String(formData.get("passphrase") ?? "")
-
     if (!(xmlFile instanceof File) || xmlFile.size === 0) {
         return { success: false, error: "Selecciona el archivo XML que vas a firmar." }
     }
     if (xmlFile.size > MAX_XML_BYTES) {
         return { success: false, error: "El archivo XML es demasiado grande." }
     }
-    if (!(certificate instanceof File) || certificate.size === 0) {
-        return { success: false, error: "Selecciona el archivo del certificado .p12." }
-    }
-    if (certificate.size > MAX_CERTIFICATE_BYTES) {
-        return { success: false, error: "El archivo es demasiado grande para ser un certificado .p12." }
-    }
 
     try {
-        const signedXml = signXmlWithP12({
-            xml: await xmlFile.text(),
-            p12Bytes: new Uint8Array(await certificate.arrayBuffer()),
-            passphrase,
-        })
+        const { key, cert } = await loadStoredSigningMaterial("test")
+        const signedXml = signXmlWithMaterial({ xml: await xmlFile.text(), key, cert })
         return { success: true, signedXml }
     } catch (error) {
-        if (error instanceof FiscalError) return { success: false, error: error.message }
+        if (error instanceof FiscalError) {
+            if (error.code === "CERTIFICATE_NOT_FOUND") {
+                return { success: false, error: "Primero sube tu certificado digital en la sección «Certificado digital» de esta página." }
+            }
+            const userFacing = new Set(["XML_REQUIRED", "SIGNING_FAILED", "CERTIFICATE_EXPIRED", "ENCRYPTION_KEY_MISSING"])
+            if (userFacing.has(error.code)) return { success: false, error: error.message }
+            console.error("XML signing custody error:", error.code)
+            return { success: false, error: "No se pudo leer el certificado guardado. Revisa la configuración del servidor." }
+        }
         console.error("XML signing error:", error)
         return { success: false, error: "No se pudo firmar el documento." }
     }
