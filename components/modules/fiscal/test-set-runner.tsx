@@ -23,6 +23,7 @@ import {
     nextLoopAction,
     portalDownloads,
     shouldAutoPoll,
+    simulationQuotaSummary,
     statusTone,
     summariesAccepted,
     validateTestSetFile,
@@ -201,7 +202,8 @@ export function TestSetRunner({ runType = "test_set" }: { runType?: Certificatio
         setBusy(null)
     }
 
-    const downloads = run && runType === "test_set" ? portalDownloads(run) : []
+    const downloads = run && runType !== "commercial_approval" ? portalDownloads(run) : []
+    const quotas = run && runType === "simulation" ? simulationQuotaSummary(run) : []
 
     return (
         <div className="space-y-4 rounded-xl border border-dashed border-blue-300 bg-slate-50 p-5">
@@ -275,6 +277,22 @@ export function TestSetRunner({ runType = "test_set" }: { runType?: Certificatio
                             </tbody>
                         </table>
                     </div>
+
+                    {quotas.length > 0 && (
+                        <div className="rounded-xl border bg-white p-4">
+                            <div className="text-xs font-bold text-slate-900">Cupos de la simulación (lista del portal de la DGII)</div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {quotas.map((quota) => (
+                                    <div key={quota.label} className="rounded-lg border px-3 py-2 text-xs">
+                                        <div className="text-slate-500">{quota.label}</div>
+                                        <div className={cn("font-bold", quota.accepted >= quota.expected ? "text-emerald-600" : "text-slate-900")}>
+                                            {quota.accepted} de {quota.expected} aceptados
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {downloads.length > 0 && (
                         <div className="rounded-xl border bg-white p-4">

@@ -42,6 +42,10 @@ function buildDeps(): certification.RunDeps {
             const { data } = await createServerClient().database.from("Setting").select("value").eq("key", "COMPANY_RNC").limit(1)
             return typeof data?.[0]?.value === "string" ? data[0].value.replace(/\D/g, "") : null
         },
+        async companyName() {
+            const { data } = await createServerClient().database.from("Setting").select("value").eq("key", "COMPANY_NAME").limit(1)
+            return typeof data?.[0]?.value === "string" ? data[0].value.trim() : null
+        },
         log: (event, detail) => console.info(`[ecf-certification] ${event}`, detail ?? {}),
     }
 }
@@ -74,7 +78,7 @@ async function guarded<T>(work: () => Promise<T>): Promise<RunActionResult<T>> {
 }
 
 function parseRunType(value: unknown): CertificationRunType | null {
-    return value === "test_set" || value === "commercial_approval" ? value : null
+    return value === "test_set" || value === "commercial_approval" || value === "simulation" ? value : null
 }
 
 export async function startCertificationRun(formData: FormData): Promise<RunActionResult> {
@@ -113,9 +117,10 @@ export async function refreshCertificationRun(runId: string): Promise<RunActionR
 
 export async function downloadCertificationDocument(
     runId: string,
-    caseId: string
+    caseId: string,
+    kind?: "rfce"
 ): Promise<RunActionResult<{ fileName: string; signedXml: string }>> {
-    return guarded(() => certification.downloadSigned(buildDeps(), runId, caseId))
+    return guarded(() => certification.downloadSigned(buildDeps(), runId, caseId, kind === "rfce" ? "rfce" : undefined))
 }
 
 /** Authenticates against DGII with the stored certificate; sends no document. */

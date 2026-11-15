@@ -5,7 +5,7 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals"
+export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals" | "simulation"
 
 export interface CertificationStepDef {
     id: number
@@ -46,8 +46,7 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
             "Cada Factura de Consumo menor a RD$250,000 envía primero un Resumen (RFCE); tras ser aceptado, se cargan las facturas.",
             "Por cada e-CF enviado se conserva su representación impresa (con QR) para el siguiente paso.",
         ],
-        actions: ["portal"],
-        pendingTool: "Simulación automática de envíos",
+        actions: ["portal", "simulation"],
     },
     {
         id: 5,

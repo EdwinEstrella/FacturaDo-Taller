@@ -116,6 +116,8 @@ export function CertificationStepper({ initialProgress, companyRnc }: {
 
                 {step.actions.includes("approvals") && <TestSetRunner runType="commercial_approval" />}
 
+                {step.actions.includes("simulation") && <TestSetRunner runType="simulation" />}
+
                 {step.actions.includes("portal") && (
                     <Button type="button" variant="outline" onClick={openPortal} className="w-full sm:w-auto">
                         <ExternalLink className="mr-2 size-4" /> Ir al Portal DGII

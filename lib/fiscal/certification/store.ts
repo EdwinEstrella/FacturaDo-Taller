@@ -7,6 +7,7 @@ import {
     type Run,
     type RunStatus,
     type RunStore,
+    SequenceConflictError,
     type RunType,
     type Submission,
     type SubmissionPatch,
@@ -14,7 +15,10 @@ import {
 
 const RUN_COLUMNS = "id, environment, runType, status, createdAt"
 const SUBMISSION_COLUMNS =
-    "id, caseId, encf, tipoEcf, kind, sequenceOrder, dependsOnCaseId, status, trackId, dgiiMessages, unsignedXml, signedXml, securityCode, attempts"
+    "id, caseId, encf, tipoEcf, kind, sequenceOrder, dependsOnCaseId, status, trackId, dgiiMessages, unsignedXml, signedXml, securityCode, attempts, sourceCaseId"
+/** Kinds that carry an e-NCF issued by the business (an ACECF carries the DGII emitter's). */
+const ISSUED_KINDS = ["ecf", "rfce", "portal_upload"]
+const MAX_ISSUED_ROWS = 10_000
 const RUN_TYPES: RunType[] = ["test_set", "commercial_approval", "simulation"]
 
 function fail(operation: string): never {
@@ -56,6 +60,7 @@ function toSubmission(row: any): Submission {
         signedXml: row.signedXml,
         securityCode: row.securityCode,
         attempts: row.attempts,
+        sourceCaseId: typeof row.sourceCaseId === "string" ? row.sourceCaseId : null,
     }
 }
 
@@ -100,10 +105,15 @@ export function createInsforgeRunStore(): RunStore {
                 sequenceOrder: sub.sequenceOrder,
                 dependsOnCaseId: sub.dependsOnCaseId,
                 unsignedXml: sub.unsignedXml,
+                ...(sub.sourceCaseId ? { sourceCaseId: sub.sourceCaseId } : {}),
             }))
             const { error: insertError } = await db.from("EcfCertificationSubmission").insert(rows)
             if (insertError) {
                 await db.from("EcfCertificationRun").delete().eq("id", runId)
+                // 23505: the unique / issued-e-NCF guard of the simulation migration.
+                if (insertError.code === "23505" || /already issued|duplicate key/i.test(String(insertError.message ?? ""))) {
+                    throw new SequenceConflictError()
+                }
                 fail("createSubmissions")
             }
             return toRun(run[0])
@@ -113,6 +123,22 @@ export function createInsforgeRunStore(): RunStore {
             const { data, error } = await db.from("EcfCertificationRun").select(RUN_COLUMNS).eq("id", runId).limit(1)
             if (error) fail("getRun")
             return data?.[0] ? toRun(data[0]) : null
+        },
+
+        async issuedEncfs(environment) {
+            const { data, error } = await db
+                .from("EcfCertificationSubmission")
+                .select("encf")
+                .eq("environment", environment)
+                .in("kind", ISSUED_KINDS)
+                .in("runType", ["test_set", "simulation"])
+                .order("encf", { ascending: false })
+                .limit(MAX_ISSUED_ROWS)
+            if (error) fail("issuedEncfs")
+            const rows = data ?? []
+            // Fail closed rather than allocate from a truncated history.
+            if (rows.length >= MAX_ISSUED_ROWS) fail("issuedEncfs:truncated")
+            return rows.map((row: { encf: string }) => row.encf)
         },
 
         async latestRun(environment, runType) {

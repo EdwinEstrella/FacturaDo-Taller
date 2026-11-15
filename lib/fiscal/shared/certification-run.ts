@@ -17,10 +17,12 @@ export interface RunItemView {
     status: SubmissionStatus
     trackId: string | null
     messages: DgiiMessageView[]
+    /** Simulation only: the step-2 test case this document re-issues. */
+    sourceCaseId: string | null
     signed: boolean
 }
 
-export type CertificationRunType = "test_set" | "commercial_approval"
+export type CertificationRunType = "test_set" | "commercial_approval" | "simulation"
 
 export interface RunView {
     runId: string
@@ -60,6 +62,14 @@ export const RUN_COPY: Record<CertificationRunType, RunCopy> = {
         fileHint: "Selecciona el archivo .xlsx del Set de Aprobaciones Comerciales.",
         loaded: (count) => `Set de Aprobaciones Comerciales cargado: ${count} aprobaciones listas para enviar.`,
         sentAll: "Todas las aprobaciones comerciales fueron enviadas. Revisa el estado de cada una en la tabla.",
+    },
+    simulation: {
+        title: "Simulación e-CF (Paso 4 de la DGII)",
+        description:
+            "Carga el mismo Excel del Set de Pruebas (Paso 2). El sistema genera la simulación con secuencias nuevas y la fecha de hoy (excepto documentos con impuestos adicionales, que conservan la fecha del Excel para que la DGII acepte sus tasas), la firma con tu certificado y la envía a la DGII. Las facturas de consumo menores a 250 mil se descargan para subirlas al portal.",
+        fileHint: "Selecciona el archivo .xlsx del Set de Pruebas (Paso 2).",
+        loaded: (count) => `Simulación generada: ${count} documentos con secuencias nuevas listos para enviar.`,
+        sentAll: "Todos los documentos de la simulación fueron enviados. Consulta el estado hasta que la DGII termine de procesarlos.",
     },
 }
 
@@ -102,6 +112,8 @@ export function statusTone(status: SubmissionStatus): StatusTone {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
+    SEQUENCE_CONFLICT: "Una de las secuencias e-NCF ya fue usada. Carga el archivo de nuevo para asignar secuencias nuevas.",
+    LEGAL_NAME_MISSING: "Tu negocio no tiene razón social configurada. Escríbela en Ajustes → General antes de iniciar la simulación.",
     INVALID_TEST_SET: "El archivo no es un set válido de la DGII.",
     RNC_MISMATCH: "El RNC del Set de Pruebas no coincide con el RNC de tu negocio. Descarga el archivo de la empresa correcta.",
     CERTIFICATE_NOT_FOUND: "No hay un certificado digital válido. Súbelo en la sección «Certificado digital» de esta página.",
@@ -166,4 +178,41 @@ export function nextLoopAction(run: RunView): LoopAction {
 /** Whether a loaded run still has documents waiting for DGII, unless stopped or out of rounds. */
 export function shouldAutoPoll(run: RunView, pollRounds: number, maxRounds: number): boolean {
     return run.counts.sent > 0 && !run.stoppedReason && pollRounds < maxRounds
+}
+
+/** One line of the DGII step-4 portal list: documents expected vs accepted by DGII. */
+export interface SimulationQuota {
+    label: string
+    expected: number
+    accepted: number
+    /** Documents of the run in this line (any status). */
+    inRun: number
+}
+
+/**
+ * Quotas of the DGII portal list for step 4. E32 >= 250k are e-CF sent to reception; consumo E32
+ * (< 250k) count through their RFCE summaries.
+ */
+const SIMULATION_QUOTAS: { label: string; expected: number; matches: (item: RunItemView) => boolean }[] = [
+    { label: "E31", expected: 4, matches: (item) => item.kind === "ecf" && item.tipoEcf === "31" },
+    { label: "E32 ≥ 250 mil", expected: 2, matches: (item) => item.kind === "ecf" && item.tipoEcf === "32" },
+    { label: "E33", expected: 1, matches: (item) => item.kind === "ecf" && item.tipoEcf === "33" },
+    ...["34", "41", "43", "44", "45", "46", "47"].map((tipo) => ({
+        label: `E${tipo}`,
+        expected: 2,
+        matches: (item: RunItemView) => item.kind === "ecf" && item.tipoEcf === tipo,
+    })),
+    { label: "RFCE (E32 < 250 mil)", expected: 4, matches: (item) => item.kind === "rfce" },
+]
+
+export function simulationQuotaSummary(run: RunView): SimulationQuota[] {
+    return SIMULATION_QUOTAS.map((quota) => {
+        const items = run.items.filter(quota.matches)
+        return {
+            label: quota.label,
+            expected: quota.expected,
+            accepted: items.filter((item) => item.status === "accepted" || item.status === "accepted_conditional").length,
+            inRun: items.length,
+        }
+    })
 }

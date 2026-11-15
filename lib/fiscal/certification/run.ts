@@ -21,6 +21,7 @@ import {
     type TestSet,
 } from "./builder"
 import { buildCommercialApprovals, detectWorkbookType, type BuiltApproval } from "./commercial-approval"
+import { buildSimulationSet } from "./simulation"
 import { DgiiError, type DgiiClient, type DgiiEnvironment, type DgiiMessage, type DgiiSendResult } from "./dgii-client"
 import { readXlsx, XlsxError } from "./xlsx"
 
@@ -38,6 +39,8 @@ export interface PlannedSubmission {
     sequenceOrder: number
     dependsOnCaseId: string | null
     unsignedXml: string
+    /** Simulation only: the step-2 test case this document re-issues. */
+    sourceCaseId?: string | null
 }
 
 export interface Submission extends PlannedSubmission {
@@ -77,6 +80,11 @@ export interface RunStore {
         submissions: PlannedSubmission[]
     }): Promise<Run>
     getRun(runId: string): Promise<Run | null>
+    /**
+     * Every e-NCF issued in the environment: kinds ecf, rfce and portal_upload of test-set and
+     * simulation runs (never commercial approvals, whose e-NCF belong to the DGII emitter).
+     */
+    issuedEncfs(environment: RunEnvironment): Promise<string[]>
     latestRun(environment: RunEnvironment, runType: RunType): Promise<Run | null>
     /** Ordered by sequenceOrder. */
     listSubmissions(runId: string): Promise<Submission[]>
@@ -99,10 +107,20 @@ export interface RunDeps {
     dgii(environment: DgiiEnvironment): DgiiClient
     /** RNC of the business (digits only), or null when not configured. */
     companyRnc(): Promise<string | null>
+    /** Legal name of the business (razón social), or null when not configured. */
+    companyName(): Promise<string | null>
     log(event: string, detail?: Record<string, unknown>): void
     now?(): number
     /** Wall-clock budget of one sendNext call; defaults to 40s. */
     budgetMs?: number
+}
+
+/** createRun refused a submission whose e-NCF was already issued (database guard). */
+export class SequenceConflictError extends Error {
+    constructor() {
+        super("An e-NCF of the run was already issued.")
+        this.name = "SequenceConflictError"
+    }
 }
 
 /** Failure with a stable code the UI maps to a Spanish message. */
@@ -133,6 +151,7 @@ export function planSubmissions(set: TestSet): PlannedSubmission[] {
             sequenceOrder: out.length,
             dependsOnCaseId,
             unsignedXml: doc.xml,
+            ...(doc.sourceCaseId ? { sourceCaseId: doc.sourceCaseId } : {}),
         })
 
     const summaries = new Map(set.rfce.map((doc) => [doc.encf, doc]))
@@ -218,6 +237,8 @@ export interface SubmissionView {
     status: SubmissionStatus
     trackId: string | null
     messages: DgiiMessage[]
+    /** Simulation only: the step-2 test case this document re-issues. */
+    sourceCaseId: string | null
     /** A signed copy is stored (downloadable for portal uploads). */
     signed: boolean
 }
@@ -265,6 +286,7 @@ export function summarize(run: Run, subs: Submission[]): RunSummary {
             status: sub.status,
             trackId: sub.trackId,
             messages: sub.messages,
+            sourceCaseId: sub.sourceCaseId ?? null,
             signed: !!sub.signedXml,
         })),
     }
@@ -290,13 +312,15 @@ const WORKBOOK_LABEL: Record<RunType, string> = {
     simulation: "un Set de Pruebas (hojas ECF/RFCE)",
 }
 
+export type StartableRunType = RunType
+
 /**
  * Parses a DGII workbook and stores a new run with its planned submissions. `runType` is the type
  * the screen expects: a workbook of the other type is rejected.
  */
 export async function startRun(
     deps: RunDeps,
-    input: { environment: RunEnvironment; runType: Extract<RunType, "test_set" | "commercial_approval">; xlsx: Uint8Array; createdBy: string | null }
+    input: { environment: RunEnvironment; runType: StartableRunType; xlsx: Uint8Array; createdBy: string | null }
 ): Promise<RunSummary> {
     if (input.xlsx.byteLength > MAX_XLSX_BYTES) {
         throw new CertificationError("PAYLOAD_TOO_LARGE", "The workbook is too large.")
@@ -307,11 +331,19 @@ export async function startRun(
     try {
         const sheets = await readXlsx(input.xlsx)
         const workbookType = detectWorkbookType(sheets)
-        if (workbookType !== input.runType) {
+        // The simulation (step 4) takes the step-2 test-set workbook.
+        const matches = input.runType === "simulation" ? workbookType === "test_set" : workbookType === input.runType
+        if (!matches) {
             throw new TestSetError(`Este archivo es ${WORKBOOK_LABEL[workbookType]}, pero se esperaba ${WORKBOOK_LABEL[input.runType]}.`)
         }
+        const now = new Date((deps.now ?? Date.now)())
         if (input.runType === "test_set") set = buildTestSet(sheets)
-        else approvals = buildCommercialApprovals(sheets, new Date((deps.now ?? Date.now)()))
+        else if (input.runType === "simulation") {
+            // DGII shows the XML razón social in the consulta timbre: never send the workbook placeholder.
+            const razonSocial = ((await deps.companyName()) ?? "").trim()
+            if (!razonSocial) throw new CertificationError("LEGAL_NAME_MISSING", "The business has no razón social configured.")
+            set = buildSimulationSet(sheets, { issued: await deps.store.issuedEncfs(input.environment), now, emisor: { razonSocial } })
+        } else approvals = buildCommercialApprovals(sheets, now)
     } catch (error) {
         if (error instanceof XlsxError || error instanceof TestSetError) {
             deps.log("workbook_invalid")
@@ -332,13 +364,23 @@ export async function startRun(
     // Fail early when the certificate is missing or unreadable, before storing anything.
     await deps.loadSigner(input.environment)
 
-    const run = await deps.store.createRun({
-        environment: input.environment,
-        runType: input.runType,
-        sourceSha256: await sha256Hex(input.xlsx),
-        createdBy: input.createdBy,
-        submissions: set ? planSubmissions(set) : planApprovals(approvals),
-    })
+    let run: Run
+    try {
+        run = await deps.store.createRun({
+            environment: input.environment,
+            runType: input.runType,
+            sourceSha256: await sha256Hex(input.xlsx),
+            createdBy: input.createdBy,
+            submissions: set ? planSubmissions(set) : planApprovals(approvals),
+        })
+    } catch (error) {
+        // Fail closed: never renumber silently; a new start allocates from the updated history.
+        if (error instanceof SequenceConflictError) {
+            deps.log("sequence_conflict", { runType: input.runType })
+            throw new CertificationError("SEQUENCE_CONFLICT", "An e-NCF of this run was already issued.")
+        }
+        throw error
+    }
     deps.log("run_started", { runType: input.runType, ...(set ? { ecf: set.ecf.length, rfce: set.rfce.length } : { acecf: approvals.length }) })
     return summarize(run, await deps.store.listSubmissions(run.id))
 }
@@ -530,19 +572,30 @@ export async function latestRun(deps: RunDeps, environment: RunEnvironment, runT
     return summarize(run, await deps.store.listSubmissions(run.id))
 }
 
-/** Only the consumo e-CF signed for the portal upload is downloadable in a test-set run. */
+/**
+ * Signed document of a run. Test sets: only the consumo e-CF signed for the portal upload.
+ * Simulations: any signed document (step 5 needs every e-CF); `kind: "rfce"` picks the summary of a
+ * consumo E32, otherwise the e-CF of the case (portal_upload or ecf) is returned.
+ */
 export async function downloadSigned(
     deps: RunDeps,
     runId: string,
-    caseId: string
+    caseId: string,
+    kind?: "rfce"
 ): Promise<{ fileName: string; signedXml: string }> {
     const run = await requireRun(deps, runId)
-    const sub = (await deps.store.listSubmissions(run.id)).find(
-        (item) => item.caseId === caseId && item.kind === "portal_upload" && item.status === "ready_for_portal"
-    )
+    const subs = (await deps.store.listSubmissions(run.id)).filter((item) => item.caseId === caseId)
+    let sub: Submission | undefined
+    if (run.runType === "simulation") {
+        const wanted: SubmissionKind[] = kind === "rfce" ? ["rfce"] : ["portal_upload", "ecf"]
+        sub = wanted.map((k) => subs.find((item) => item.kind === k)).find((item) => !!item?.signedXml)
+    } else {
+        sub = subs.find((item) => item.kind === "portal_upload" && item.status === "ready_for_portal")
+    }
     if (!sub?.signedXml) throw new CertificationError("NOT_READY", "The signed document is not available for download.")
-    deps.log("download", { tipoEcf: sub.tipoEcf })
-    return { fileName: `${sub.caseId}.xml`, signedXml: sub.signedXml }
+    deps.log("download", { tipoEcf: sub.tipoEcf, kind: sub.kind })
+    const suffix = sub.kind === "rfce" ? "-RFCE" : ""
+    return { fileName: `${sub.caseId}${suffix}.xml`, signedXml: sub.signedXml }
 }
 
 /** Authenticates against DGII with the stored certificate; sends no document. */
