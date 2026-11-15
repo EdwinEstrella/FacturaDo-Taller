@@ -15,6 +15,7 @@ import {
     type CertificationProgress,
 } from "@/lib/fiscal/shared/certification-steps"
 import { ReceptorUrlFields } from "./receptor-url-fields"
+import { XmlSigner } from "./xml-signer"
 
 export function CertificationStepper({ initialProgress, companyRnc }: {
     initialProgress: CertificationProgress
@@ -107,6 +108,8 @@ export function CertificationStepper({ initialProgress, companyRnc }: {
                 )}
 
                 {step.actions.includes("urls") && <ReceptorUrlFields companyRnc={companyRnc} />}
+
+                {step.actions.includes("sign") && <XmlSigner />}
 
                 {step.actions.includes("portal") && (
                     <Button type="button" variant="outline" onClick={openPortal} className="w-full sm:w-auto">

@@ -49,6 +49,28 @@ function formatDistinguishedName(attributes: forge.pki.CertificateField[]): stri
 }
 
 /**
+ * Opens a .p12 with its passphrase and returns the PEM private key and certificate.
+ * Throws FiscalError (WRONG_PASSWORD | INVALID_FILE) with a secret-free message.
+ */
+export function readP12Material(p12Bytes: Uint8Array, passphrase: string): { key: string; cert: string } {
+    let material: { key?: string; cert?: string }
+    try {
+        material = new P12Reader(passphrase).getKeyFromStringBase64(Buffer.from(p12Bytes).toString("base64"))
+    } catch (error) {
+        // Never echo parser details: they may include file internals. Classify only.
+        const text = error instanceof Error ? error.message : ""
+        if (WRONG_PASSWORD_PATTERN.test(text)) {
+            throw new FiscalError("WRONG_PASSWORD", "La contraseña del certificado es incorrecta.")
+        }
+        throw new FiscalError("INVALID_FILE", "El archivo no es un certificado .p12 válido.")
+    }
+    if (!material.key || !material.cert) {
+        throw new FiscalError("INVALID_FILE", "El archivo no es un certificado .p12 válido.")
+    }
+    return { key: material.key, cert: material.cert }
+}
+
+/**
  * Validates the .p12 (file + passphrase + validity window) and returns the metadata plus the
  * encrypted envelopes to persist. Throws FiscalError with a user-presentable, secret-free message.
  */
@@ -65,20 +87,7 @@ export function prepareCertificateForStorage(input: {
         throw new FiscalError("CERTIFICATE_PASSPHRASE_REQUIRED", "Escribe la contraseña del certificado.")
     }
 
-    let pem: string | undefined
-    try {
-        pem = new P12Reader(input.passphrase).getKeyFromStringBase64(Buffer.from(input.p12Bytes).toString("base64")).cert
-    } catch (error) {
-        // Never echo parser details: they may include file internals. Classify only.
-        const text = error instanceof Error ? error.message : ""
-        if (WRONG_PASSWORD_PATTERN.test(text)) {
-            throw new FiscalError("WRONG_PASSWORD", "La contraseña del certificado es incorrecta.")
-        }
-        throw new FiscalError("INVALID_FILE", "El archivo no es un certificado .p12 válido.")
-    }
-    if (!pem) {
-        throw new FiscalError("INVALID_FILE", "El archivo no es un certificado .p12 válido.")
-    }
+    const { cert: pem } = readP12Material(input.p12Bytes, input.passphrase)
 
     const certificate = forge.pki.certificateFromPem(pem)
     const metadata: CertificateMetadata = {

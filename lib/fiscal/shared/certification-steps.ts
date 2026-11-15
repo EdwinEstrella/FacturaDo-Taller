@@ -5,7 +5,7 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls"
+export type CertificationStepAction = "portal" | "urls" | "sign"
 
 export interface CertificationStepDef {
     id: number
@@ -23,8 +23,7 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
         id: 1,
         label: "URLs y XML de Postulación",
         summary: "Registra las tres URLs de servicio en el portal de la DGII y genera el archivo de postulación. Después descarga el XML de postulación, fírmalo con tu certificado y súbelo firmado al portal.",
-        actions: ["portal", "urls"],
-        pendingTool: "Firma del XML de postulación dentro del sistema",
+        actions: ["portal", "urls", "sign"],
     },
     {
         id: 2,

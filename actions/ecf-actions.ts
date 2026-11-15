@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { prepareCertificateForStorage } from "@/lib/fiscal/certificate-custody"
 import { FiscalError } from "@/lib/fiscal/errors"
+import { signXmlWithP12 } from "@/lib/fiscal/sign-document"
 import {
     CERTIFICATION_TOTAL_STEPS,
     INITIAL_CERTIFICATION_PROGRESS,
@@ -86,6 +87,45 @@ export async function saveCertificationProgress(progress: CertificationProgress)
 
     revalidatePath("/settings/ecf")
     return { success: true }
+}
+
+export type SignXmlResult = { success: true; signedXml: string } | { success: false; error: string }
+
+const MAX_XML_BYTES = 2 * 1024 * 1024
+
+/** Signs an uploaded XML with a .p12 provided for this call only; neither file is stored. */
+export async function signXmlDocument(formData: FormData): Promise<SignXmlResult> {
+    await requireAdmin()
+
+    const xmlFile = formData.get("xml")
+    const certificate = formData.get("certificate")
+    const passphrase = String(formData.get("passphrase") ?? "")
+
+    if (!(xmlFile instanceof File) || xmlFile.size === 0) {
+        return { success: false, error: "Selecciona el archivo XML que vas a firmar." }
+    }
+    if (xmlFile.size > MAX_XML_BYTES) {
+        return { success: false, error: "El archivo XML es demasiado grande." }
+    }
+    if (!(certificate instanceof File) || certificate.size === 0) {
+        return { success: false, error: "Selecciona el archivo del certificado .p12." }
+    }
+    if (certificate.size > MAX_CERTIFICATE_BYTES) {
+        return { success: false, error: "El archivo es demasiado grande para ser un certificado .p12." }
+    }
+
+    try {
+        const signedXml = signXmlWithP12({
+            xml: await xmlFile.text(),
+            p12Bytes: new Uint8Array(await certificate.arrayBuffer()),
+            passphrase,
+        })
+        return { success: true, signedXml }
+    } catch (error) {
+        if (error instanceof FiscalError) return { success: false, error: error.message }
+        console.error("XML signing error:", error)
+        return { success: false, error: "No se pudo firmar el documento." }
+    }
 }
 
 export async function uploadEcfCertificate(formData: FormData): Promise<EcfActionResult> {
