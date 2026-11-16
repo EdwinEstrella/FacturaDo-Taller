@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { getQuoteById } from "@/actions/quote-actions"
+import { getInvoiceFiscalMode } from "@/actions/invoice-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import type { Product } from "@/types"
 
@@ -15,12 +16,13 @@ export default async function CreateInvoicePage({
 }: {
     searchParams: Promise<{ type?: string, sourceQuoteId?: string }>
 }) {
-    const [{ type, sourceQuoteId }, [clients, products]] = await Promise.all([
+    const [{ type, sourceQuoteId }, [clients, products], fiscalMode] = await Promise.all([
         searchParams,
         Promise.all([
             getClients(),
             getProducts()
-        ])
+        ]),
+        getInvoiceFiscalMode()
     ])
 
     const isQuoteMode = type === "QUOTE"
@@ -51,6 +53,7 @@ export default async function CreateInvoicePage({
                     initialClients={clients} 
                     initialProducts={serializedProducts} 
                     sourceQuote={sourceQuote} 
+                    ecfEnabled={fiscalMode.ecfEnabled}
                 />
             </Suspense>
         </div>

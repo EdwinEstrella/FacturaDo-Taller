@@ -1,6 +1,6 @@
 // SERVER ONLY. InsForge-backed ReceptorStore. The receptor tables hold tokens and signed XML and are not
 // granted to the app's anon key, so this uses the server-side admin key.
-import { createClient } from "@insforge/sdk";
+import { createFiscalAdminClient } from "../admin-client";
 import type { ReceivedApprovalRow, ReceivedDocumentRow, ReceptorStore } from "./handler";
 
 /** Expired seeds/tokens are purged opportunistically once they are this old. */
@@ -15,10 +15,11 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
 }
 
 function adminClient() {
-  const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
-  const adminKey = process.env.INSFORGE_ADMIN_KEY;
-  if (!baseUrl || !adminKey) fail("server not configured");
-  return createClient({ baseUrl, anonKey: adminKey, isServerMode: true });
+  try {
+    return createFiscalAdminClient();
+  } catch {
+    fail("server not configured");
+  }
 }
 
 export function createInsforgeReceptorStore(): ReceptorStore {

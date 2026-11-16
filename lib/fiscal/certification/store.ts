@@ -1,7 +1,7 @@
 // SERVER ONLY. InsForge-backed RunStore. The certification tables hold signed XML and are not
 // granted to the app's anon key, so this uses the server-side admin key.
 
-import { createClient } from "@insforge/sdk"
+import { createFiscalAdminClient } from "../admin-client"
 import {
     type PlannedSubmission,
     type Run,
@@ -26,10 +26,11 @@ function fail(operation: string): never {
 }
 
 function adminClient() {
-    const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL
-    const adminKey = process.env.INSFORGE_ADMIN_KEY
-    if (!baseUrl || !adminKey) fail("server not configured")
-    return createClient({ baseUrl, anonKey: adminKey, isServerMode: true })
+    try {
+        return createFiscalAdminClient()
+    } catch {
+        fail("server not configured")
+    }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

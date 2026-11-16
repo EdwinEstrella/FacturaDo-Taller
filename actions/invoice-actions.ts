@@ -3,11 +3,37 @@
 import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { isMeasuredMode } from "@/lib/product-measurements"
+import { computeEcfTotals, computeNoReceiptTotals, totalsDrift } from "@/lib/fiscal/issuance/totals"
+import {
+    buildInvoiceSnapshotInput,
+    enqueueInvoiceEcf,
+    loadFiscalMode,
+    loadIssuer,
+    mapIssuanceErrorToSpanish,
+} from "@/lib/fiscal/issuance/invoice-issuance"
+import { isServiceProduct } from "@/lib/fiscal/issuance/buyer"
+import { IssuanceError } from "@/lib/fiscal/issuance/errors"
+import { buildInvoiceEcfXml } from "@/lib/fiscal/issuance/mapper"
+import {
+    isPaymentMethod,
+    type InvoiceLineSnapshot,
+    type ComputedEcfTotals,
+    type InvoiceSnapshot,
+    type IssuerSnapshot,
+    type StoredInvoiceEcfSnapshot,
+} from "@/lib/fiscal/issuance/types"
 import type { InvoiceItem, InvoicePayment } from "@/types"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
 import { addClientHistoryEntry } from "./client-history-actions"
+
+interface ProductRow {
+    id: string
+    name: string
+    isService: boolean | null
+    category: string | null
+}
 
 const InvoiceItemSchema = z.object({
     productId: z.string(),
@@ -36,6 +62,7 @@ const InvoiceSchema = z.object({
     discount: z.number().min(0).optional(),
     hasNcf: z.boolean().optional(),
     sourceQuoteId: z.string().optional(),
+    withoutFiscalReceipt: z.boolean().optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -149,6 +176,10 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
     }
 }
 
+export async function getInvoiceFiscalMode(): Promise<{ ecfEnabled: boolean }> {
+    return loadFiscalMode()
+}
+
 export async function createInvoice(data: InvoiceFormData) {
     await requireAuth();
 
@@ -180,7 +211,175 @@ export async function createInvoice(data: InvoiceFormData) {
         return { success: false, error: error instanceof Error ? error.message : "Stock validation failed" }
     }
 
-    const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes, amountPaid } = validated.data
+    const { clientId, clientName, items, total, paymentMethod, shippingCost, deliveryDate, notes, amountPaid, withoutFiscalReceipt } = validated.data
+
+    const { ecfEnabled } = await loadFiscalMode()
+    const isWithoutFiscalReceipt = Boolean(withoutFiscalReceipt)
+
+    let finalTax = validated.data.tax || 0
+    let finalTotal = total
+    let finalHasNcf = Number(validated.data.tax || 0) > 0
+    let storedSnapshot: StoredInvoiceEcfSnapshot | null = null
+    let ecfTypeToIssue: "E31" | "E32" | null = null
+
+    if (ecfEnabled) {
+        if (isWithoutFiscalReceipt) {
+            const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
+            const noReceipt = computeNoReceiptTotals(itemsGross, {
+                shipping: shippingCost || 0,
+                discount: validated.data.discount || 0,
+            })
+
+            if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
+                return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
+            }
+
+            finalTax = noReceipt.tax
+            finalTotal = noReceipt.total
+            finalHasNcf = false
+        } else {
+            if (!isPaymentMethod(paymentMethod)) {
+                return { success: false, error: "Método de pago no válido para comprobantes fiscales." }
+            }
+
+            // 1. Load issuer BEFORE inserting anything
+            let issuer: IssuerSnapshot
+            try {
+                issuer = await loadIssuer()
+            } catch (err) {
+                return { success: false, error: mapIssuanceErrorToSpanish(err) }
+            }
+
+            // 2. Load client BEFORE inserting anything
+            let clientData: { id: string; name?: string | null; rnc?: string | null; cedula?: string | null; address?: string | null; phone?: string | null; email?: string | null } | null = null
+            if (clientId) {
+                const { data: clientRes, error: clientErr } = await insforge.database
+                    .from('Client')
+                    .select('id, name, rnc, cedula, address, phone, email')
+                    .eq('id', clientId)
+                    .single()
+                if (clientErr || !clientRes) {
+                    return { success: false, error: "Cliente no encontrado." }
+                }
+                clientData = clientRes
+            }
+
+            // 3. Load products BEFORE inserting anything (typed rows, no placeholders)
+            const productIds = [...new Set(items.map(i => i.productId))]
+            const { data: dbProducts, error: prodErr } = await insforge.database
+                .from('Product')
+                .select('id, name, isService, category')
+                .in('id', productIds)
+
+            if (prodErr || !dbProducts) {
+                return { success: false, error: "Error al cargar los productos para validar montos fiscales." }
+            }
+
+            const productMap = new Map<string, ProductRow>(dbProducts.map((p: ProductRow) => [p.id, p]))
+            for (const item of items) {
+                if (!productMap.has(item.productId)) {
+                    return { success: false, error: "Uno o más productos no existen en la base de datos." }
+                }
+            }
+
+            const mapperLines: InvoiceLineSnapshot[] = items.map((item) => {
+                const dbProd = productMap.get(item.productId)!
+                const isService = isServiceProduct(dbProd)
+                return {
+                    name: (item.productName || dbProd.name).trim(),
+                    quantity: Number(item.quantity),
+                    unitPrice: Number(item.price),
+                    taxable: !isService,
+                    isService,
+                }
+            })
+
+            let computedTotals: ComputedEcfTotals
+            try {
+                computedTotals = computeEcfTotals(mapperLines, {
+                    shipping: shippingCost || 0,
+                    discount: validated.data.discount || 0,
+                })
+            } catch (err) {
+                return { success: false, error: mapIssuanceErrorToSpanish(err) }
+            }
+
+            if (totalsDrift({ total, tax: validated.data.tax }, { total: computedTotals.totalAmount, tax: computedTotals.itbisAmount })) {
+                return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
+            }
+
+            const now = new Date()
+            const snapshotInput = buildInvoiceSnapshotInput({
+                items: items.map((item) => {
+                    const dbProd = productMap.get(item.productId)!
+                    return {
+                        name: (item.productName || dbProd.name).trim(),
+                        quantity: Number(item.quantity),
+                        unitPrice: Number(item.price),
+                        isService: isServiceProduct(dbProd),
+                    }
+                }),
+                client: clientData,
+                payment: {
+                    method: paymentMethod,
+                },
+                shipping: shippingCost || 0,
+                discount: validated.data.discount || 0,
+                issuedAt: now,
+                totals: {
+                    taxableAmount: computedTotals.taxableAmount,
+                    exemptAmount: computedTotals.exemptAmount,
+                    itbis: computedTotals.itbisAmount,
+                    total: computedTotals.totalAmount,
+                },
+            })
+
+            // Read active sequence to validate availability and get real expiresOn for dry-run
+            const { data: seqRow, error: seqErr } = await insforge.database
+                .from('EcfSequence')
+                .select('ecfType, rangeStart, rangeEnd, nextNumber, expiresOn, active')
+                .eq('ecfType', snapshotInput.ecfType)
+                .maybeSingle()
+
+            if (seqErr || !seqRow || !seqRow.active) {
+                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_NOT_CONFIGURED")) }
+            }
+
+            const todaySd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo' }).format(now)
+            const expiresOn = String(seqRow.expiresOn).slice(0, 10)
+            if (expiresOn < todaySd) {
+                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXPIRED")) }
+            }
+
+            if (Number(seqRow.nextNumber) > Number(seqRow.rangeEnd)) {
+                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXHAUSTED")) }
+            }
+
+            // Dry-run XML build with placeholder e-NCF and real expiresOn to validate all mapper rules BEFORE reserving or inserting
+            const placeholderEncf = snapshotInput.ecfType === "E31" ? "E310000000001" : "E320000000001"
+            const dryRunInvoice: InvoiceSnapshot = {
+                ...snapshotInput.invoice,
+                encf: placeholderEncf,
+                sequenceExpiresOn: seqRow.expiresOn,
+            }
+
+            try {
+                buildInvoiceEcfXml(issuer, dryRunInvoice, now)
+            } catch (err) {
+                return { success: false, error: mapIssuanceErrorToSpanish(err) }
+            }
+
+            storedSnapshot = {
+                issuer,
+                invoice: snapshotInput.invoice,
+            }
+            ecfTypeToIssue = snapshotInput.ecfType
+
+            finalTax = computedTotals.itbisAmount
+            finalTotal = computedTotals.totalAmount
+            finalHasNcf = true
+        }
+    }
 
     const isCredit = paymentMethod === "CREDIT"
 
@@ -189,10 +388,10 @@ export async function createInvoice(data: InvoiceFormData) {
 
     if (isCredit) {
         status = "PENDING"
-        balance = total
-    } else if (amountPaid !== undefined && amountPaid < total) {
+        balance = finalTotal
+    } else if (amountPaid !== undefined && amountPaid < finalTotal) {
         status = "PENDING"
-        balance = total - amountPaid
+        balance = finalTotal - amountPaid
     }
 
     try {
@@ -212,16 +411,16 @@ export async function createInvoice(data: InvoiceFormData) {
             .insert([{
                 clientId: clientId,
                 clientName: clientName,
-                total: total,
+                total: finalTotal,
                 status: status,
                 paymentMethod: paymentMethod,
                 shippingCost: shippingCost || 0,
                 deliveryDate: deliveryDate?.toISOString(),
                 notes: notes,
                 balance: balance,
-                tax: validated.data.tax || 0,
+                tax: finalTax,
                 discount: validated.data.discount || 0,
-                hasNcf: Number(validated.data.tax || 0) > 0,
+                hasNcf: finalHasNcf,
                 createdById: user.id,
                 sequenceNumber: nextSequence
             }])
@@ -264,9 +463,24 @@ export async function createInvoice(data: InvoiceFormData) {
             throw new Error(itemsError.message)
         }
 
+        let issuedEncf: string | undefined = undefined
+
+        // If e-CF enabled and with receipt, enqueue e-CF before payments and stock
+        if (ecfEnabled && !isWithoutFiscalReceipt && storedSnapshot && ecfTypeToIssue) {
+            try {
+                const reservation = await enqueueInvoiceEcf(invoice.id, ecfTypeToIssue, storedSnapshot)
+                issuedEncf = reservation.encf
+            } catch (err) {
+                // Delete inserted items and invoice on issuance failure
+                await insforge.database.from('InvoiceItem').delete().eq('invoiceId', invoice.id)
+                await insforge.database.from('Invoice').delete().eq('id', invoice.id)
+                return { success: false, error: mapIssuanceErrorToSpanish(err) }
+            }
+        }
+
         // Register Initial Payment. Lo que exceda el total es la devuelta: no se queda en caja.
         // Si no se digitó el monto recibido en una venta de contado, se cobró el total.
-        const paidAmount = isCredit ? 0 : Math.min(amountPaid ?? total, total)
+        const paidAmount = isCredit ? 0 : Math.min(amountPaid ?? finalTotal, finalTotal)
         if (paidAmount > 0) {
             const paymentData = {
                 invoiceId: invoice.id,
@@ -288,7 +502,7 @@ export async function createInvoice(data: InvoiceFormData) {
             await addClientHistoryEntry(
                 clientId,
                 "INVOICE_CREATED",
-                `Factura creada por ${Number(total).toFixed(2)}`,
+                `Factura creada por ${Number(finalTotal).toFixed(2)}`,
                 { invoiceId: invoice.id, invoiceNumber: invoice.sequenceNumber }
             )
         }
@@ -302,7 +516,7 @@ export async function createInvoice(data: InvoiceFormData) {
 
         revalidatePath("/invoices")
         revalidatePath("/quotes")
-        return { success: true, invoiceId: invoice.id }
+        return { success: true, invoiceId: invoice.id, encf: issuedEncf }
     } catch (e) {
         console.error(e)
         return { success: false, error: "Failed to create invoice" }
@@ -334,7 +548,7 @@ export async function getInvoices() {
     }
     
     const allItems = (invoices || []).flatMap(inv => inv.items || [])
-    const productIds = [...new Set(allItems.reduce<string[]>((acc, i: any) => {
+    const productIds = [...new Set(allItems.reduce<string[]>((acc, i: { productId?: string | null }) => {
         if (i.productId) acc.push(i.productId)
         return acc
     }, []))]
@@ -520,6 +734,12 @@ export async function deleteInvoice(id: string, password?: string) {
         return { success: false, error: "Factura no encontrada" }
     }
 
+    const { ecfEnabled } = await loadFiscalMode()
+    const isLocked = Boolean(invoice.fiscalDocumentId || (ecfEnabled && invoice.ncf))
+    if (isLocked) {
+        return { success: false, error: "Esta factura tiene comprobante fiscal. Para corregirla emita una nota de crédito." }
+    }
+
     if (user.role !== 'ADMIN') {
         return { success: false, error: "Solo el Administrador puede eliminar facturas." }
     }
@@ -598,6 +818,40 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
     const insforge = createServerClient()
 
     try {
+        const { data: existingInvoice } = await insforge.database
+            .from('Invoice')
+            .select('id, fiscalDocumentId, ncf')
+            .eq('id', id)
+            .single()
+
+        if (!existingInvoice) {
+            return { success: false, error: "Factura no encontrada" }
+        }
+
+        const { ecfEnabled } = await loadFiscalMode()
+        const isLocked = Boolean(existingInvoice.fiscalDocumentId || (ecfEnabled && existingInvoice.ncf))
+        if (isLocked) {
+            return { success: false, error: "Esta factura tiene comprobante fiscal. Para corregirla emita una nota de crédito." }
+        }
+
+        let updateTax = validated.data.tax || 0
+        let updateHasNcf = Number(validated.data.tax || 0) > 0
+        let updateTotal = total
+
+        if (ecfEnabled) {
+            const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
+            const noReceipt = computeNoReceiptTotals(itemsGross, {
+                shipping: shippingCost || 0,
+                discount: validated.data.discount || 0,
+            })
+            if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
+                return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
+            }
+            updateTax = noReceipt.tax
+            updateHasNcf = false
+            updateTotal = noReceipt.total
+        }
+
         // Get old items
         const { data: oldItems } = await insforge.database
             .from('InvoiceItem')
@@ -623,13 +877,13 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
             .update({
                 clientId,
                 clientName,
-                total,
+                total: updateTotal,
                 shippingCost: shippingCost || 0,
                 deliveryDate: deliveryDate?.toISOString(),
                 notes: notes,
-                tax: validated.data.tax || 0,
+                tax: updateTax,
                 discount: validated.data.discount || 0,
-                hasNcf: Number(validated.data.tax || 0) > 0,
+                hasNcf: updateHasNcf,
             })
             .eq('id', id)
 

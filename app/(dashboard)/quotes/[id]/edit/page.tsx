@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { getQuoteById } from "@/actions/quote-actions"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
+import { getInvoiceFiscalMode } from "@/actions/invoice-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import { notFound, redirect } from "next/navigation"
 import type { Product } from "@/types"
@@ -26,10 +27,11 @@ export default async function EditQuotePage({ params }: EditQuotePageProps) {
         redirect("/quotes")
     }
 
-    const [quote, clients, products] = await Promise.all([
+    const [quote, clients, products, fiscalMode] = await Promise.all([
         getQuoteById(id),
         getClients(),
-        getProducts()
+        getProducts(),
+        getInvoiceFiscalMode()
     ])
 
     if (!quote) {
@@ -59,6 +61,7 @@ export default async function EditQuotePage({ params }: EditQuotePageProps) {
                     initialClients={clients}
                     initialData={quote}
                     documentType="QUOTE"
+                    ecfEnabled={fiscalMode.ecfEnabled}
                 />
             </Suspense>
         </div>

@@ -12,7 +12,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
@@ -27,6 +26,10 @@ import {
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils"
 import { updateInvoice, createInvoice } from "@/actions/invoice-actions"
 import { createQuote, updateQuote } from "@/actions/quote-actions"
+import { computeEcfTotals, computeNoReceiptTotals, round2 } from "@/lib/fiscal/issuance/totals"
+import { resolveEcfType, isServiceProduct } from "@/lib/fiscal/issuance/buyer"
+import { mapIssuanceErrorToSpanish } from "@/lib/fiscal/issuance/errors"
+import type { InvoiceLineSnapshot } from "@/lib/fiscal/issuance/types"
 import type { Client, Product, ProductCharacteristic, ProductVariant } from "@/types"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -56,6 +59,7 @@ interface InvoiceFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sourceQuote?: any
     documentType?: "INVOICE" | "QUOTE"
+    ecfEnabled: boolean
 }
 
 interface InvoiceItemState {
@@ -121,10 +125,22 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
     })
 }
 
-export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType }: InvoiceFormProps) {
+export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType, ecfEnabled }: InvoiceFormProps) {
     const { requireShift } = useShiftGuard()
     const dataToUse = initialData || sourceQuote
     const isEdit = !!initialData
+
+    const router = useRouter()
+    const searchParams = useSearchParams()
+
+    // Determine type: prop > initialData > searchParam > default
+    const type = documentType ||
+        (dataToUse?.status === "DRAFT" || dataToUse?.status === "ACCEPTED" || dataToUse?.status === "REJECTED" ? "QUOTE" :
+            searchParams.get("type")?.toUpperCase() === "QUOTE" ? "QUOTE" : "INVOICE")
+
+    const isQuoteMode = type === "QUOTE"
+    const usesFiscalReceiptRules = ecfEnabled && !isQuoteMode
+    const isFiscallyLocked = !isQuoteMode && Boolean(initialData?.fiscalDocumentId || (ecfEnabled && initialData?.ncf))
 
     const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(dataToUse?.items, initialProducts))
     const [selectedClientId, setSelectedClientId] = useState<string>(dataToUse?.clientId || "")
@@ -144,16 +160,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         if (dataToUse?.tax !== undefined) return Number(dataToUse.tax) > 0
         return true
     })
-
-    const router = useRouter()
-    const searchParams = useSearchParams()
-
-    // Determine type: prop > initialData > searchParam > default
-    const type = documentType ||
-        (dataToUse?.status === "DRAFT" || dataToUse?.status === "ACCEPTED" || dataToUse?.status === "REJECTED" ? "QUOTE" :
-            searchParams.get("type")?.toUpperCase() === "QUOTE" ? "QUOTE" : "INVOICE")
-
-    const isQuoteMode = type === "QUOTE"
+    const [withoutFiscalReceiptState, setWithoutFiscalReceiptState] = useState<boolean>(false)
+    const withoutFiscalReceipt = usesFiscalReceiptRules ? (isEdit ? true : withoutFiscalReceiptState) : false
 
     // Combobox states
     const [openClient, setOpenClient] = useState(false)
@@ -295,22 +303,98 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         return map
     }, [initialProducts])
 
+    const selectedClient = useMemo(() => {
+        return initialClients.find((c) => c.id === selectedClientId)
+    }, [initialClients, selectedClientId])
+
+    const clientEcfType = useMemo(() => {
+        return resolveEcfType(selectedClient)
+    }, [selectedClient])
+
+    const ecfTypeLabel = clientEcfType === "E31" ? "Crédito fiscal (E31)" : "Consumo (E32)"
+
     const subtotal = useMemo(() => {
         return items.reduce((sum, item) => sum + (item.price * Number(item.quantity || 0)), 0)
     }, [items])
 
-    const taxableSubtotal = items.reduce((acc, item) => {
-        const product = productMap.get(item.productId)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const asAny = product as any | undefined
-        const isService = asAny?.isService || asAny?.category === "SERVICIO"
-        if (isService) return acc
-        return acc + (item.price * Number(item.quantity || 0))
-    }, 0)
+    const totalsCalculation = useMemo(() => {
+        if (usesFiscalReceiptRules) {
+            if (withoutFiscalReceipt) {
+                const noReceipt = computeNoReceiptTotals(subtotal, {
+                    shipping: shippingCost,
+                    discount,
+                })
+                return {
+                    taxAmount: noReceipt.tax,
+                    activeDiscount: noReceipt.discount,
+                    total: noReceipt.total,
+                    error: null as string | null,
+                }
+            }
 
-    const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
-    const activeDiscount = Math.min(Math.max(discount, 0), subtotal + taxAmount + shippingCost)
-    const total = Math.max(0, subtotal + taxAmount + shippingCost - activeDiscount)
+            if (items.length === 0) {
+                return {
+                    taxAmount: 0,
+                    activeDiscount: 0,
+                    total: round2(Math.max(0, shippingCost)),
+                    error: null as string | null,
+                }
+            }
+
+            const mapperLines: InvoiceLineSnapshot[] = items.map((item) => {
+                const product = productMap.get(item.productId)
+                const isService = isServiceProduct(product)
+                return {
+                    name: item.productName || (product?.name ?? "Artículo"),
+                    quantity: Number(item.quantity || 0),
+                    unitPrice: Number(item.price || 0),
+                    taxable: !isService,
+                    isService,
+                }
+            })
+
+            try {
+                const computed = computeEcfTotals(mapperLines, {
+                    shipping: shippingCost,
+                    discount,
+                })
+                const activeDiscount = round2(Math.min(Math.max(discount, 0), subtotal))
+                return {
+                    taxAmount: computed.itbisAmount,
+                    activeDiscount,
+                    total: computed.totalAmount,
+                    error: null as string | null,
+                }
+            } catch (err) {
+                return {
+                    taxAmount: 0,
+                    activeDiscount: 0,
+                    total: 0,
+                    error: mapIssuanceErrorToSpanish(err),
+                }
+            }
+        }
+
+        const taxableSubtotal = items.reduce((acc, item) => {
+            const product = productMap.get(item.productId)
+            const isService = isServiceProduct(product)
+            if (isService) return acc
+            return acc + (item.price * Number(item.quantity || 0))
+        }, 0)
+
+        const taxAmount = applyTax ? taxableSubtotal * 0.18 : 0
+        const activeDiscount = Math.min(Math.max(discount, 0), subtotal + taxAmount + shippingCost)
+        const total = Math.max(0, subtotal + taxAmount + shippingCost - activeDiscount)
+
+        return {
+            taxAmount,
+            activeDiscount,
+            total,
+            error: null as string | null,
+        }
+    }, [usesFiscalReceiptRules, withoutFiscalReceipt, subtotal, shippingCost, discount, items, productMap, applyTax])
+
+    const { taxAmount, activeDiscount, total } = totalsCalculation
     const change = (paymentMethod === "CASH" && amountTendered > total) ? amountTendered - total : 0
 
     const resetCreateForm = () => {
@@ -328,6 +412,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const handlePreview = () => {
         if (!selectedClientId) return toast.error("Seleccione un cliente")
         if (items.length === 0) return toast.error("Agregue productos")
+        if (totalsCalculation.error) return toast.error(totalsCalculation.error)
         if (type !== "QUOTE" && !requireShift()) return
         setShowPreview(true)
     }
@@ -381,7 +466,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         deliveryDate,
                         notes,
                         tax: taxAmount,
-                        hasNcf: taxAmount > 0,
+                        hasNcf: usesFiscalReceiptRules ? !withoutFiscalReceipt : taxAmount > 0,
+                        withoutFiscalReceipt: usesFiscalReceiptRules ? withoutFiscalReceipt : undefined,
                     })
                 }
             } else {
@@ -410,7 +496,8 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                         notes,
                         amountPaid: paymentMethod === "CREDIT" ? 0 : (amountTendered > 0 ? amountTendered : undefined),
                         tax: taxAmount,
-                        hasNcf: taxAmount > 0,
+                        hasNcf: usesFiscalReceiptRules ? !withoutFiscalReceipt : taxAmount > 0,
+                        withoutFiscalReceipt: usesFiscalReceiptRules ? withoutFiscalReceipt : undefined,
                         sourceQuoteId: sourceQuote ? sourceQuote.id : undefined,
                     })
                 }
@@ -441,6 +528,14 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     }
 
     const handleConfirm = () => {
+        if (isEdit && isFiscallyLocked) {
+            toast.error("Esta factura tiene comprobante fiscal. Para corregirla emita una nota de crédito.")
+            return
+        }
+        if (totalsCalculation.error) {
+            toast.error(totalsCalculation.error)
+            return
+        }
         setShowPreview(false)
         submitDocument(false)
     }
@@ -448,11 +543,11 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const handleSaveDraft = () => {
         if (!selectedClientId) return toast.error("Seleccione un cliente")
         if (items.length === 0) return toast.error("Agregue productos")
+        if (totalsCalculation.error) return toast.error(totalsCalculation.error)
         setShowPreview(false)
         submitDocument(true)
     }
 
-    const selectedClient = initialClients.find(c => c.id === selectedClientId)
     const previewDocument = selectedClient ? {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
@@ -649,6 +744,26 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                     Las cotizaciones no consumen NCF ni generan movimientos contables. El ITBIS solo se reflejará si está activado aquí.
                                 </p>
                             </div>
+                        ) : usesFiscalReceiptRules ? (
+                            <div className="space-y-3 pt-2">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="without-fiscal-receipt"
+                                        checked={withoutFiscalReceipt}
+                                        disabled={isEdit && usesFiscalReceiptRules}
+                                        onCheckedChange={(c) => setWithoutFiscalReceiptState(!!c)}
+                                    />
+                                    <Label htmlFor="without-fiscal-receipt" className="font-medium cursor-pointer">
+                                        Sin comprobante
+                                    </Label>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {withoutFiscalReceipt
+                                        ? "Venta sin comprobante fiscal: no lleva ITBIS y no se envía a la DGII."
+                                        : `Se emitirá comprobante electrónico ${ecfTypeLabel} y se enviará a la DGII.`
+                                    }
+                                </p>
+                            </div>
                         ) : (
                             <div className="space-y-3 pt-2">
                                 <div className="flex items-center space-x-2">
@@ -771,15 +886,26 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                             )}
                             <div className={cn(
                                 "flex justify-between items-center text-sm",
-                                applyTax ? "text-red-600" : "text-muted-foreground"
+                                usesFiscalReceiptRules
+                                    ? (!withoutFiscalReceipt ? "text-red-600" : "text-muted-foreground")
+                                    : (applyTax ? "text-red-600" : "text-muted-foreground")
                             )}>
-                                <span>{applyTax ? "ITBIS (18%)" : "ITBIS desactivado"}</span>
+                                <span>
+                                    {usesFiscalReceiptRules
+                                        ? (!withoutFiscalReceipt ? "ITBIS (18%)" : "ITBIS desactivado")
+                                        : (applyTax ? "ITBIS (18%)" : "ITBIS desactivado")}
+                                </span>
                                 <span>{formatCurrency(taxAmount)}</span>
                             </div>
                             <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
                                 <span>Total</span>
                                 <span>{formatCurrency(total)}</span>
                             </div>
+                            {totalsCalculation.error && (
+                                <p className="text-xs font-medium text-destructive mt-1">
+                                    {totalsCalculation.error}
+                                </p>
+                            )}
                         </div>
 
                         {/* Payment Details Section */}
@@ -845,7 +971,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                         className="flex-1"
                                         size="lg"
                                         onClick={handlePreview}
-                                        disabled={isPending || items.length === 0}
+                                        disabled={isPending || items.length === 0 || Boolean(totalsCalculation.error)}
                                     >
                                         <Eye className="h-4 w-4 mr-2" />
                                         Previsualizar
@@ -854,7 +980,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                         className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
                                         size="lg"
                                         onClick={handlePreview}
-                                        disabled={isPending || items.length === 0}
+                                        disabled={isPending || items.length === 0 || Boolean(totalsCalculation.error)}
                                     >
                                         {isPending ? "Procesando..." : (type === "QUOTE" ? "Guardar Cotización" : "Facturar")}
                                     </Button>
@@ -866,7 +992,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                         className="w-full"
                                         size="lg"
                                         onClick={handleSaveDraft}
-                                        disabled={isPending || items.length === 0}
+                                        disabled={isPending || items.length === 0 || Boolean(totalsCalculation.error)}
                                     >
                                         {isPending ? "Procesando..." : "Guardar borrador"}
                                     </Button>
@@ -874,24 +1000,31 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                             </div>
                         )}
                         {isEdit && (
-                            <div className="flex gap-2 mt-4">
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    size="lg"
-                                    onClick={() => router.push(isQuoteMode ? "/quotes" : "/invoices")}
-                                    disabled={isPending}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
-                                    size="lg"
-                                    onClick={handleConfirm}
-                                    disabled={isPending}
-                                >
-                                    {isPending ? "Procesando..." : (isQuoteMode ? "Actualizar Cotización" : "Actualizar Factura")}
-                                </Button>
+                            <div className="space-y-2 mt-4">
+                                {isFiscallyLocked && (
+                                    <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                                        Esta factura tiene comprobante fiscal. Para corregirla emita una nota de crédito.
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1"
+                                        size="lg"
+                                        onClick={() => router.push(isQuoteMode ? "/quotes" : "/invoices")}
+                                        disabled={isPending}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        className={cn("flex-1", type === "QUOTE" ? "bg-yellow-600 hover:bg-yellow-700" : "")}
+                                        size="lg"
+                                        onClick={handleConfirm}
+                                        disabled={isPending || isFiscallyLocked || Boolean(totalsCalculation.error)}
+                                    >
+                                        {isPending ? "Procesando..." : (isQuoteMode ? "Actualizar Cotización" : "Actualizar Factura")}
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>

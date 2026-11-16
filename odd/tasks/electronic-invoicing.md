@@ -197,12 +197,34 @@ DGII certification is complete. The system is transitioning from certification t
     - Explicit payment model: `payment: { method: "CASH" | "TRANSFER" | "CARD" | "CREDIT"; dueDate?: Date | string | null }`, exhaustive switch with TypeScript `never` check; CREDIT requires `dueDate` (`PAYMENT_DUE_DATE_REQUIRED`).
     - Exempt-only documents omit `<TotalITBIS>` per accepted DGII certification submissions (cited case `133339749E430000000011`).
     - Stored totals guard preserved only for no-discount invoices (tolerance 0.01).
-    - Verified all 9 test cases in `scripts/check-issuance-mapper.ts`.
+    - Verified all 11 test cases in `scripts/check-issuance-mapper.ts`.
 
-- [ ] **ECF-I2: Issuance Hook on Save & 'Sin comprobante' Toggle**
-  - **Objective:** Intercept invoice and credit note save actions (`actions/invoice-actions.ts`, `actions/credit-note-actions.ts`) to reserve e-NCF sequence atomically from `EcfSequence`, build issuance snapshot, generate unsigned XML, and enqueue `EcfDocument` and `FiscalOutbox` jobs, gated by `FiscalConfig.ecfEnabled` and the UI "Sin comprobante" toggle.
-  - **Files:** `actions/invoice-actions.ts`, `actions/credit-note-actions.ts`, `components/modules/invoices/invoice-form.tsx`, `lib/fiscal/issuance/enqueue.ts`.
-  - **Checks:** Functional script simulating invoice creation with and without e-CF flag, verifying DB rows in `EcfDocument`, `FiscalOutbox`, and `EcfSequence`.
+- [x] **ECF-I2: Issuance Hook on Save & 'Sin comprobante' Toggle**
+  - **Objective:** Intercept invoice save action (`actions/invoice-actions.ts`) to recompute totals server-side, reserve e-NCF sequence atomically from `EcfSequence`, build issuance snapshot with frozen issuer, and enqueue `EcfDocument` and `FiscalOutbox` jobs, gated by `FiscalConfig.ecfEnabled` and the UI "Sin comprobante" toggle.
+  - **Files:** `lib/fiscal/admin-client.ts`, `lib/fiscal/issuance/{buyer,errors,totals,types,invoice-issuance}.ts`, `lib/fiscal/issuance/mapper.ts`, `migrations/20261116000000_ecf-invoice-issuance.sql`, `actions/invoice-actions.ts`, `components/modules/invoices/invoice-form.tsx`, `app/(dashboard)/invoices/create/page.tsx`, `app/(dashboard)/invoices/[id]/edit/page.tsx`, `app/(dashboard)/quotes/[id]/edit/page.tsx`, `scripts/check-invoice-issuance.ts`.
+  - **Checks:** `npx tsc --noEmit -p .`, `npx eslint actions/invoice-actions.ts components/modules/invoices/invoice-form.tsx lib/fiscal "app/(dashboard)/invoices" "app/(dashboard)/quotes" scripts/check-issuance-mapper.ts scripts/check-invoice-issuance.ts`, `npx tsx scripts/check-issuance-mapper.ts`, `npx tsx scripts/check-invoice-issuance.ts`, PGlite migration test.
+  - **Route:** delegated direct via agy.
+  - **Built (Round 2 & 3 review findings applied):**
+    - Quote edit ITBIS preservation: derived `usesFiscalReceiptRules = ecfEnabled && !isQuoteMode` gating all e-CF logic (totals memo, "Sin comprobante" lock, payload fields) so quotes in create/edit mode behave exactly as before.
+    - Credit due date: removed `deliveryDate` from payment payload in `createInvoice`; builder defaults credit due date to `issuedAt + CREDIT_DUE_DAYS` (30 days).
+    - Dynamic sequence dry-run: `createInvoice` queries active `EcfSequence` row before inserting; validates configured/expired/exhausted via `mapIssuanceErrorToSpanish` and supplies real `expiresOn` for the XML dry run instead of a hardcoded date.
+    - Legacy path isolation: when `ecfEnabled` is false, `withoutFiscalReceipt` is completely ignored in both `createInvoice` and `updateInvoice`.
+    - Single drift helper: added `totalsDrift(client, server, tolerance)` in `totals.ts` replacing duplicated 0.01 threshold logic across `actions/invoice-actions.ts`.
+    - Typed payment methods: exported `PAYMENT_METHODS = ["CASH", "TRANSFER", "CARD", "CREDIT"] as const` and `isPaymentMethod` type guard from `types.ts`, removing inline arrays and unsafe casts.
+    - Certificate custody empty result: `loadStoredSigningMaterial` restores passing `rows[0]` to `decryptSigningMaterial`, preserving `CERTIFICATE_NOT_FOUND` when no certificate exists.
+    - Shared admin client `lib/fiscal/admin-client.ts` (`createFiscalAdminClient`) eliminating duplicated copies across stored-certificate, receptor, and certification stores.
+    - Pure dependency-free `lib/fiscal/issuance/buyer.ts` (`buyerFiscalId`, `resolveEcfType`, `isServiceProduct`) preventing server code/secrets from leaking into the client bundle; invalid client IDs return null and never reach the buyer snapshot.
+    - No fabricated issuer data: split into `loadFiscalMode()` (throws on read error) and `loadIssuer()`, using `FiscalConfig` with fallback only to real `Setting` keys (`COMPANY_NAME`, `COMPANY_RNC`, `COMPANY_ADDRESS`), validated via `assertIssuerComplete` (`ISSUER_INCOMPLETE`).
+    - Pre-reservation validation: in `createInvoice`, issuer, client, products, and active sequence are loaded before any insert; snapshot stores `{ issuer, invoice }`; dry-run XML build with placeholder e-NCF validates all mapper rules before sequence reservation. Centralized code→message dictionary in `errors.ts` (`mapIssuanceErrorToSpanish`); `enqueueInvoiceEcf` throws pure `IssuanceError(code)` without embedded Spanish strings.
+    - Unified "Sin comprobante" total: `computeNoReceiptTotals(itemsGross, { shipping, discount })` in `totals.ts` (discount capped at items gross, shipping not discounted, ITBIS 0) used in form, create, and update; server verifies client drift within 0.01 tolerance. Typed product rows (removed `any` casts).
+    - Fiscal editing lock: invoices with `fiscalDocumentId` or (when `ecfEnabled`) legacy `ncf` are locked from edit/delete ("Esta factura tiene comprobante fiscal..."); legacy edit preserved when `!ecfEnabled` for non-eCF invoices. Form derives `isFiscallyLocked`.
+    - Form state and totals: removed client-side fetch effect; `ecfEnabled` is a required prop passed from all 3 pages (`invoices/create`, `invoices/[id]/edit`, `quotes/[id]/edit`); edit mode "Sin comprobante" is derived (`isEdit && usesFiscalReceiptRules`); totals calculation has no silent fallback (shows Spanish error and disables confirm/save).
+    - Migration access control: `migrations/20261116000000_ecf-invoice-issuance.sql` revokes from PUBLIC, anon, and authenticated (admin client only). Validated 18/18 checks on PGlite.
+    - Check scripts: `scripts/check-invoice-issuance.ts` expanded to 26 passing tests covering `totalsDrift`, `isPaymentMethod`, `buyerFiscalId`, `assertIssuerComplete`, `computeNoReceiptTotals`, and pre-reservation dry-run failure.
+
+- [ ] **ECF-I2b: E34 credit notes issued from `actions/credit-note-actions.ts` (planned, not built)**
+  - **Objective:** Intercept credit note issuance in `actions/credit-note-actions.ts` to reserve E34 e-NCF sequence atomically from `EcfSequence`, reference original invoice e-NCF, and enqueue `EcfDocument` and `FiscalOutbox` jobs, gated by `FiscalConfig.ecfEnabled`.
+  - **Files:** `actions/credit-note-actions.ts`, `lib/fiscal/issuance/credit-note-issuance.ts`.
   - **Route:** delegated direct via agy.
 
 - [ ] **ECF-I3: Fiscal Background Worker Daemon**

@@ -1,6 +1,6 @@
 // SERVER ONLY. Reads what the public receptor received (certification steps 8-11) and probes that the
 // public receptor answers. The receptor tables are not granted to the anon key: admin key only.
-import { createClient } from "@insforge/sdk";
+import { createFiscalAdminClient } from "../admin-client";
 import { buildReceptorUrls } from "../shared/receptor-urls";
 import type { ReceivedApprovalView, ReceivedDocumentView, ReceptorEvidence } from "../shared/receptor-evidence";
 
@@ -8,10 +8,11 @@ const EVIDENCE_LIMIT = 100;
 const PROBE_TIMEOUT_MS = 8000;
 
 function adminDatabase() {
-  const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
-  const adminKey = process.env.INSFORGE_ADMIN_KEY;
-  if (!baseUrl || !adminKey) throw new Error("Receptor evidence: server not configured");
-  return createClient({ baseUrl, anonKey: adminKey, isServerMode: true }).database;
+  try {
+    return createFiscalAdminClient().database;
+  } catch {
+    throw new Error("Receptor evidence: server not configured");
+  }
 }
 
 async function probeSeed(url: string): Promise<boolean> {

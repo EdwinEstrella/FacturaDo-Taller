@@ -39,7 +39,12 @@ export interface InvoiceTotalsSnapshot {
     total?: number
 }
 
-export type PaymentMethod = "CASH" | "TRANSFER" | "CARD" | "CREDIT"
+export const PAYMENT_METHODS = ["CASH", "TRANSFER", "CARD", "CREDIT"] as const
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+
+export function isPaymentMethod(value: unknown): value is PaymentMethod {
+    return typeof value === "string" && (PAYMENT_METHODS as readonly string[]).includes(value)
+}
 
 export interface InvoicePaymentSnapshot {
     method: PaymentMethod
@@ -57,6 +62,13 @@ export interface InvoiceSnapshot {
     discount?: number | null
     payment: InvoicePaymentSnapshot
     totals?: InvoiceTotalsSnapshot | null
+}
+
+export type InvoiceDataSnapshot = Omit<InvoiceSnapshot, "encf" | "sequenceExpiresOn">
+
+export interface StoredInvoiceEcfSnapshot {
+    issuer: IssuerSnapshot
+    invoice: InvoiceDataSnapshot
 }
 
 export interface CreditNoteOriginalReference {

@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { getInvoiceById } from "@/actions/invoice-actions"
+import { getInvoiceById, getInvoiceFiscalMode } from "@/actions/invoice-actions"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
@@ -26,10 +26,11 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         redirect("/invoices")
     }
 
-    const [invoice, clients, products] = await Promise.all([
+    const [invoice, clients, products, fiscalMode] = await Promise.all([
         getInvoiceById(id),
         getClients(),
-        getProducts()
+        getProducts(),
+        getInvoiceFiscalMode(),
     ])
 
     if (!invoice) {
@@ -58,6 +59,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
                     initialProducts={serializedProducts}
                     initialClients={clients}
                     initialData={invoice}
+                    ecfEnabled={fiscalMode.ecfEnabled}
                 />
             </Suspense>
         </div>
