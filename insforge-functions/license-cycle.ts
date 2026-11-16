@@ -9,7 +9,18 @@ const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 30 characters (no I, L, O
 const ALPHABET_LEN = ALPHABET.length;
 
 /** Single place to change the monthly price; it is stored on each cycle. */
-const MONTHLY_FEE_DOP = 5000;
+const MONTHLY_FEE_DOP = 3500;
+/** Day of the month on which the license cycle is generated and payment is due. */
+const DUE_DAY = 13;
+/** Number of grace days after the due day before the app locks. */
+const GRACE_DAYS = 3;
+
+/**
+ * Pads a 1- or 2-digit number with a leading zero.
+ */
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
 
 /**
  * Escapes characters for safe interpolation into HTML templates.
@@ -90,9 +101,9 @@ module.exports = async function handleLicenseCycleRequest(req) {
     );
   }
 
-  // 1. Compute today in America/Santo_Domingo. If day < 11 -> skip
+  // 1. Compute today in America/Santo_Domingo. If day < DUE_DAY -> skip
   const { year, month, day, period } = getSantoDomingoDate();
-  if (day < 11) {
+  if (day < DUE_DAY) {
     return new Response(
       JSON.stringify({ skipped: "before_due_day", period, day }),
       { status: 200, headers: { "Content-Type": "application/json" } }
@@ -143,8 +154,8 @@ module.exports = async function handleLicenseCycleRequest(req) {
     .join("")
     .toLowerCase();
 
-  const dueDate = `${year}-${month}-11`;
-  const graceUntil = `${year}-${month}-14`;
+  const dueDate = `${year}-${month}-${pad2(DUE_DAY)}`;
+  const graceUntil = `${year}-${month}-${pad2(DUE_DAY + GRACE_DAYS)}`;
 
   // 4. Insert the pending cycle
   const { error: insertError } = await insforge.database
@@ -202,12 +213,17 @@ module.exports = async function handleLicenseCycleRequest(req) {
     currency: "DOP",
   }).format(MONTHLY_FEE_DOP);
 
+  const dueDayFormatted = pad2(DUE_DAY);
+  const graceDayFormatted = pad2(DUE_DAY + GRACE_DAYS);
+
   const safeCompanyName = escapeHtml(companyName);
   const safePeriod = escapeHtml(period);
   const safeFormattedCode = escapeHtml(formattedCode);
   const safeFormattedAmount = escapeHtml(formattedAmount);
   const safeMonth = escapeHtml(month);
   const safeYear = escapeHtml(year);
+  const safeDueDay = escapeHtml(dueDayFormatted);
+  const safeGraceDay = escapeHtml(graceDayFormatted);
 
   // 6. Send the email via Resend REST API
   const textBody = `${companyName} — Código de pago mensual (${period})
@@ -216,8 +232,8 @@ Período: ${period}
 Monto: ${formattedAmount}
 Código de pago: ${formattedCode}
 
-Fecha de vencimiento: 11/${month}/${year}
-Último día de gracia: 14/${month}/${year}
+Fecha de vencimiento: ${dueDayFormatted}/${month}/${year}
+Último día de gracia: ${graceDayFormatted}/${month}/${year}
 
 Envíale este código al cliente cuando confirme su pago.`;
 
@@ -246,11 +262,11 @@ Envíale este código al cliente cuando confirme su pago.`;
       </tr>
       <tr>
         <td style="padding: 8px 0; color: #64748b;">Vencimiento:</td>
-        <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">11/${safeMonth}/${safeYear}</td>
+        <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">${safeDueDay}/${safeMonth}/${safeYear}</td>
       </tr>
       <tr>
         <td style="padding: 8px 0; color: #64748b;">Último día de gracia:</td>
-        <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">14/${safeMonth}/${safeYear}</td>
+        <td style="padding: 8px 0; font-weight: 600; text-align: right; color: #0f172a;">${safeGraceDay}/${safeMonth}/${safeYear}</td>
       </tr>
     </table>
 

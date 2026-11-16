@@ -86,8 +86,8 @@ export function LicenseOpenAlert({ license }: LicenseOpenAlertProps) {
     setCodeDialogOpen(true)
   }
 
-  const dueFormatted = formatDayMonth(license.dueDate) || "11"
-  const graceFormatted = formatDayMonth(license.graceUntil) || "14"
+  const dueFormatted = formatDayMonth(license.dueDate) || "13"
+  const graceFormatted = formatDayMonth(license.graceUntil) || "16"
   const amountStr = license.amount != null ? ` (${formatCurrency(license.amount)})` : ""
 
   return (

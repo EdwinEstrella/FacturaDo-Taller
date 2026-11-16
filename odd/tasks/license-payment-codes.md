@@ -147,3 +147,11 @@ The following deployment steps are planned for execution upon user confirmation:
    ```
    - Before day 11, verify it responds with `{ "skipped": "before_due_day" }`.
    - On/after day 11, verify cycle creation and receipt of notification email.
+
+## Change 2026-11-15
+- **Monthly Fee**: Updated to **RD$3,500.00** (previously RD$5,000.00).
+- **Due Day**: Changed from the 11th to the **13th** of each month (`DUE_DAY = 13` in `insforge-functions/license-cycle.ts`).
+- **Grace Period**: 3 days after the due day (`GRACE_DAYS = 3`). `graceUntil` is the **16th** of the month.
+- **Lock Date**: Application locks starting from the **17th** of the month if payment is not confirmed.
+- **Database Migration**: Added `migrations/20261115010000_license-fee-3500.sql` to alter `public."LicenseCycle"` column `amount` default to `3500`.
+- **UI Fallbacks**: Updated `components/modules/license/license-open-alert.tsx` fallback dates to `13` (due) and `16` (grace deadline).
