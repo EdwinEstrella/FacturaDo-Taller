@@ -101,13 +101,24 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
 
     const productsById = new Map(products.map((product) => [product.id, product]))
 
-    return initialItems.map((item) => ({
-        ...item,
-        lineId: item.lineId || item.id || createLineId(),
-        quantity: Number(item.quantity || 0),
-        measurementMode: getDefaultMeasurementMode(productsById.get(item.productId)),
-        characteristics: item.characteristics || [],
-    }))
+    return initialItems.map((item) => {
+        const product = productsById.get(item.productId)
+        const hasMatchingVariant = Boolean(
+            item.variantId &&
+            product?.hasVariants &&
+            product?.variants?.some((v) => v.id === item.variantId)
+        )
+
+        return {
+            ...item,
+            variantId: hasMatchingVariant ? item.variantId : undefined,
+            variantName: hasMatchingVariant ? item.variantName : undefined,
+            lineId: item.lineId || item.id || createLineId(),
+            quantity: Number(item.quantity || 0),
+            measurementMode: getDefaultMeasurementMode(product),
+            characteristics: item.characteristics || [],
+        }
+    })
 }
 
 export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType }: InvoiceFormProps) {

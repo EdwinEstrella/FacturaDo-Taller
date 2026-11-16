@@ -78,22 +78,20 @@ async function deductQuoteItemStock(insforge: DatabaseClient, item: QuoteInvento
             .eq('id', item.variantId)
             .single()
 
-        if (!variant) {
-            throw new Error(`Variante no encontrada: ${item.productName}`)
+        if (variant) {
+            const nextStock = Number(variant.stock || 0) - item.quantity
+            if (nextStock < 0) {
+                throw new Error(`Stock insuficiente para ${item.productName}`)
+            }
+
+            await insforge.database
+                .from('ProductVariant')
+                .update({ stock: nextStock })
+                .eq('id', item.variantId)
+
+            await syncProductStockFromVariants(insforge, item.productId)
+            return
         }
-
-        const nextStock = Number(variant.stock || 0) - item.quantity
-        if (nextStock < 0) {
-            throw new Error(`Stock insuficiente para ${item.productName}`)
-        }
-
-        await insforge.database
-            .from('ProductVariant')
-            .update({ stock: nextStock })
-            .eq('id', item.variantId)
-
-        await syncProductStockFromVariants(insforge, item.productId)
-        return
     }
 
     if (product && !product.isService) {
@@ -449,11 +447,14 @@ export async function convertQuoteToInvoice(quoteId: string) {
             
             if (item.variantId) {
                 const { data: variant } = await insforge.database.from('ProductVariant').select('stock, name').eq('id', item.variantId).single();
-                if (!variant) throw new Error("Variante no encontrada: " + item.productName);
-                if (Number(variant.stock || 0) < item.quantity) {
-                    throw new Error(`Stock insuficiente para variante ${item.productName}. Disponible: ${variant.stock}`);
+                if (variant) {
+                    if (Number(variant.stock || 0) < item.quantity) {
+                        throw new Error(`Stock insuficiente para variante ${item.productName}. Disponible: ${variant.stock}`);
+                    }
+                    continue;
                 }
-            } else if (!product.isService) {
+            }
+            if (!product.isService) {
                 if (Number(product.stock || 0) < item.quantity) {
                     throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}`);
                 }

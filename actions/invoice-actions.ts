@@ -81,22 +81,21 @@ async function adjustInventoryStock(insforge: DatabaseClient, item: InventoryIte
             .eq('id', item.variantId)
             .single()
 
-        if (!variant) {
-            throw new Error(`Variant with ID ${item.variantId} not found.`)
+        if (variant) {
+            const nextStock = Number(variant.stock || 0) + delta
+            if (nextStock < 0) {
+                throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${Math.abs(delta)}`)
+            }
+
+            await insforge.database
+                .from('ProductVariant')
+                .update({ stock: nextStock })
+                .eq('id', item.variantId)
+
+            await syncProductStockFromVariants(insforge, item.productId)
+            return
         }
-
-        const nextStock = Number(variant.stock || 0) + delta
-        if (nextStock < 0) {
-            throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${Math.abs(delta)}`)
-        }
-
-        await insforge.database
-            .from('ProductVariant')
-            .update({ stock: nextStock })
-            .eq('id', item.variantId)
-
-        await syncProductStockFromVariants(insforge, item.productId)
-        return
+        // Fallback to product-level stock if variant was deleted from catalog
     }
 
     if (product.isService) return
@@ -135,15 +134,13 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
                 .eq('id', item.variantId)
                 .single()
 
-            if (!variant) {
-                throw new Error(`Variant with ID ${item.variantId} not found.`)
+            if (variant) {
+                if (Number(variant.stock || 0) < item.quantity) {
+                    throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${item.quantity}`)
+                }
+                continue
             }
-
-            if (Number(variant.stock || 0) < item.quantity) {
-                throw new Error(`Insufficient stock for variant ${item.productName || variant.name}. Available: ${variant.stock}, Requested: ${item.quantity}`)
-            }
-
-            continue
+            // Fallback to product-level stock check if variant was deleted from catalog
         }
 
         if (!product.isService && Number(product.stock || 0) < item.quantity) {
@@ -236,14 +233,27 @@ export async function createInvoice(data: InvoiceFormData) {
         }
 
         // Create Invoice Items
-        const invoiceItems = items.map(item => ({
-            invoiceId: invoice.id,
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            price: item.price,
-            variantId: item.variantId || null,
-            characteristics: item.characteristics,
+        const invoiceItems = await Promise.all(items.map(async (item) => {
+            let validVariantId = item.variantId || null
+            if (validVariantId) {
+                const { data: variant } = await insforge.database
+                    .from('ProductVariant')
+                    .select('id')
+                    .eq('id', validVariantId)
+                    .single()
+                if (!variant) {
+                    validVariantId = null
+                }
+            }
+            return {
+                invoiceId: invoice.id,
+                productId: item.productId,
+                productName: item.productName,
+                quantity: item.quantity,
+                price: item.price,
+                variantId: validVariantId,
+                characteristics: item.characteristics,
+            }
         }))
 
         const { error: itemsError } = await insforge.database
@@ -627,6 +637,18 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
         for (const item of items) {
             await adjustInventoryStock(insforge, item, -item.quantity)
 
+            let validVariantId = item.variantId || null
+            if (validVariantId) {
+                const { data: variant } = await insforge.database
+                    .from('ProductVariant')
+                    .select('id')
+                    .eq('id', validVariantId)
+                    .single()
+                if (!variant) {
+                    validVariantId = null
+                }
+            }
+
             await insforge.database
                 .from('InvoiceItem')
                 .insert([{
@@ -635,7 +657,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                     productName: item.productName,
                     quantity: item.quantity,
                     price: item.price,
-                    variantId: item.variantId || null,
+                    variantId: validVariantId,
                     characteristics: item.characteristics,
                 }])
         }
