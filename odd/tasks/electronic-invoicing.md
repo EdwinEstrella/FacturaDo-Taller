@@ -117,6 +117,11 @@ Route for all development tasks: `delegated direct` via agy, verified by Claude.
 - [ ] **ECF-8b: Remaining wizard tools** — issuer data form (`FiscalConfig`), sequences UI (`EcfSequence`), test-set runner, printed representation runner, in-system XML signing, received-evidence panels.
 
 - [ ] **ECF-10: Inbound receptor service on `facturado.lat`** (Q3 resolved IN scope) — public endpoints `/{RNC}/fe/{autenticacion,recepcion,aprobacioncomercial}/api/...`, routing via the Dokploy compose; feeds steps 8-11 evidence. Production routing/ops need explicit user OK.
+  - **Code (done, 2026-11-15):** `lib/fiscal/receptor/{protocol,trusted-cas,security,handler,store,index}.ts` (port of cyberbistro `supabase/functions/ecf-receptor`, single company: answers only for Setting `COMPANY_RNC`; ARECF signed with the stored `certification` certificate), route `app/[rnc]/fe/[...service]/route.ts`, `proxy.ts` bypass for `/{RNC}/fe/`, migration `migrations/20261115000000_ecf-receptor.sql` (EcfReceptorSeed/Token, EcfReceivedDocument/Approval; no anon grants).
+  - **Route:** direct inline by Claude (user-authorized "construye lo que se necesita").
+  - **Verified:** tsc + eslint clean; in-memory flow with the real company certificate: 15/15 (seed, validacioncertificado, replay/other-RNC 401, no token 401, accepted ARECF signed + verifiable, codes 2/3/4, ACECF stored, 503 without seed secret); PGlite migration checks (idempotent, constraints, 0 public grants); `next build` lists `/[rnc]/fe/[...service]`; `next start` HTTP: seed 200 XML, reception without token 401, dashboard still redirects to /login.
+  - **Pending (needs explicit user OK):** apply the migration to prod; deploy the Next server publicly at `facturado.lat` with env `NEXT_PUBLIC_INSFORGE_URL`, `INSFORGE_ADMIN_KEY`, `ECF_ENCRYPTION_KEY`, `ECF_RECEPTOR_SEED_SECRET` (new, random); then press "Enviar prueba de comprobantes" in DGII step 8.
+  - **Commit Evidence:** `Commit: see git log (feat(ecf): add inbound e-CF receptor)`.
 
 - [ ] **ECF-8 (legacy umbrella): DGII Onboarding & Certification Wizard**
   - **Objective:** Implement step-by-step wizard for issuer configuration, certificate upload, sequence ranges, and DGII test set validation.

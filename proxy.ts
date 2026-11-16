@@ -16,6 +16,11 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next()
     }
 
+    // DGII inbound e-CF receptor (/{RNC}/fe/...): authenticated by its own bearer token, never by session.
+    if (/^\/\d{9}(?:\d{2})?\/fe\//.test(path)) {
+        return NextResponse.next()
+    }
+
     // Check for session cookie
     const session = request.cookies.get("facturado_session_id")
 
