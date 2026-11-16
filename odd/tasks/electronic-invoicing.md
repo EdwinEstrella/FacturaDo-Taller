@@ -171,3 +171,55 @@ All tasks must pass the following verification gates before commit approval:
 
 ## Next Step
 Commence execution of **ECF-1: Core DGII Library Integration**.
+
+## Phase 2 — Real invoice issuance
+
+DGII certification is complete. The system is transitioning from certification test-set execution to issuing real e-CF electronic receipts in live operations.
+
+### Product Decisions
+- **e-CF Document Selection:** E31 (Factura de Crédito Fiscal) is automatically issued when the client has a registered RNC or Cédula of 9 or 11 digits; otherwise, an E32 (Factura de Consumo) is issued. Credit notes are issued as E34 referencing the original e-CF.
+- **"Sin comprobante" Toggle:** A "Sin comprobante" sale issues no e-CF document, leaving inventory and ledger updates intact without reserving fiscal sequences or inserting into outbox queues (implemented in task I2).
+- **Global Feature Gating:** Real e-CF generation is globally gated by `FiscalConfig.ecfEnabled` (verified in task I2).
+- **Test-Driven Development (TDD):** OFF (using targeted functional check scripts per task, no external test runners).
+
+### Tasks
+
+- [x] **ECF-I1: e-CF XML Mapper for Real Invoices & Credit Notes**
+  - **Objective:** Pure XML mapper and DB-independent snapshot types for E31 (crédito fiscal), E32 (consumo), and E34 (credit notes) matching the exact element order of DGII-accepted certification submissions, with deterministic money balancing.
+  - **Files:** `lib/fiscal/issuance/types.ts`, `lib/fiscal/issuance/errors.ts`, `lib/fiscal/issuance/mapper.ts`, `scripts/check-issuance-mapper.ts`.
+  - **Checks:** `npx tsc --noEmit -p .`, `npx eslint lib/fiscal/issuance scripts/check-issuance-mapper.ts`, `npx tsx scripts/check-issuance-mapper.ts` (XML parsing, element order against accepted DGII submissions, required elements, and financial balancing assertions).
+  - **Route:** delegated direct via agy.
+  - **Built:** Created `lib/fiscal/issuance/types.ts` (`IssuerSnapshot`, `InvoiceSnapshot`, `CreditNoteSnapshot`, `InvoiceLineSnapshot`, `InvoiceTotalsSnapshot`, `ComputedEcfTotals`, `PaymentMethod`), `lib/fiscal/issuance/errors.ts` (`IssuanceError` extending `FiscalError`), and `lib/fiscal/issuance/mapper.ts` (`buildInvoiceEcfXml`, `buildCreditNoteEcfXml`, `computeEcfTotals`). Round 2 review findings implemented:
+    - Global discount proration: pure `computeEcfTotals` prorates global discount proportionally across item lines based on gross amounts, last line absorbing rounding remainder; ITBIS computed on discounted base; returns `fiscalTotals` for task I2 persistence.
+    - Shipping heuristic removed: no regex; `shipping > 0` appends exempt service line named `Envío`. Discount applies only across real item lines (`DISCOUNT_EXCEEDS_ITEMS` if discount > items gross sum).
+    - Precision consistency: `CantidadItem` rounded to 2 decimals first; `PrecioUnitarioItem` rounded to 4 decimals (DGII Decimal(14,4)); `MontoItem = round2(roundedQty * roundedPrice - DescuentoMonto)`; emitted XML values match rounded values.
+    - Removed tautological self-comparisons.
+    - Explicit payment model: `payment: { method: "CASH" | "TRANSFER" | "CARD" | "CREDIT"; dueDate?: Date | string | null }`, exhaustive switch with TypeScript `never` check; CREDIT requires `dueDate` (`PAYMENT_DUE_DATE_REQUIRED`).
+    - Exempt-only documents omit `<TotalITBIS>` per accepted DGII certification submissions (cited case `133339749E430000000011`).
+    - Stored totals guard preserved only for no-discount invoices (tolerance 0.01).
+    - Verified all 9 test cases in `scripts/check-issuance-mapper.ts`.
+
+- [ ] **ECF-I2: Issuance Hook on Save & 'Sin comprobante' Toggle**
+  - **Objective:** Intercept invoice and credit note save actions (`actions/invoice-actions.ts`, `actions/credit-note-actions.ts`) to reserve e-NCF sequence atomically from `EcfSequence`, build issuance snapshot, generate unsigned XML, and enqueue `EcfDocument` and `FiscalOutbox` jobs, gated by `FiscalConfig.ecfEnabled` and the UI "Sin comprobante" toggle.
+  - **Files:** `actions/invoice-actions.ts`, `actions/credit-note-actions.ts`, `components/modules/invoices/invoice-form.tsx`, `lib/fiscal/issuance/enqueue.ts`.
+  - **Checks:** Functional script simulating invoice creation with and without e-CF flag, verifying DB rows in `EcfDocument`, `FiscalOutbox`, and `EcfSequence`.
+  - **Route:** delegated direct via agy.
+
+- [ ] **ECF-I3: Fiscal Background Worker Daemon**
+  - **Objective:** Implement the production fiscal worker loop that claims pending outbox jobs with `FOR UPDATE SKIP LOCKED`, signs unsigned e-CF XML with stored certificate custody, submits to DGII (including RFCE summary generation for E32 below threshold), and polls DGII status tracks.
+  - **Files:** `worker/fiscal/runFiscalWorker.ts`, `worker/fiscal/workerRuntime.ts`, `worker/fiscal/dgiiTransmission.ts`.
+  - **Checks:** Functional verification script running a cycle against test/sandbox DGII endpoints or mock gateway.
+  - **Route:** delegated direct via agy.
+
+- [ ] **ECF-I4: Printed Representations (80mm & A4) with DGII Security Code & QR**
+  - **Objective:** Update invoice printing templates for thermal 80mm roll and standard A4 paper to include e-NCF, sequence expiration date, 6-digit DGII security code, and official DGII QR code validation link.
+  - **Files:** `components/modules/invoices/invoice-template.tsx`, `components/modules/invoices/invoice-odoo-template.tsx`, `lib/fiscal/qr.ts`.
+  - **Checks:** Screenshot/render visual inspection script and QR payload format unit check.
+  - **Route:** delegated direct via agy.
+
+- [ ] **ECF-I5: Fiscal Configuration, Sequences UI & Status Dashboard**
+  - **Objective:** User interface for configuring issuer fiscal data (`FiscalConfig`), managing sequence ranges and alerts (`EcfSequence`), and monitoring e-CF document transmission status, errors, and manual re-enqueue actions.
+  - **Files:** `components/modules/fiscal/fiscal-config-form.tsx`, `components/modules/fiscal/sequence-manager.tsx`, `components/modules/fiscal/fiscal-status-panel.tsx`, `app/(dashboard)/settings/fiscal/page.tsx`.
+  - **Checks:** Next.js build compilation and client component render tests.
+  - **Route:** delegated direct via agy.
+
