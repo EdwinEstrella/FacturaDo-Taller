@@ -104,9 +104,8 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
     {
         id: 13,
         label: "Declaración Jurada",
-        summary: "Descarga la declaración jurada desde el portal de la DGII, fírmala con tu certificado digital y envíala a la DGII. Este paso no envía nada automáticamente.",
-        actions: ["portal"],
-        pendingTool: "Firma de la declaración jurada dentro del sistema",
+        summary: "Descarga el XML de la declaración jurada desde el portal de la DGII, fírmalo aquí con tu certificado digital y súbelo firmado al portal. Este paso no envía nada automáticamente.",
+        actions: ["portal", "sign"],
     },
     {
         id: 14,
