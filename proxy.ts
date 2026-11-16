@@ -7,17 +7,25 @@ import type { NextRequest } from "next/server"
  * Maneja la autenticación y redirección de rutas protegidas
  */
 
+const RECEPTOR_PATH = /^\/\d{9}(?:\d{2})?\/fe\//
+
 // Simple proxy to check for session cookie
 export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname
 
-    // Public paths
-    if (path === "/login") {
+    // DGII inbound e-CF receptor (/{RNC}/fe/...): authenticated by its own bearer token, never by session.
+    if (RECEPTOR_PATH.test(path)) {
         return NextResponse.next()
     }
 
-    // DGII inbound e-CF receptor (/{RNC}/fe/...): authenticated by its own bearer token, never by session.
-    if (/^\/\d{9}(?:\d{2})?\/fe\//.test(path)) {
+    // The public receptor server (facturado.lat) exposes ONLY the receptor: no login, pages,
+    // server actions or API routes. The desktop app never sets this flag.
+    if (process.env.ECF_RECEPTOR_ONLY === "true") {
+        return new NextResponse(null, { status: 404 })
+    }
+
+    // Public paths (API routes handle their own authentication)
+    if (path === "/login" || path === "/api" || path.startsWith("/api/")) {
         return NextResponse.next()
     }
 
@@ -36,11 +44,11 @@ export const config = {
     matcher: [
         /*
          * Match all request paths except for the ones starting with:
-         * - api (API routes)
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
+         * API routes are matched so the receptor-only server can block them.
          */
-        "/((?!api|_next/static|_next/image|favicon.ico).*)",
+        "/((?!_next/static|_next/image|favicon.ico).*)",
     ],
 }
