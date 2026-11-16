@@ -16,6 +16,7 @@ import {
 } from "@/lib/fiscal/shared/certification-steps"
 import { ReceptorUrlFields } from "./receptor-url-fields"
 import { PrintedRepresentationRunner } from "./printed-representation-runner"
+import { ReceptorEvidencePanel } from "./receptor-evidence-panel"
 import { TestSetRunner } from "./test-set-runner"
 import { XmlSigner } from "./xml-signer"
 
@@ -120,6 +121,10 @@ export function CertificationStepper({ initialProgress, companyRnc }: {
                 {step.actions.includes("simulation") && <TestSetRunner runType="simulation" />}
 
                 {step.actions.includes("printed") && <PrintedRepresentationRunner />}
+
+                {step.actions.includes("receivedDocuments") && <ReceptorEvidencePanel show="documents" />}
+
+                {step.actions.includes("receivedApprovals") && <ReceptorEvidencePanel show="approvals" />}
 
                 {step.actions.includes("portal") && (
                     <Button type="button" variant="outline" onClick={openPortal} className="w-full sm:w-auto">

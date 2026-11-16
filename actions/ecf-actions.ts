@@ -7,6 +7,8 @@ import { prepareCertificateForStorage } from "@/lib/fiscal/certificate-custody"
 import { FiscalError } from "@/lib/fiscal/errors"
 import { signXmlWithMaterial } from "@/lib/fiscal/sign-document"
 import { loadStoredSigningMaterial } from "@/lib/fiscal/stored-certificate"
+import { loadReceptorEvidence } from "@/lib/fiscal/receptor/evidence"
+import type { ReceptorEvidence } from "@/lib/fiscal/shared/receptor-evidence"
 import {
     CERTIFICATION_TOTAL_STEPS,
     INITIAL_CERTIFICATION_PROGRESS,
@@ -182,5 +184,17 @@ export async function uploadEcfCertificate(formData: FormData): Promise<EcfActio
         }
         console.error("Certificate upload error:", error)
         return { success: false, error: "No se pudo procesar el certificado." }
+    }
+}
+
+/** Certification steps 8-11: whether the public receptor answers and what the DGII sent to it. */
+export async function getReceptorEvidence(): Promise<{ success: true; evidence: ReceptorEvidence } | { success: false; error: string }> {
+    await requireAdmin()
+    try {
+        const { data } = await createServerClient().database.from("Setting").select("value").eq("key", "COMPANY_RNC").limit(1)
+        return { success: true, evidence: await loadReceptorEvidence(String(data?.[0]?.value ?? "")) }
+    } catch (error) {
+        console.error("Receptor evidence error:", error instanceof Error ? error.message : "unknown")
+        return { success: false, error: "No se pudo consultar lo recibido por el receptor." }
     }
 }

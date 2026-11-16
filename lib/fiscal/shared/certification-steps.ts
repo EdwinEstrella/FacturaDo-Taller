@@ -5,7 +5,8 @@ export const CERTIFICATION_TOTAL_STEPS = 15
 export const DGII_CERTIFICATION_PORTAL_URL =
     "https://ecf.dgii.gov.do/certecf/portalcertificacion/Login?ReturnUrl=%2Fcertecf%2Fportalcertificacion"
 
-export type CertificationStepAction = "portal" | "urls" | "sign" | "testSet" | "approvals" | "simulation" | "printed"
+export type CertificationStepAction =
+    | "portal" | "urls" | "sign" | "testSet" | "approvals" | "simulation" | "printed" | "receivedDocuments" | "receivedApprovals"
 
 export interface CertificationStepDef {
     id: number
@@ -74,29 +75,25 @@ export const CERTIFICATION_STEPS: readonly CertificationStepDef[] = [
         id: 8,
         label: "Recepción de e-CF (Prueba)",
         summary: "La DGII enviará e-CF de prueba a tus URLs. Descarga el certificado raíz y presiona \"Inicio envío de pruebas\" en el portal.",
-        actions: ["portal"],
-        pendingTool: "Servicio receptor de e-CF y registro de lo recibido",
+        actions: ["receivedDocuments", "portal"],
     },
     {
         id: 9,
         label: "Recepción de RFCE (Prueba)",
         summary: "La DGII enviará Facturas de Consumo Electrónicas (E32) de prueba. El mismo endpoint de recepción las recibirá automáticamente.",
-        actions: ["portal"],
-        pendingTool: "Servicio receptor de e-CF y registro de lo recibido",
+        actions: ["receivedDocuments", "portal"],
     },
     {
         id: 10,
         label: "Recepción de ACECF (Prueba)",
         summary: "Verifica la recepción de Aprobaciones Comerciales (ACECF) en tu sistema.",
-        actions: ["portal"],
-        pendingTool: "Servicio receptor de aprobaciones comerciales",
+        actions: ["receivedApprovals", "portal"],
     },
     {
         id: 11,
         label: "Recepción de Notas (Prueba)",
         summary: "Verifica la recepción de Notas de Débito y Crédito en tu sistema.",
-        actions: ["portal"],
-        pendingTool: "Servicio receptor de e-CF y registro de lo recibido",
+        actions: ["receivedDocuments", "portal"],
     },
     {
         id: 12,
