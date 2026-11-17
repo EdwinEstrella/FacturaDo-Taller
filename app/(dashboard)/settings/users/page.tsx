@@ -1,7 +1,7 @@
 import { getUsers } from "@/actions/user-actions"
 import { getCurrentUser } from "@/actions/auth-actions"
 import { UsersClient } from "./client"
-import type { User } from "@/types"
+import type { UsersClientUser } from "./client"
 
 export default async function UsersPage() {
     const [{ success, data: users }, currentUser] = await Promise.all([
@@ -15,11 +15,11 @@ export default async function UsersPage() {
     // Convert to match component User interface
     const convertedUsers = safeUsers.map((user) => ({
         ...user,
-        role: user.role as User["role"],
-        customPermissions: user.customPermissions as Record<string, unknown> | null,
-        createdAt: user.createdAt instanceof Date ? user.createdAt : new Date(user.createdAt),
-        updatedAt: user.updatedAt instanceof Date ? user.updatedAt : new Date(user.updatedAt)
+        role: user.role as UsersClientUser["role"],
+        customPermissions: user.custom_permissions as Record<string, unknown> | null,
+        createdAt: new Date(user.created_at),
+        updatedAt: new Date(user.updated_at)
     }))
 
-    return <UsersClient initialUsers={convertedUsers} currentUserRole={currentUser?.role as User["role"]} />
+    return <UsersClient initialUsers={convertedUsers} currentUserRole={currentUser?.role as UsersClientUser["role"]} />
 }

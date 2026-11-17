@@ -42,11 +42,10 @@ const ROLE_TONES: Record<string, PillTone> = {
 
 type UserRole = "ADMIN" | "SELLER" | "ACCOUNTANT" | "TECHNICIAN" | "MANAGER" | "CUSTOM"
 
-interface User {
+export interface UsersClientUser {
     id: string
     name: string | null
     username: string
-    password: string
     role: UserRole
     customPermissions?: Record<string, unknown> | null
     createdAt: Date
@@ -96,12 +95,12 @@ const AVAILABLE_PERMISSIONS = {
     },
 }
 
-export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: User[], currentUserRole?: UserRole }) {
+export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: UsersClientUser[], currentUserRole?: UserRole }) {
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [loading, setLoading] = useState(false)
-    const [currentUser, setCurrentUser] = useState<User | null>(null)
+    const [currentUser, setCurrentUser] = useState<UsersClientUser | null>(null)
 
     // Form State for Create/Edit
     const [formData, setFormData] = useState<CreateUserFormData>({
@@ -176,7 +175,7 @@ export function UsersClient({ initialUsers, currentUserRole }: { initialUsers: U
         }
     }
 
-    const openEdit = (user: User) => {
+    const openEdit = (user: UsersClientUser) => {
         setCurrentUser(user)
         setFormData({
             name: user.name,
