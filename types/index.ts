@@ -27,6 +27,7 @@ export interface Product {
     sku: string | null
     category: "MATERIAL" | "ARTICULO" | "SERVICIO"
     posCategory?: string | null
+    archivedAt?: string | null
     unitType: "UNIT" | "MEASURE"
     measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService: boolean

@@ -184,9 +184,11 @@ export async function getProducts() {
 
     const insforge = createServerClient()
 
+    // Archived products stay in the database for past invoices/quotes but leave every catalog.
     const { data: products, error } = await insforge.database
         .from('Product')
         .select('*')
+        .is('archivedAt', null)
         .order('name', { ascending: true })
 
     if (error) {
