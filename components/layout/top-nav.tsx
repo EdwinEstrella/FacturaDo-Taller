@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { usePathname } from "next/navigation"
 import {
@@ -24,6 +25,7 @@ const sectionActive = "text-white hover:bg-white/10 data-[state=open]:bg-white/1
 export function TopNav({ role }: { role?: string }) {
     const pathname = usePathname()
     const sections = getNavSections(role)
+    const [openSection, setOpenSection] = useState<string | null>(null)
 
     return (
         <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-none" aria-label="Menú principal">
@@ -44,8 +46,22 @@ export function TopNav({ role }: { role?: string }) {
                 }
 
                 return (
-                    <DropdownMenu key={section.title} modal={false}>
-                        <DropdownMenuTrigger className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}>
+                    <DropdownMenu
+                        key={section.title}
+                        modal={false}
+                        open={openSection === section.title}
+                        onOpenChange={(open) =>
+                            // A late "close" from the previous menu must not close the one just opened.
+                            setOpenSection((current) => (open ? section.title : current === section.title ? null : current))
+                        }
+                    >
+                        <DropdownMenuTrigger
+                            // Menu-bar behavior: while one menu is open, hovering another section switches to it.
+                            onPointerEnter={() => {
+                                if (openSection && openSection !== section.title) setOpenSection(section.title)
+                            }}
+                            className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}
+                        >
                             {section.title}
                             <ChevronDown className="ml-1 size-3 opacity-70" />
                         </DropdownMenuTrigger>
