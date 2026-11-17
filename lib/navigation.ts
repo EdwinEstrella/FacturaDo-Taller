@@ -1,6 +1,5 @@
 import {
     Calculator,
-    ClipboardCheck,
     FileMinus,
     FileSignature,
     History,
@@ -11,6 +10,7 @@ import {
     ScrollText,
     Settings,
     ShoppingBag,
+    Store,
     Truck,
     Users,
     Wallet,
@@ -41,6 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     {
         title: "Ventas",
         items: [
+            { label: "Punto de Venta", href: "/pos", icon: Store },
             { label: "Facturas", href: "/invoices", icon: Receipt },
             { label: "Cotizaciones", href: "/quotes", icon: FileSignature },
             { label: "Notas de Crédito", href: "/credit-notes", icon: FileMinus },
@@ -87,7 +88,7 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
 const BLOCKED_BY_ROLE: Record<string, string[]> = {
     SELLER: ["/liquidations", "/settings/fiscal", "/settings/ecf", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
     CUSTOM: ["/liquidations", "/settings/fiscal", "/settings/ecf", "/petty-cash", "/daily-close", "/cash-close-history", "/settings/users", "/settings/general"],
-    ACCOUNTANT: ["/products", "/settings/ecf", "/settings/users", "/settings/general"],
+    ACCOUNTANT: ["/products", "/settings/ecf", "/settings/users", "/settings/general", "/pos"],
     MANAGER: ["/liquidations", "/settings/ecf", "/settings/users"],
 }
 

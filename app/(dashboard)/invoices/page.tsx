@@ -28,7 +28,7 @@ import {
     StatusPill,
     type PillTone,
 } from "@/components/modules/shared/list-page"
-import { CheckCircle2, Clock, FileText, Loader2, Pencil, Plus, Printer, Receipt, SlidersHorizontal, Wallet, X } from "lucide-react"
+import { CheckCircle2, Clock, FileText, Loader2, Pencil, Printer, Receipt, SlidersHorizontal, Store, Wallet, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { formatDateDO } from "@/lib/date-utils"
 import { format } from "date-fns"
@@ -207,9 +207,9 @@ export default function InvoicesPage() {
                                 Reporte
                             </Button>
                             <Button asChild>
-                                <Link href="/invoices/create?type=INVOICE">
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Nueva Factura
+                                <Link href="/pos">
+                                    <Store className="mr-2 h-4 w-4" />
+                                    Punto de Venta
                                 </Link>
                             </Button>
                         </>
@@ -333,9 +333,9 @@ export default function InvoicesPage() {
                                 : "Cambiá el período o creá una nueva factura."}
                             action={!debouncedSearch && (
                                 <Button asChild size="sm">
-                                    <Link href="/invoices/create?type=INVOICE">
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Nueva Factura
+                                    <Link href="/pos">
+                                        <Store className="mr-2 h-4 w-4" />
+                                        Punto de Venta
                                     </Link>
                                 </Button>
                             )}

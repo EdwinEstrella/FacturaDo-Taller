@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, FileSignature, Landmark, Plus, Receipt, Users, Wallet } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, FileSignature, Landmark, Receipt, Store, Users, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader, StatTile, StatusPill, type PillTone } from "@/components/modules/shared/list-page"
 import { MonthlyChart } from "@/components/modules/dashboard/monthly-chart"
@@ -43,9 +43,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     <>
                         <PeriodSwitcher value={period} />
                         <Button asChild>
-                            <Link href="/invoices/create?type=INVOICE">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Nueva Factura
+                            <Link href="/pos">
+                                <Store className="mr-2 h-4 w-4" />
+                                Punto de Venta
                             </Link>
                         </Button>
                     </>
