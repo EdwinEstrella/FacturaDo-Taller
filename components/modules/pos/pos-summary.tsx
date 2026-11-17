@@ -8,8 +8,13 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
+import { ClientDialog } from "@/components/modules/clients/client-dialog"
 import { formatCurrency } from "@/lib/utils"
 import type { Client } from "@/types"
+import type { PosSaleDetails } from "./pos-types"
 
 interface PosSummaryProps {
     clients: Client[]
@@ -18,6 +23,10 @@ interface PosSummaryProps {
     withoutFiscalReceipt: boolean
     onToggleWithoutFiscalReceipt: (value: boolean) => void
     fiscalReceiptDescription: string
+    fiscalReceiptHint: string | null
+    saleDetails: PosSaleDetails
+    onChangeSaleDetails: (patch: Partial<PosSaleDetails>) => void
+    installationAvailable: boolean
     paymentMethod: string
     onChangePaymentMethod: (method: string) => void
     amountTendered: number
@@ -46,6 +55,10 @@ export function PosSummary({
     withoutFiscalReceipt,
     onToggleWithoutFiscalReceipt,
     fiscalReceiptDescription,
+    fiscalReceiptHint,
+    saleDetails,
+    onChangeSaleDetails,
+    installationAvailable,
     paymentMethod,
     onChangePaymentMethod,
     amountTendered,
@@ -64,23 +77,31 @@ export function PosSummary({
     const selectedClient = clients.find((c) => c.id === selectedClientId)
     const change = paymentMethod === "CASH" && amountTendered > total ? amountTendered - total : 0
 
+    const toAmount = (value: string) => {
+        const parsed = Number(value)
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+    }
+
     const quickCashAdd = (add: number) => {
         onChangeAmountTendered((amountTendered || 0) + add)
     }
 
     return (
-        <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-5">
             {/* Client Selector */}
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Cliente
                     </Label>
-                    {selectedClient && (selectedClient.rnc || selectedClient.cedula) && (
-                        <span className="text-[11px] text-slate-400 font-mono">
-                            {selectedClient.rnc ? `RNC: ${selectedClient.rnc}` : `Céd: ${selectedClient.cedula}`}
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {selectedClient && (selectedClient.rnc || selectedClient.cedula) && (
+                            <span className="text-xs text-slate-500 font-mono">
+                                {selectedClient.rnc ? `RNC: ${selectedClient.rnc}` : `Céd: ${selectedClient.cedula}`}
+                            </span>
+                        )}
+                        <ClientDialog />
+                    </div>
                 </div>
                 <Popover open={openClient} onOpenChange={setOpenClient}>
                     <PopoverTrigger asChild>
@@ -88,7 +109,7 @@ export function PosSummary({
                             variant="outline"
                             role="combobox"
                             aria-expanded={openClient}
-                            className="w-full justify-between h-9 text-xs font-normal bg-slate-50 border-slate-200"
+                            className="w-full justify-between h-11 text-sm font-normal bg-slate-50 border-slate-200"
                         >
                             <span className="flex items-center gap-2 truncate">
                                 <User className="size-3.5 text-slate-500 shrink-0" />
@@ -162,6 +183,93 @@ export function PosSummary({
                         id="without-receipt-switch"
                         checked={withoutFiscalReceipt}
                         onCheckedChange={onToggleWithoutFiscalReceipt}
+                    />
+                </div>
+                {!withoutFiscalReceipt && fiscalReceiptHint && (
+                    <p className="mt-2 text-xs font-medium text-amber-800">{fiscalReceiptHint}</p>
+                )}
+            </div>
+
+            {/* Sale details: installation, shipping, discount, delivery date, notes */}
+            <div className="space-y-3 rounded-lg border border-slate-200 p-3.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Detalles de la venta
+                </Label>
+
+                {installationAvailable && (
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                            <Checkbox
+                                checked={saleDetails.includeInstallation}
+                                onCheckedChange={(checked) =>
+                                    onChangeSaleDetails({
+                                        includeInstallation: checked === true,
+                                        installationAmount: checked === true ? saleDetails.installationAmount : 0,
+                                    })
+                                }
+                            />
+                            Incluye instalación
+                        </label>
+                        {saleDetails.includeInstallation && (
+                            <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                autoFocus
+                                aria-label="Monto de la instalación"
+                                placeholder="Monto de la instalación (RD$)"
+                                value={saleDetails.installationAmount || ""}
+                                onChange={(e) => onChangeSaleDetails({ installationAmount: toAmount(e.target.value) })}
+                                className="h-10"
+                            />
+                        )}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <Label htmlFor="pos-shipping" className="text-xs text-slate-600">Costo de envío</Label>
+                        <Input
+                            id="pos-shipping"
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0.00"
+                            value={saleDetails.shippingCost || ""}
+                            onChange={(e) => onChangeSaleDetails({ shippingCost: toAmount(e.target.value) })}
+                            className="h-10"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="pos-discount" className="text-xs text-slate-600">Descuento</Label>
+                        <Input
+                            id="pos-discount"
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0.00"
+                            value={saleDetails.discount || ""}
+                            onChange={(e) => onChangeSaleDetails({ discount: toAmount(e.target.value) })}
+                            className="h-10"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-1">
+                    <Label className="text-xs text-slate-600">Fecha de entrega</Label>
+                    <DatePicker
+                        date={saleDetails.deliveryDate}
+                        setDate={(date) => onChangeSaleDetails({ deliveryDate: date })}
+                    />
+                </div>
+
+                <div className="space-y-1">
+                    <Label htmlFor="pos-notes" className="text-xs text-slate-600">Notas / Observaciones</Label>
+                    <Textarea
+                        id="pos-notes"
+                        rows={2}
+                        value={saleDetails.notes}
+                        onChange={(e) => onChangeSaleDetails({ notes: e.target.value })}
                     />
                 </div>
             </div>
@@ -246,11 +354,23 @@ export function PosSummary({
             )}
 
             {/* Totals Breakdown */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-200 text-xs">
+            <div className="space-y-1.5 pt-2 border-t border-slate-200 text-sm">
                 <div className="flex justify-between text-slate-600">
                     <span>Subtotal</span>
                     <span className="font-medium text-slate-800">{formatCurrency(subtotal)}</span>
                 </div>
+                {saleDetails.shippingCost > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                        <span>Envío</span>
+                        <span className="font-medium text-slate-800">{formatCurrency(saleDetails.shippingCost)}</span>
+                    </div>
+                )}
+                {saleDetails.discount > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                        <span>Descuento</span>
+                        <span className="font-medium text-rose-600">-{formatCurrency(Math.min(saleDetails.discount, subtotal))}</span>
+                    </div>
+                )}
                 <div className="flex justify-between text-slate-600">
                     <span>ITBIS (18%)</span>
                     <span className="font-medium text-slate-800">

@@ -23,6 +23,15 @@ interface PosProductPickerProps {
     ) => void
 }
 
+const STOCK_DISPLAY_CAP = 100_000
+const stockFormatter = new Intl.NumberFormat("es-DO", { maximumFractionDigits: 2 })
+
+/** Readable stock: large placeholder quantities (e.g. 1e+35) are shown as "100,000+". */
+function formatStock(stock: number): string {
+    if (stock >= STOCK_DISPLAY_CAP) return `${stockFormatter.format(STOCK_DISPLAY_CAP)}+`
+    return stockFormatter.format(stock)
+}
+
 export function PosProductPicker({ products, onSelectProduct }: PosProductPickerProps) {
     const [search, setSearch] = useState("")
     const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -107,7 +116,7 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
 
             {/* Category Filter Pills */}
             {categories.length > 0 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-sm">
                     <button
                         type="button"
                         onClick={() => setSelectedCategory("all")}
@@ -149,7 +158,7 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
                         <p className="text-xs text-slate-400">Probá con otro término de búsqueda o categoría</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
                         {filteredProducts.map((product) => {
                             const isService = Boolean(product.isService)
                             const stock = Number(product.stock ?? 0)
@@ -160,28 +169,26 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
                                 <Card
                                     key={product.id}
                                     onClick={() => handleProductClick(product)}
-                                    className={`p-3 cursor-pointer flex flex-col justify-between transition-all select-none border border-slate-200/90 hover:border-blue-500 hover:shadow-md bg-white active:scale-[0.98] ${
+                                    className={`p-4 min-h-[140px] cursor-pointer flex flex-col justify-between gap-3 transition-all select-none border border-slate-200/90 hover:border-blue-500 hover:shadow-md bg-white active:scale-[0.98] ${
                                         isOutOfStock ? "bg-slate-50/70 opacity-80" : ""
                                     }`}
                                 >
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-1">
-                                            <p className="font-semibold text-xs sm:text-sm text-slate-800 line-clamp-2 leading-tight">
-                                                {product.name}
-                                            </p>
-                                        </div>
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="font-semibold text-sm text-slate-800 line-clamp-2 leading-snug" title={product.name}>
+                                            {product.name}
+                                        </p>
                                         {product.sku && (
-                                            <p className="text-[11px] text-slate-400 truncate">
+                                            <p className="text-xs text-slate-400 truncate">
                                                 SKU: {product.sku}
                                             </p>
                                         )}
                                     </div>
 
-                                    <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between">
-                                        <div className="font-bold text-sm sm:text-base text-blue-600">
+                                    <div className="pt-3 border-t border-slate-100 space-y-1.5 min-w-0">
+                                        <div className="font-bold text-lg text-blue-600 truncate">
                                             {formatCurrency(product.price)}
                                         </div>
-                                        <div>
+                                        <div className="truncate">
                                             {isService ? (
                                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-200 text-blue-700 bg-blue-50">
                                                     <Wrench className="size-2.5 mr-1" />
@@ -197,8 +204,8 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
                                                     Agotado
                                                 </span>
                                             ) : (
-                                                <span className="text-[11px] font-medium text-slate-500">
-                                                    Stock: <span className="text-slate-800 font-semibold">{stock}</span>
+                                                <span className="text-xs font-medium text-slate-500">
+                                                    Stock: <span className="text-slate-800 font-semibold">{formatStock(stock)}</span>
                                                 </span>
                                             )}
                                         </div>

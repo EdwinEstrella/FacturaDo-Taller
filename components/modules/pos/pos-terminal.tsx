@@ -13,12 +13,21 @@ import { PosProductPicker } from "./pos-product-picker"
 import { PosCart } from "./pos-cart"
 import { PosSummary } from "./pos-summary"
 import { PosSuccessDialog } from "./pos-success-dialog"
-import type { PosCartItem, PosInvoice, PosTerminalProps, SerializedProduct } from "./pos-types"
+import type { PosCartItem, PosInvoice, PosSaleDetails, PosTerminalProps, SerializedProduct } from "./pos-types"
 
 function createLineId() {
     return typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`
+}
+
+const EMPTY_SALE_DETAILS: PosSaleDetails = {
+    shippingCost: 0,
+    discount: 0,
+    deliveryDate: undefined,
+    notes: "",
+    includeInstallation: false,
+    installationAmount: 0,
 }
 
 function findDefaultClientId(clients: PosTerminalProps["initialClients"]): string {
@@ -40,6 +49,7 @@ export function PosTerminal({
     initialProducts,
     initialClients,
     ecfEnabled,
+    installationProductId,
     settings,
 }: PosTerminalProps) {
     const { requireShift } = useShiftGuard()
@@ -55,6 +65,7 @@ export function PosTerminal({
     const [paymentMethod, setPaymentMethod] = useState<string>("CASH")
     const [amountTendered, setAmountTendered] = useState<number>(0)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
+    const [saleDetails, setSaleDetails] = useState<PosSaleDetails>(EMPTY_SALE_DETAILS)
 
     // Success dialog state
     const [successInvoice, setSuccessInvoice] = useState<PosInvoice | null>(null)
@@ -84,18 +95,50 @@ export function PosTerminal({
         ? `Se emitirá comprobante electrónico (${clientEcfType === "E31" ? "Crédito fiscal (E31)" : "Consumo (E32)"}) y se enviará a la DGII`
         : "Se emitirá comprobante fiscal B01 (crédito fiscal). El cliente debe tener RNC."
 
-    // Subtotal
-    const subtotal = useMemo(() => {
-        return items.reduce((sum, item) => sum + item.price * Number(item.quantity || 0), 0)
-    }, [items])
+    // The installation service is billed through the "Incluye instalación" option, not the catalog.
+    const catalogProducts = useMemo(
+        () => initialProducts.filter((p) => p.id !== installationProductId),
+        [initialProducts, installationProductId]
+    )
 
-    // Totals calculation with identical parity to invoice-form
+    // E31 needs a buyer RNC/cédula; tell the cashier why a sale falls back to E32.
+    const fiscalReceiptHint = ecfEnabled && clientEcfType === "E32"
+        ? "Este cliente no tiene RNC: sale como Consumo (E32). Para Crédito Fiscal (E31) seleccione o cree un cliente con RNC."
+        : null
+
+    // Cart lines plus the optional installation charge, which is billed as a service line.
+    const saleLines = useMemo<PosCartItem[]>(() => {
+        const installationProduct = installationProductId ? productMap.get(installationProductId) : undefined
+        if (!saleDetails.includeInstallation || saleDetails.installationAmount <= 0 || !installationProduct) {
+            return items
+        }
+        return [
+            ...items,
+            {
+                lineId: "installation",
+                productId: installationProduct.id,
+                productName: installationProduct.name,
+                price: saleDetails.installationAmount,
+                quantity: 1,
+                measurementMode: getMeasurementModeFromProduct(installationProduct),
+                stock: 0,
+                isService: true,
+                characteristics: [],
+            },
+        ]
+    }, [items, saleDetails.includeInstallation, saleDetails.installationAmount, installationProductId, productMap])
+
+    const subtotal = useMemo(() => {
+        return saleLines.reduce((sum, item) => sum + item.price * Number(item.quantity || 0), 0)
+    }, [saleLines])
+
+    // Totals calculation with identical parity to the server (createInvoice)
     const totalsCalculation = useMemo(() => {
+        const shipping = Math.max(0, saleDetails.shippingCost || 0)
+        const discount = Math.min(Math.max(0, saleDetails.discount || 0), subtotal)
+
         if (withoutFiscalReceipt) {
-            const noReceipt = computeNoReceiptTotals(subtotal, {
-                shipping: 0,
-                discount: 0,
-            })
+            const noReceipt = computeNoReceiptTotals(subtotal, { shipping, discount })
             return {
                 taxAmount: noReceipt.tax,
                 activeDiscount: noReceipt.discount,
@@ -104,17 +147,12 @@ export function PosTerminal({
             }
         }
 
-        if (ecfEnabled) {
-            if (items.length === 0) {
-                return {
-                    taxAmount: 0,
-                    activeDiscount: 0,
-                    total: 0,
-                    error: null as string | null,
-                }
-            }
+        if (saleLines.length === 0) {
+            return { taxAmount: 0, activeDiscount: 0, total: 0, error: null as string | null }
+        }
 
-            const mapperLines: InvoiceLineSnapshot[] = items.map((item) => {
+        if (ecfEnabled) {
+            const mapperLines: InvoiceLineSnapshot[] = saleLines.map((item) => {
                 const product = productMap.get(item.productId)
                 const isService = isServiceProduct(product)
                 return {
@@ -127,44 +165,32 @@ export function PosTerminal({
             })
 
             try {
-                const computed = computeEcfTotals(mapperLines, {
-                    shipping: 0,
-                    discount: 0,
-                })
+                const computed = computeEcfTotals(mapperLines, { shipping, discount })
                 return {
                     taxAmount: computed.itbisAmount,
-                    activeDiscount: 0,
+                    activeDiscount: discount,
                     total: computed.totalAmount,
                     error: null as string | null,
                 }
             } catch (err) {
-                return {
-                    taxAmount: 0,
-                    activeDiscount: 0,
-                    total: 0,
-                    error: mapIssuanceErrorToSpanish(err),
-                }
+                return { taxAmount: 0, activeDiscount: 0, total: 0, error: mapIssuanceErrorToSpanish(err) }
             }
         }
 
-        // Legacy NCF (B01) mode: calculate standard 18% ITBIS on non-service products
-        const taxableSubtotal = items.reduce((acc, item) => {
-            const product = productMap.get(item.productId)
-            const isService = isServiceProduct(product)
-            if (isService) return acc
+        // Legacy NCF (B01) mode: standard 18% ITBIS on non-service products
+        const taxableSubtotal = saleLines.reduce((acc, item) => {
+            if (isServiceProduct(productMap.get(item.productId))) return acc
             return acc + item.price * Number(item.quantity || 0)
         }, 0)
-
         const taxAmount = taxableSubtotal * 0.18
-        const total = subtotal + taxAmount
 
         return {
             taxAmount,
-            activeDiscount: 0,
-            total,
+            activeDiscount: discount,
+            total: subtotal + shipping - discount + taxAmount,
             error: null as string | null,
         }
-    }, [ecfEnabled, withoutFiscalReceipt, subtotal, items, productMap])
+    }, [ecfEnabled, withoutFiscalReceipt, subtotal, saleLines, productMap, saleDetails.shippingCost, saleDetails.discount])
 
     // Add item to cart
     const handleSelectProduct = (
@@ -206,6 +232,7 @@ export function PosTerminal({
                     variantName: variant?.name,
                     stock,
                     isService: Boolean(product.isService),
+                    characteristics: [],
                 },
             ]
         })
@@ -255,6 +282,25 @@ export function PosTerminal({
         )
     }
 
+    // Line characteristics (e.g. measures, color), same as the invoice form
+    const updateLineCharacteristics = (
+        lineId: string,
+        update: (characteristics: PosCartItem["characteristics"]) => PosCartItem["characteristics"]
+    ) => {
+        setItems((current) =>
+            current.map((item) => (item.lineId === lineId ? { ...item, characteristics: update(item.characteristics) } : item))
+        )
+    }
+
+    const handleAddCharacteristic = (lineId: string) =>
+        updateLineCharacteristics(lineId, (list) => [...list, { label: "Característica", value: "" }])
+
+    const handleUpdateCharacteristic = (lineId: string, index: number, field: "label" | "value", value: string) =>
+        updateLineCharacteristics(lineId, (list) => list.map((c, i) => (i === index ? { ...c, [field]: value } : c)))
+
+    const handleRemoveCharacteristic = (lineId: string, index: number) =>
+        updateLineCharacteristics(lineId, (list) => list.filter((_, i) => i !== index))
+
     // Remove line item
     const handleRemoveItem = (lineId: string) => {
         setErrorMessage(null)
@@ -273,6 +319,7 @@ export function PosTerminal({
         setAmountTendered(0)
         setPaymentMethod("CASH")
         setWithoutFiscalReceipt(true) // Switch back ON
+        setSaleDetails(EMPTY_SALE_DETAILS)
         setSelectedClientId(defaultClientId)
         setErrorMessage(null)
         setSuccessInvoice(null)
@@ -285,6 +332,11 @@ export function PosTerminal({
         setErrorMessage(null)
 
         if (!requireShift()) return
+
+        if (saleDetails.includeInstallation && saleDetails.installationAmount <= 0) {
+            setErrorMessage("Ingrese el monto de la instalación o desmarque la opción.")
+            return
+        }
 
         if (items.length === 0) {
             setErrorMessage("El carrito está vacío. Agregá al menos un producto.")
@@ -307,13 +359,15 @@ export function PosTerminal({
         }
 
         startTransition(async () => {
-            const parsedItems = items.map((item) => ({
+            const parsedItems = saleLines.map((item) => ({
                 productId: item.productId,
                 productName: item.productName,
                 quantity: Number(item.quantity || 0),
                 price: Number(item.price || 0),
                 variantId: item.variantId || undefined,
-                characteristics: [],
+                characteristics: item.characteristics
+                    .filter((c) => c.value.trim())
+                    .map((c) => ({ label: c.label.trim() || "Característica", value: c.value.trim() })),
             }))
 
             const payload = {
@@ -322,9 +376,10 @@ export function PosTerminal({
                 items: parsedItems,
                 total: totalsCalculation.total,
                 paymentMethod,
-                shippingCost: 0,
+                shippingCost: Math.max(0, saleDetails.shippingCost || 0),
                 discount: totalsCalculation.activeDiscount,
-                notes: "",
+                deliveryDate: saleDetails.deliveryDate,
+                notes: saleDetails.notes.trim(),
                 amountPaid:
                     paymentMethod === "CREDIT"
                         ? 0
@@ -372,7 +427,7 @@ export function PosTerminal({
             {/* Left side: Product Catalog & Search */}
             <div className="flex-1 min-w-0 bg-white/60 p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col h-[500px] lg:h-full overflow-hidden">
                 <PosProductPicker
-                    products={initialProducts}
+                    products={catalogProducts}
                     onSelectProduct={handleSelectProduct}
                 />
             </div>
@@ -387,6 +442,9 @@ export function PosTerminal({
                         onUpdatePrice={handleUpdatePrice}
                         onRemoveItem={handleRemoveItem}
                         onClearCart={handleClearCart}
+                        onAddCharacteristic={handleAddCharacteristic}
+                        onUpdateCharacteristic={handleUpdateCharacteristic}
+                        onRemoveCharacteristic={handleRemoveCharacteristic}
                     />
                 </div>
 
@@ -399,6 +457,10 @@ export function PosTerminal({
                         withoutFiscalReceipt={withoutFiscalReceipt}
                         onToggleWithoutFiscalReceipt={setWithoutFiscalReceipt}
                         fiscalReceiptDescription={fiscalReceiptDescription}
+                        fiscalReceiptHint={fiscalReceiptHint}
+                        saleDetails={saleDetails}
+                        onChangeSaleDetails={(patch) => setSaleDetails((current) => ({ ...current, ...patch }))}
+                        installationAvailable={Boolean(installationProductId)}
                         paymentMethod={paymentMethod}
                         onChangePaymentMethod={setPaymentMethod}
                         amountTendered={amountTendered}

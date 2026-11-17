@@ -5,6 +5,7 @@ import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { getInvoiceFiscalMode } from "@/actions/invoice-actions"
 import { getCompanySettings } from "@/actions/settings-actions"
+import { ensureInstallationProduct } from "@/actions/pos-actions"
 import { canAccess } from "@/lib/navigation"
 import { PosTerminal } from "@/components/modules/pos/pos-terminal"
 import type { SerializedProduct } from "@/components/modules/pos/pos-types"
@@ -15,6 +16,9 @@ export default async function PosPage() {
     if (!user || !canAccess(user.role, "/pos")) {
         redirect("/")
     }
+
+    // Created before loading products so the installation service is part of the catalog map.
+    const installationProductId = await ensureInstallationProduct()
 
     const [[clients, products], fiscalMode, settings] = await Promise.all([
         Promise.all([
@@ -33,19 +37,13 @@ export default async function PosPage() {
     }))
 
     return (
-        <div className="flex-1 space-y-3 h-[calc(100vh-6.5rem)] flex flex-col">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Punto de Venta</h2>
-                    <p className="text-xs text-slate-500">Terminal de ventas rápidas y facturación.</p>
-                </div>
-            </div>
-
+        <div className="flex-1 h-[calc(100vh-6.5rem)] flex flex-col">
             <Suspense fallback={null}>
                 <PosTerminal
                     initialClients={clients}
                     initialProducts={serializedProducts}
                     ecfEnabled={fiscalMode.ecfEnabled}
+                    installationProductId={installationProductId}
                     settings={settings}
                 />
             </Suspense>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Minus, Plus, Trash2, ShoppingCart } from "lucide-react"
+import { Minus, Plus, Trash2, ShoppingCart, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { isMeasuredMode } from "@/lib/product-measurements"
@@ -13,6 +13,9 @@ interface PosCartProps {
     onUpdatePrice: (lineId: string, price: string) => void
     onRemoveItem: (lineId: string) => void
     onClearCart: () => void
+    onAddCharacteristic: (lineId: string) => void
+    onUpdateCharacteristic: (lineId: string, index: number, field: "label" | "value", value: string) => void
+    onRemoveCharacteristic: (lineId: string, index: number) => void
 }
 
 export function PosCart({
@@ -21,6 +24,9 @@ export function PosCart({
     onUpdatePrice,
     onRemoveItem,
     onClearCart,
+    onAddCharacteristic,
+    onUpdateCharacteristic,
+    onRemoveCharacteristic,
 }: PosCartProps) {
     if (items.length === 0) {
         return (
@@ -63,11 +69,11 @@ export function PosCart({
                     const lineTotal = item.price * Number(item.quantity || 0)
 
                     return (
-                        <div key={item.lineId} className="p-2.5 hover:bg-slate-50/70 transition-colors space-y-2">
+                        <div key={item.lineId} className="p-3.5 hover:bg-slate-50/70 transition-colors space-y-2.5">
                             {/* Product Info */}
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-semibold text-slate-800 leading-snug truncate">
+                                    <p className="text-sm font-semibold text-slate-800 leading-snug">
                                         {item.productName}
                                     </p>
                                     {item.variantName && (
@@ -142,10 +148,44 @@ export function PosCart({
                                 </div>
 
                                 {/* Line Total */}
-                                <div className="font-bold text-xs sm:text-sm text-slate-900 text-right min-w-[70px]">
+                                <div className="font-bold text-sm text-slate-900 text-right min-w-[80px]">
                                     {formatCurrency(lineTotal)}
                                 </div>
                             </div>
+
+                            {/* Characteristics (measures, color, etc.) */}
+                            {item.characteristics.map((characteristic, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <Input
+                                        aria-label="Nombre de la característica"
+                                        value={characteristic.label}
+                                        onChange={(e) => onUpdateCharacteristic(item.lineId, index, "label", e.target.value)}
+                                        className="h-8 w-32 text-xs"
+                                    />
+                                    <Input
+                                        aria-label="Valor de la característica"
+                                        placeholder="Ej: 80 x 200 cm, blanco"
+                                        value={characteristic.value}
+                                        onChange={(e) => onUpdateCharacteristic(item.lineId, index, "value", e.target.value)}
+                                        className="h-8 flex-1 text-xs"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => onRemoveCharacteristic(item.lineId, index)}
+                                        className="size-8 flex items-center justify-center text-slate-400 hover:text-rose-600"
+                                        title="Quitar característica"
+                                    >
+                                        <X className="size-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => onAddCharacteristic(item.lineId)}
+                                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            >
+                                + Agregar característica
+                            </button>
                         </div>
                     )
                 })}
