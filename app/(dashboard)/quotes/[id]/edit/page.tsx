@@ -3,6 +3,7 @@ import { getQuoteById } from "@/actions/quote-actions"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { getInvoiceFiscalMode } from "@/actions/invoice-actions"
+import { ensureInstallationProduct } from "@/actions/pos-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import { notFound, redirect } from "next/navigation"
 import type { Product } from "@/types"
@@ -27,11 +28,12 @@ export default async function EditQuotePage({ params }: EditQuotePageProps) {
         redirect("/quotes")
     }
 
-    const [quote, clients, products, fiscalMode] = await Promise.all([
+    const [quote, clients, products, fiscalMode, installationProductId] = await Promise.all([
         getQuoteById(id),
         getClients(),
         getProducts(),
-        getInvoiceFiscalMode()
+        getInvoiceFiscalMode(),
+        ensureInstallationProduct(),
     ])
 
     if (!quote) {
@@ -62,6 +64,7 @@ export default async function EditQuotePage({ params }: EditQuotePageProps) {
                     initialData={quote}
                     documentType="QUOTE"
                     ecfEnabled={fiscalMode.ecfEnabled}
+                    installationProductId={installationProductId}
                 />
             </Suspense>
         </div>

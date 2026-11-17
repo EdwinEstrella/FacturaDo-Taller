@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { getInvoiceById, getInvoiceFiscalMode } from "@/actions/invoice-actions"
 import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
+import { ensureInstallationProduct } from "@/actions/pos-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import { notFound } from "next/navigation"
 import type { Product } from "@/types"
@@ -26,11 +27,12 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         redirect("/invoices")
     }
 
-    const [invoice, clients, products, fiscalMode] = await Promise.all([
+    const [invoice, clients, products, fiscalMode, installationProductId] = await Promise.all([
         getInvoiceById(id),
         getClients(),
         getProducts(),
         getInvoiceFiscalMode(),
+        ensureInstallationProduct(),
     ])
 
     if (!invoice) {
@@ -60,6 +62,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
                     initialClients={clients}
                     initialData={invoice}
                     ecfEnabled={fiscalMode.ecfEnabled}
+                    installationProductId={installationProductId}
                 />
             </Suspense>
         </div>

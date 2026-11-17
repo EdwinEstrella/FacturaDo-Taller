@@ -3,6 +3,7 @@ import { getClients } from "@/actions/client-actions"
 import { getProducts } from "@/actions/product-actions"
 import { getQuoteById } from "@/actions/quote-actions"
 import { getInvoiceFiscalMode } from "@/actions/invoice-actions"
+import { ensureInstallationProduct } from "@/actions/pos-actions"
 import { InvoiceForm } from "@/components/modules/invoices/invoice-form"
 import type { Product } from "@/types"
 
@@ -16,13 +17,14 @@ export default async function CreateInvoicePage({
 }: {
     searchParams: Promise<{ type?: string, sourceQuoteId?: string }>
 }) {
-    const [{ type, sourceQuoteId }, [clients, products], fiscalMode] = await Promise.all([
+    const [{ type, sourceQuoteId }, [clients, products], fiscalMode, installationProductId] = await Promise.all([
         searchParams,
         Promise.all([
             getClients(),
             getProducts()
         ]),
-        getInvoiceFiscalMode()
+        getInvoiceFiscalMode(),
+        ensureInstallationProduct(),
     ])
 
     const isQuoteMode = type === "QUOTE"
@@ -54,6 +56,7 @@ export default async function CreateInvoicePage({
                     initialProducts={serializedProducts} 
                     sourceQuote={sourceQuote} 
                     ecfEnabled={fiscalMode.ecfEnabled}
+                    installationProductId={installationProductId}
                 />
             </Suspense>
         </div>

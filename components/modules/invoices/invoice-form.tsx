@@ -60,6 +60,8 @@ interface InvoiceFormProps {
     sourceQuote?: any
     documentType?: "INVOICE" | "QUOTE"
     ecfEnabled: boolean
+    /** Service product used for the "Incluye instalación" charge (see ensureInstallationProduct). */
+    installationProductId?: string | null
 }
 
 interface InvoiceItemState {
@@ -125,7 +127,7 @@ function hydrateInitialItems(initialItems: InvoiceItemState[] | undefined, produ
     })
 }
 
-export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType, ecfEnabled }: InvoiceFormProps) {
+export function InvoiceForm({ initialProducts, initialClients, initialData, sourceQuote, documentType, ecfEnabled, installationProductId }: InvoiceFormProps) {
     const { requireShift } = useShiftGuard()
     const dataToUse = initialData || sourceQuote
     const isEdit = !!initialData
@@ -143,6 +145,43 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const isFiscallyLocked = !isQuoteMode && Boolean(initialData?.fiscalDocumentId || (ecfEnabled && initialData?.ncf))
 
     const [items, setItems] = useState<InvoiceItemState[]>(() => hydrateInitialItems(dataToUse?.items, initialProducts))
+
+    // Installation charge: a regular line with the installation service product, toggled by a checkbox.
+    const installationProduct = installationProductId
+        ? (initialProducts as Array<SerializedProduct | Product>).find((p) => p.id === installationProductId)
+        : undefined
+    const installationLine = installationProduct ? items.find((item) => item.productId === installationProduct.id) : undefined
+
+    const toggleInstallation = (checked: boolean) => {
+        if (!installationProduct) return
+        if (!checked) {
+            setItems((current) => current.filter((item) => item.productId !== installationProduct.id))
+            return
+        }
+        if (installationLine) return
+        setItems((current) => [
+            ...current,
+            {
+                lineId: createLineId(),
+                productId: installationProduct.id,
+                productName: installationProduct.name,
+                price: 0,
+                quantity: 1,
+                measurementMode: getDefaultMeasurementMode(installationProduct),
+                characteristics: [],
+            },
+        ])
+    }
+
+    const setInstallationAmount = (value: string) => {
+        if (!installationProduct) return
+        const amount = Number(value)
+        setItems((current) => current.map((item) =>
+            item.productId === installationProduct.id
+                ? { ...item, price: Number.isFinite(amount) && amount > 0 ? amount : 0 }
+                : item
+        ))
+    }
     const [selectedClientId, setSelectedClientId] = useState<string>(dataToUse?.clientId || "")
     const [isPending, startTransition] = useTransition()
     const [showPreview, setShowPreview] = useState(false)
@@ -729,6 +768,30 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                 <DatePicker date={deliveryDate} setDate={setDeliveryDate} />
                             </div>
                         </div>
+
+                        {installationProduct && (
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                                    <Checkbox
+                                        checked={Boolean(installationLine)}
+                                        onCheckedChange={(checked) => toggleInstallation(checked === true)}
+                                    />
+                                    Incluye instalación
+                                </label>
+                                {installationLine && (
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        step="any"
+                                        autoFocus
+                                        aria-label="Monto de la instalación"
+                                        placeholder="Monto de la instalación (RD$)"
+                                        value={installationLine.price || ""}
+                                        onChange={(e) => setInstallationAmount(e.target.value)}
+                                    />
+                                )}
+                            </div>
+                        )}
 
                         {isQuoteMode ? (
                             <div className="space-y-3 rounded-md border border-yellow-200 bg-yellow-50 p-3">
