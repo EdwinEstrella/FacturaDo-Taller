@@ -96,7 +96,7 @@ export async function filterInvoices(filters: InvoiceFilters): Promise<InvoiceWi
             workOrder:WorkOrder(*),
             dispatchInfo:Dispatch(
                 *,
-                technician:users(*)
+                technician:users(id, name, username, role)
             )
         `)
         .order('createdAt', { ascending: false })

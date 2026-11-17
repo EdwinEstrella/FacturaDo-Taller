@@ -579,7 +579,7 @@ export async function getInvoices() {
             workOrder:WorkOrder(*),
             dispatchInfo:Dispatch(
                 *,
-                technician:users(*)
+                technician:users(id, name, username, role)
             )
         `)
         .order('createdAt', { ascending: false })
@@ -636,10 +636,10 @@ export async function getInvoiceById(id: string) {
             *,
             client:Client(*),
             items:InvoiceItem(*),
-            createdBy:users(*),
+            createdBy:users(id, name, username, role),
             dispatchInfo:Dispatch(
                 *,
-                technician:users(*)
+                technician:users(id, name, username, role)
             )
         `)
         .eq('id', id)

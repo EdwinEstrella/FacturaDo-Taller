@@ -28,7 +28,7 @@ export async function getUsers() {
     try {
         const { data: usersList, error } = await insforge.database
             .from('users')
-            .select('*')
+            .select('id, username, name, phone, role, custom_permissions, created_at, updated_at')
             .order('created_at', { ascending: false })
 
         if (error) {
