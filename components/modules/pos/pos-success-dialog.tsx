@@ -19,6 +19,7 @@ import {
 import { InvoiceTemplate } from "@/components/modules/invoices/invoice-template"
 import { InvoiceOdooTemplate } from "@/components/modules/invoices/invoice-odoo-template"
 import { useInvoicePrint } from "@/hooks/use-invoice-print"
+import { useEcfPrintData } from "@/hooks/use-ecf-print-data"
 import { formatCurrency } from "@/lib/utils"
 import type { CompanySettings } from "@/actions/settings-actions"
 import type { PosInvoice } from "./pos-types"
@@ -55,6 +56,7 @@ export function PosSuccessDialog({
     const [template, setTemplate] = useState<"ticket" | "a4-odoo">(initialTemplate)
 
     const { print } = useInvoicePrint({ contentRef, format: template })
+    const { ecf, waiting } = useEcfPrintData(invoice?.id, invoice?.encf || invoice?.ncf, isOpen)
 
     const seqDisplay = invoice?.sequenceNumber
         ? `#${String(invoice.sequenceNumber).padStart(6, "0")}`
@@ -121,6 +123,17 @@ export function PosSuccessDialog({
                     </div>
                 </div>
 
+                {waiting && (
+                    <div className="p-2.5 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs text-center font-medium">
+                        Firmando el comprobante electrónico y enviándolo a la DGII...
+                    </div>
+                )}
+                {ecf?.state === "rejected" && (
+                    <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs text-center font-medium">
+                        La DGII rechazó el comprobante: {ecf.message}
+                    </div>
+                )}
+
                 {!invoice && (
                     <div className="p-2.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center font-medium">
                         No se pudo cargar la factura para imprimir; imprímala desde Facturas.
@@ -149,11 +162,11 @@ export function PosSuccessDialog({
                         type="button"
                         variant="outline"
                         onClick={print}
-                        disabled={!invoice}
+                        disabled={!invoice || waiting}
                         className="h-11 font-semibold flex items-center justify-center gap-2 border-slate-300 disabled:opacity-50"
                     >
                         <Printer className="size-4" />
-                        Imprimir
+                        {waiting ? "Firmando..." : "Imprimir"}
                     </Button>
                     <Button
                         type="button"
@@ -170,9 +183,9 @@ export function PosSuccessDialog({
                     <div className="hidden">
                         <div ref={contentRef}>
                             {template === "ticket" ? (
-                                <InvoiceTemplate invoice={invoice} settings={settings || undefined} />
+                                <InvoiceTemplate invoice={invoice} settings={settings || undefined} ecf={ecf} />
                             ) : (
-                                <InvoiceOdooTemplate invoice={invoice} settings={settings || undefined} />
+                                <InvoiceOdooTemplate invoice={invoice} settings={settings || undefined} ecf={ecf} />
                             )}
                         </div>
                     </div>

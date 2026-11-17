@@ -14,6 +14,7 @@ import { InvoiceTemplate } from "./invoice-template"
 import { InvoiceOdooTemplate } from "./invoice-odoo-template"
 import { ExportPdfModal } from "@/components/modules/pdf/export-pdf-modal"
 import { useInvoicePrint } from "@/hooks/use-invoice-print"
+import { useEcfPrintData } from "@/hooks/use-ecf-print-data"
 import {
     Select,
     SelectContent,
@@ -30,10 +31,13 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
     const [template, setTemplate] = useState<"ticket" | "a4-odoo">(initialTemplate)
     const [pdfModalOpen, setPdfModalOpen] = useState(false)
 
+    const [open, setOpen] = useState(false)
+    const { ecf, waiting } = useEcfPrintData(invoice?.id, invoice?.ncf, open)
+
     const { print } = useInvoicePrint({ contentRef, format: template })
 
     return (
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" title="Imprimir">
                     <Printer className="h-4 w-4" />
@@ -63,9 +67,9 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
                 <div className="border p-2 bg-gray-100 flex justify-center">
                     <div ref={contentRef}>
                         {template === "ticket" ? (
-                            <InvoiceTemplate invoice={invoice} settings={settings} />
+                            <InvoiceTemplate invoice={invoice} settings={settings} ecf={ecf} />
                         ) : (
-                            <InvoiceOdooTemplate invoice={invoice} settings={settings} />
+                            <InvoiceOdooTemplate invoice={invoice} settings={settings} ecf={ecf} />
                         )}
                     </div>
                 </div>
@@ -75,9 +79,14 @@ export function InvoicePreviewDialog({ invoice, settings }: { invoice: any, sett
                         <FileDown className="mr-2 h-4 w-4" />
                         Guardar como PDF
                     </Button>
-                    <Button onClick={print}>
+                    {ecf?.state === "rejected" && (
+                        <p className="mr-auto self-center text-xs font-medium text-rose-600">
+                            La DGII rechazó este comprobante: {ecf.message}
+                        </p>
+                    )}
+                    <Button onClick={print} disabled={waiting}>
                         <Printer className="mr-2 h-4 w-4" />
-                        Imprimir
+                        {waiting ? "Esperando firma del comprobante..." : "Imprimir"}
                     </Button>
                 </div>
 

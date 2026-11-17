@@ -4,6 +4,8 @@ import { calculateDerivedInvoiceDiscount, calculateInvoiceSubtotal } from "@/lib
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 import { formatPaymentMethod } from "@/lib/payment-methods"
 import type { InvoicePayment } from "@/types"
+import { ecfDocumentTitle, type EcfPrintData } from "@/lib/fiscal/printed/ecf-print-data"
+import { EcfFiscalStamp } from "./ecf-fiscal-stamp"
 
 interface InvoiceTemplateProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,9 +17,11 @@ interface InvoiceTemplateProps {
         companyAddress: string
         companyLogo?: string
     }
+    /** DGII stamp of an electronic invoice (QR, security code). */
+    ecf?: EcfPrintData | null
 }
 
-export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
+export function InvoiceTemplate({ invoice, settings, ecf }: InvoiceTemplateProps) {
     const companyName = settings?.companyName || "FacturaDO"
     const companyRnc = settings?.companyRnc || "101-00000-0"
     const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
@@ -29,7 +33,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
     const discount = calculateDerivedInvoiceDiscount(invoice)
     const total = Number(invoice.total ?? subtotal + tax + shipping - discount)
     const balance = Number(invoice.balance || 0)
-    const fiscalType = invoice.ncf?.startsWith("B01") ? "Crédito Fiscal" : (invoice.ncfType || "Consumo")
+    const fiscalType = ecfDocumentTitle(invoice.ncf) || (invoice.ncf?.startsWith("B01") ? "Crédito Fiscal" : (invoice.ncfType || "Consumo"))
     const payments: InvoicePayment[] = Array.isArray(invoice.payments) ? invoice.payments : []
     const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0)
 
@@ -91,7 +95,7 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                 <p><strong>Cliente:</strong> {invoice.clientName || "Consumidor Final"}</p>
                 {invoice.client?.rnc && <p><strong>RNC/Ced:</strong> {invoice.client.rnc}</p>}
                 <p><strong>Tipo:</strong> {fiscalType}</p>
-                {invoice.ncf && <p><strong>NCF:</strong> {invoice.ncf}</p>}
+                {invoice.ncf && <p><strong>{invoice.ncf.startsWith("E") ? "e-NCF" : "NCF"}:</strong> {invoice.ncf}</p>}
                 {invoice.createdBy && <p className="text-[10px] mt-1 italic">Atendido por: {invoice.createdBy.name}</p>}
                 {invoice.dispatchInfo?.technician && <p className="text-[10px] italic">Despachado por: {invoice.dispatchInfo.technician.name}</p>}
             </div>
@@ -217,6 +221,8 @@ export function InvoiceTemplate({ invoice, settings }: InvoiceTemplateProps) {
                     <div className="whitespace-pre-line">{invoice.notes}</div>
                 </div>
             )}
+
+            <EcfFiscalStamp ecf={ecf} variant="ticket" />
 
             <div className="text-xs text-center mt-4 mb-4">
                 <p>Gracias por su compra!</p>

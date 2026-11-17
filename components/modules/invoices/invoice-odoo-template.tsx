@@ -6,6 +6,8 @@ import { calculateDerivedInvoiceDiscount } from "@/lib/invoice-totals"
 import { normalizeStorageObjectUrl } from "@/lib/insforge/storage-url"
 import { formatPaymentMethod } from "@/lib/payment-methods"
 import type { InvoicePayment } from "@/types"
+import { ecfDocumentTitle, type EcfPrintData } from "@/lib/fiscal/printed/ecf-print-data"
+import { EcfFiscalStamp } from "./ecf-fiscal-stamp"
 
 interface InvoiceOdooTemplateProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,9 +19,11 @@ interface InvoiceOdooTemplateProps {
     companyAddress: string
     companyLogo?: string
   }
+  /** DGII stamp of an electronic invoice (QR, security code). */
+  ecf?: EcfPrintData | null
 }
 
-export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplateProps) {
+export function InvoiceOdooTemplate({ invoice, settings, ecf }: InvoiceOdooTemplateProps) {
   const companyName = settings?.companyName || "FacturaDO"
   const companyRnc = settings?.companyRnc || "101-00000-0"
   const companyAddress = settings?.companyAddress || "Av. Winston Churchill #101"
@@ -123,6 +127,9 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
               <h2 className="text-[42px] font-black uppercase leading-none tracking-tight text-[#315f8a]">
                 FACTURA
               </h2>
+              {ecfDocumentTitle(invoice.ncf) && (
+                <p className="mt-1 text-[12px] font-bold uppercase text-[#315f8a]">{ecfDocumentTitle(invoice.ncf)}</p>
+              )}
             </div>
           </div>
 
@@ -164,7 +171,7 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
             </p>
             {invoice.ncf && (
               <p>
-                <span className="font-black">NCF:</span> {invoice.ncf}
+                <span className="font-black">{invoice.ncf.startsWith("E") ? "e-NCF" : "NCF"}:</span> {invoice.ncf}
               </p>
             )}
           </div>
@@ -298,6 +305,8 @@ export function InvoiceOdooTemplate({ invoice, settings }: InvoiceOdooTemplatePr
             </p>
           </div>
         </section>
+
+        <EcfFiscalStamp ecf={ecf} variant="a4" />
 
         <footer className="mt-8 border-t border-[#5a9bc0] pt-3 text-[11px]">
           <div className="flex items-center justify-between gap-4">
