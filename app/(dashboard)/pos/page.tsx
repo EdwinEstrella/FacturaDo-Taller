@@ -37,7 +37,7 @@ export default async function PosPage() {
     }))
 
     return (
-        <div className="flex-1 h-[calc(100vh-6.5rem)] flex flex-col">
+        <div className="flex-1 h-[calc(100vh-7rem)] flex flex-col">
             <Suspense fallback={null}>
                 <PosTerminal
                     initialClients={clients}

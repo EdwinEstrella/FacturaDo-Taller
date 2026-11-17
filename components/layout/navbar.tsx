@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { ChevronDown, ChevronRight, LogOut, Menu, RefreshCw } from "lucide-react"
+import { ChevronDown, LogOut, Menu, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -15,6 +15,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { TopNav } from "@/components/layout/top-nav"
 import { TitlebarUpdateButton } from "@/components/modules/updates/titlebar-update-button"
 import { useAppUpdate } from "@/hooks/use-app-update"
 import { canAccess, findNavItem } from "@/lib/navigation"
@@ -71,18 +72,25 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
                 </SheetContent>
             </Sheet>
 
-            {/* Ubicación */}
-            <nav className="flex min-w-0 items-center gap-1.5 text-sm" aria-label="Ubicación">
-                {current ? (
-                    <>
-                        <span className="hidden text-slate-500 sm:inline">{current.section}</span>
-                        <ChevronRight className="hidden size-4 text-slate-300 sm:inline" />
-                        <span className="truncate font-semibold text-slate-900">{current.item.label}</span>
-                    </>
-                ) : (
-                    <span className="font-semibold text-slate-900">FacturaDo</span>
-                )}
-            </nav>
+            {/* Marca */}
+            <Link href="/" className="flex shrink-0 items-center gap-2.5" title="FacturaDo">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
+                    FD
+                </div>
+                <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 lg:inline">FacturaDo</span>
+            </Link>
+
+            <div className="hidden h-6 w-px bg-slate-200 md:block" />
+
+            {/* Menú principal (pantallas medianas y grandes) */}
+            <div className="hidden min-w-0 md:flex">
+                <TopNav role={role} />
+            </div>
+
+            {/* Ubicación (solo pantallas pequeñas, donde el menú va en el panel lateral) */}
+            <span className="truncate text-sm font-semibold text-slate-900 md:hidden">
+                {current?.item.label || "FacturaDo"}
+            </span>
 
             <div className="ml-auto flex items-center gap-2 md:gap-3">
                 <TitlebarUpdateButton update={update} />
