@@ -59,8 +59,30 @@ function extractCookies(response: Response): string {
 
 export class RncNotFoundError extends Error {}
 
-/** Fetches a taxpayer by a normalized 9-digit RNC or 11-digit cédula. Throws on network/format errors. */
+/** DGII answers some lookups with an empty details table and no message; those are retried. */
+class EmptyDgiiAnswerError extends Error {}
+
+const MAX_ATTEMPTS = 3
+const NOT_REGISTERED_MESSAGE = /no se encuentra inscrito/i
+
+/**
+ * Fetches a taxpayer by a normalized 9-digit RNC or 11-digit cédula. Reports "not found" only when
+ * DGII says so explicitly; empty answers are retried with a fresh session.
+ */
 export async function fetchDgiiTaxpayer(rnc: string): Promise<RncLookupResult> {
+    let lastError: unknown = null
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            return await lookupOnce(rnc)
+        } catch (error) {
+            if (!(error instanceof EmptyDgiiAnswerError)) throw error
+            lastError = error
+        }
+    }
+    throw lastError instanceof Error ? lastError : new Error("DGII lookup failed")
+}
+
+async function lookupOnce(rnc: string): Promise<RncLookupResult> {
     const headers = { "User-Agent": "Mozilla/5.0" }
     const formPage = await fetch(DGII_RNC_URL, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: "no-store" })
     if (!formPage.ok) throw new Error(`DGII form returned ${formPage.status}`)
@@ -91,14 +113,18 @@ export async function fetchDgiiTaxpayer(rnc: string): Promise<RncLookupResult> {
     })
     if (!result.ok) throw new Error(`DGII lookup returned ${result.status}`)
 
-    const fields = parseTaxpayerTable(await result.text())
+    const html = await result.text()
+    const fields = parseTaxpayerTable(html)
     const name = fields?.get("nombre/razón social")
-    if (!fields || !name) throw new RncNotFoundError(rnc)
+    if (!name) {
+        if (NOT_REGISTERED_MESSAGE.test(html)) throw new RncNotFoundError(rnc)
+        throw new EmptyDgiiAnswerError(`DGII returned no taxpayer data for ${rnc}`)
+    }
 
     return {
         rnc,
         name,
-        commercialName: fields.get("nombre comercial") || null,
-        status: fields.get("estado") || null,
+        commercialName: fields?.get("nombre comercial") || null,
+        status: fields?.get("estado") || null,
     }
 }
