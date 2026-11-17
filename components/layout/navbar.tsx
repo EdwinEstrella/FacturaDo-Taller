@@ -58,7 +58,7 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
     }
 
     return (
-        <header className="titlebar-drag titlebar-controls-gap flex h-9 shrink-0 items-center gap-2 bg-[#1c1c1c] pl-2 text-white select-none">
+        <header className="titlebar-drag titlebar-controls-gap flex h-[35px] shrink-0 items-center gap-1 border-b border-black/40 bg-[#1f1f1f] pl-2 text-[#cccccc] select-none">
             {/* Menú en pantallas pequeñas */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
@@ -73,14 +73,11 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
             </Sheet>
 
             {/* Marca */}
-            <Link href="/" className="titlebar-no-drag flex shrink-0 items-center gap-2" title="FacturaDo">
-                <div className="flex size-6 items-center justify-center rounded bg-gradient-to-br from-blue-500 to-indigo-600 text-[10px] font-bold text-white shadow-sm">
+            <Link href="/" className="titlebar-no-drag flex shrink-0 items-center px-1" title="FacturaDo">
+                <div className="flex size-5 items-center justify-center rounded-sm bg-gradient-to-br from-blue-500 to-indigo-600 text-[9px] font-bold text-white">
                     FD
                 </div>
-                <span className="hidden text-[13px] font-medium text-white lg:inline">FacturaDo</span>
             </Link>
-
-            <div className="hidden h-4 w-px bg-white/20 md:block" />
 
             {/* Menú principal (pantallas medianas y grandes) */}
             <div className="titlebar-no-drag hidden min-w-0 md:flex">

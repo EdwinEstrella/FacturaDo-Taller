@@ -217,7 +217,7 @@ function createWindow(baseUrl) {
     autoHideMenuBar: true,
     // The app draws its own title bar (menu + user) and keeps the native window buttons on the right.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#1c1c1c', symbolColor: '#ffffff', height: 36 },
+    titleBarOverlay: { color: '#1f1f1f', symbolColor: '#cccccc', height: 35 },
     ...(iconImage ? { icon: iconImage } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

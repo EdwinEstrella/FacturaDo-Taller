@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,9 +12,9 @@ import { getNavSections, isActivePath } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
 const sectionButton =
-    "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
-const sectionIdle = "text-slate-300 hover:bg-white/10 hover:text-white"
-const sectionActive = "bg-white/15 text-white"
+    "flex h-6 items-center rounded px-2 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
+const sectionIdle = "text-[#cccccc] hover:bg-white/10 hover:text-white data-[state=open]:bg-white/10"
+const sectionActive = "text-white hover:bg-white/10 data-[state=open]:bg-white/10"
 
 /**
  * Top-bar navigation: one button per menu section. A section with a single entry links directly;
@@ -26,20 +25,18 @@ export function TopNav({ role }: { role?: string }) {
     const sections = getNavSections(role)
 
     return (
-        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none" aria-label="Menú principal">
+        <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-none" aria-label="Menú principal">
             {sections.map((section) => {
                 const active = section.items.some((item) => isActivePath(pathname, item.href))
 
                 if (section.items.length === 1) {
                     const [item] = section.items
-                    const Icon = item.icon
                     return (
                         <Link
                             key={section.title}
                             href={item.href}
                             className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}
                         >
-                            <Icon className="size-3.5" />
                             {item.label}
                         </Link>
                     )
@@ -49,7 +46,6 @@ export function TopNav({ role }: { role?: string }) {
                     <DropdownMenu key={section.title} modal={false}>
                         <DropdownMenuTrigger className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}>
                             {section.title}
-                            <ChevronDown className="size-3.5 opacity-60" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" sideOffset={6} className="w-60">
                             {section.items.map((item) => {
