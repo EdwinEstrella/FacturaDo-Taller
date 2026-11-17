@@ -32,6 +32,11 @@ export interface ComputeEcfTotalsOptions {
 export interface ComputeNoReceiptTotalsOptions {
     shipping?: number | null
     discount?: number | null
+    /**
+     * Gross of the taxable (non-service) lines when the cashier chose "Aplicar ITBIS".
+     * Omitted or null: the sale carries no ITBIS.
+     */
+    itbisBase?: number | null
 }
 
 export interface ComputedNoReceiptTotals {
@@ -44,9 +49,12 @@ export interface ComputedNoReceiptTotals {
 
 /**
  * Single shared formula for "Sin comprobante" (no fiscal receipt) totals:
- * items gross + shipping − discount capped at items gross, ITBIS 0.
+ * items gross + shipping − discount capped at items gross, plus 18% ITBIS on `itbisBase`
+ * when given (0 otherwise).
  * Shipping is never discounted. Discount cannot exceed items gross.
  */
+const NO_RECEIPT_ITBIS_RATE = 0.18
+
 export function computeNoReceiptTotals(
     itemsGross: number,
     options?: ComputeNoReceiptTotalsOptions
@@ -55,11 +63,12 @@ export function computeNoReceiptTotals(
     const shipping = round2(Math.max(0, Number(options?.shipping || 0)))
     const rawDiscount = round2(Math.max(0, Number(options?.discount || 0)))
     const cappedDiscount = Math.min(rawDiscount, gross)
-    const total = round2(gross + shipping - cappedDiscount)
+    const tax = options?.itbisBase == null ? 0 : round2(Math.max(0, Number(options.itbisBase)) * NO_RECEIPT_ITBIS_RATE)
+    const total = round2(gross + shipping - cappedDiscount + tax)
 
     return {
         subtotal: gross,
-        tax: 0,
+        tax,
         shipping,
         discount: cappedDiscount,
         total,

@@ -359,9 +359,15 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
     const totalsCalculation = useMemo(() => {
         if (usesFiscalReceiptRules) {
             if (withoutFiscalReceipt) {
+                const itbisBase = applyTax
+                    ? items.reduce((acc, item) => (
+                        isServiceProduct(productMap.get(item.productId)) ? acc : acc + item.price * Number(item.quantity || 0)
+                    ), 0)
+                    : null
                 const noReceipt = computeNoReceiptTotals(subtotal, {
                     shipping: shippingCost,
                     discount,
+                    itbisBase,
                 })
                 return {
                     taxAmount: noReceipt.tax,
@@ -822,10 +828,21 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                     {withoutFiscalReceipt
-                                        ? "Venta sin comprobante fiscal: no lleva ITBIS y no se envía a la DGII."
+                                        ? "Venta sin comprobante fiscal: no se envía a la DGII."
                                         : `Se emitirá comprobante electrónico ${ecfTypeLabel} y se enviará a la DGII.`
                                     }
                                 </p>
+                                {withoutFiscalReceipt && (
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="apply-tax-no-receipt"
+                                            checked={applyTax}
+                                            disabled={isEdit && usesFiscalReceiptRules}
+                                            onCheckedChange={(c) => setApplyTax(!!c)}
+                                        />
+                                        <Label htmlFor="apply-tax-no-receipt" className="cursor-pointer">Aplicar ITBIS (18%)</Label>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-3 pt-2">

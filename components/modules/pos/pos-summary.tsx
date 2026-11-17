@@ -185,6 +185,15 @@ export function PosSummary({
                         onCheckedChange={onToggleWithoutFiscalReceipt}
                     />
                 </div>
+                {withoutFiscalReceipt && (
+                    <label className="mt-2.5 flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                        <Checkbox
+                            checked={saleDetails.applyTax}
+                            onCheckedChange={(checked) => onChangeSaleDetails({ applyTax: checked === true })}
+                        />
+                        Aplicar ITBIS (18%)
+                    </label>
+                )}
                 {!withoutFiscalReceipt && fiscalReceiptHint && (
                     <p className="mt-2 text-xs font-medium text-amber-800">{fiscalReceiptHint}</p>
                 )}
@@ -374,7 +383,7 @@ export function PosSummary({
                 <div className="flex justify-between text-slate-600">
                     <span>ITBIS (18%)</span>
                     <span className="font-medium text-slate-800">
-                        {withoutFiscalReceipt ? "RD$ 0.00" : formatCurrency(taxAmount)}
+                        {formatCurrency(taxAmount)}
                     </span>
                 </div>
                 <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100 text-slate-900">

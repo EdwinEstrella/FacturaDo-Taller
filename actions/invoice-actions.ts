@@ -63,6 +63,7 @@ const InvoiceSchema = z.object({
     hasNcf: z.boolean().optional(),
     sourceQuoteId: z.string().optional(),
     withoutFiscalReceipt: z.boolean().optional(),
+    applyTax: z.boolean().optional(),
 })
 
 type InvoiceFormData = z.infer<typeof InvoiceSchema>
@@ -176,6 +177,27 @@ async function validateInventoryAvailability(insforge: DatabaseClient, items: In
     }
 }
 
+/** Gross of the non-service lines, the ITBIS base of a "Sin comprobante" sale with ITBIS applied. */
+async function taxableItemsGross(
+    insforge: DatabaseClient,
+    items: Array<{ productId: string; price: number; quantity: number }>
+): Promise<number> {
+    const productIds = [...new Set(items.map((item) => item.productId))]
+    const { data, error } = await insforge.database
+        .from('Product')
+        .select('id, isService, category')
+        .in('id', productIds)
+    if (error || !data) throw new Error(error?.message || "Product lookup failed")
+
+    const products = new Map<string, Pick<ProductRow, "isService" | "category">>(
+        data.map((p: Pick<ProductRow, "id" | "isService" | "category">) => [p.id, p])
+    )
+    return items.reduce((sum, item) => {
+        if (isServiceProduct(products.get(item.productId))) return sum
+        return sum + Number(item.price) * Number(item.quantity || 0)
+    }, 0)
+}
+
 export async function getInvoiceFiscalMode(): Promise<{ ecfEnabled: boolean }> {
     return loadFiscalMode()
 }
@@ -224,9 +246,18 @@ export async function createInvoice(data: InvoiceFormData) {
 
     if (isWithoutFiscalReceipt) {
         const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
+        let itbisBase: number | null = null
+        if (validated.data.applyTax) {
+            try {
+                itbisBase = await taxableItemsGross(insforge, items)
+            } catch {
+                return { success: false, error: "Error al cargar los productos para calcular el ITBIS." }
+            }
+        }
         const noReceipt = computeNoReceiptTotals(itemsGross, {
             shipping: shippingCost || 0,
             discount: validated.data.discount || 0,
+            itbisBase,
         })
 
         if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
@@ -851,9 +882,18 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
 
         if (ecfEnabled) {
             const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
+            let itbisBase: number | null = null
+            if (validated.data.applyTax) {
+                try {
+                    itbisBase = await taxableItemsGross(insforge, items)
+                } catch {
+                    return { success: false, error: "Error al cargar los productos para calcular el ITBIS." }
+                }
+            }
             const noReceipt = computeNoReceiptTotals(itemsGross, {
                 shipping: shippingCost || 0,
                 discount: validated.data.discount || 0,
+                itbisBase,
             })
             if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
                 return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }

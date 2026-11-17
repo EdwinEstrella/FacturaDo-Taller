@@ -28,6 +28,7 @@ const EMPTY_SALE_DETAILS: PosSaleDetails = {
     notes: "",
     includeInstallation: false,
     installationAmount: 0,
+    applyTax: true,
 }
 
 function findDefaultClientId(clients: PosTerminalProps["initialClients"]): string {
@@ -138,7 +139,12 @@ export function PosTerminal({
         const discount = Math.min(Math.max(0, saleDetails.discount || 0), subtotal)
 
         if (withoutFiscalReceipt) {
-            const noReceipt = computeNoReceiptTotals(subtotal, { shipping, discount })
+            const itbisBase = saleDetails.applyTax
+                ? saleLines.reduce((acc, item) => (
+                    isServiceProduct(productMap.get(item.productId)) ? acc : acc + item.price * Number(item.quantity || 0)
+                ), 0)
+                : null
+            const noReceipt = computeNoReceiptTotals(subtotal, { shipping, discount, itbisBase })
             return {
                 taxAmount: noReceipt.tax,
                 activeDiscount: noReceipt.discount,
@@ -190,7 +196,7 @@ export function PosTerminal({
             total: subtotal + shipping - discount + taxAmount,
             error: null as string | null,
         }
-    }, [ecfEnabled, withoutFiscalReceipt, subtotal, saleLines, productMap, saleDetails.shippingCost, saleDetails.discount])
+    }, [ecfEnabled, withoutFiscalReceipt, subtotal, saleLines, productMap, saleDetails.shippingCost, saleDetails.discount, saleDetails.applyTax])
 
     // Add item to cart
     const handleSelectProduct = (
@@ -389,6 +395,7 @@ export function PosTerminal({
                 tax: totalsCalculation.taxAmount,
                 hasNcf: !withoutFiscalReceipt && totalsCalculation.taxAmount > 0,
                 withoutFiscalReceipt,
+                applyTax: withoutFiscalReceipt ? saleDetails.applyTax : undefined,
             }
 
             const res = await createInvoice(payload)

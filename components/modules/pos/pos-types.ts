@@ -31,6 +31,8 @@ export interface PosSaleDetails {
     notes: string
     includeInstallation: boolean
     installationAmount: number
+    /** Charge 18% ITBIS on a "Sin comprobante" sale (taxable lines only). */
+    applyTax: boolean
 }
 
 export interface PosTerminalProps {
