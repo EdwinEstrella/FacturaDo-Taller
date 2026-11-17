@@ -37,6 +37,7 @@ export async function filterClients(filters: ClientFilters): Promise<Client[]> {
     let query = insforge.database
         .from('Client')
         .select('*')
+        .is('archivedAt', null)
         .order('createdAt', { ascending: false })
 
     // Apply filters

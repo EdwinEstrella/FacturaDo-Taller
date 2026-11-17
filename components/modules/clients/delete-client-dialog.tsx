@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { deleteClient } from "@/actions/client-actions"
+import { toast } from "sonner"
 import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 
@@ -30,10 +31,13 @@ export function DeleteClientDialog({ clientId, clientName }: DeleteClientDialogP
         startTransition(async () => {
             const res = await deleteClient(clientId)
             if (!res.success) {
-                alert(res.error)
-            } else {
-                router.refresh()
+                toast.error(res.error || "No se pudo eliminar el cliente")
+                return
             }
+            toast.success(res.archived
+                ? `${clientName} tiene facturas o cotizaciones: se archivó y ya no aparecerá en las listas.`
+                : `${clientName} fue eliminado.`)
+            router.refresh()
         })
     }
 
@@ -48,9 +52,9 @@ export function DeleteClientDialog({ clientId, clientName }: DeleteClientDialogP
                 <AlertDialogHeader>
                     <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Se eliminará permanentemente al cliente <b>{clientName}</b>.
+                        Se eliminará al cliente <b>{clientName}</b>.
                         <br /><br />
-                        Nota: Si el cliente tiene facturas asociadas, no se podrá eliminar.
+                        Si tiene facturas o cotizaciones, se archivará: deja de aparecer en las listas y en el Punto de Venta, pero su historial se conserva.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

@@ -3,6 +3,7 @@
 import { createServerClient } from "@/lib/insforge/client"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { cache } from "react"
 import bcrypt from "bcryptjs"
 
 type User = {
@@ -86,6 +87,12 @@ export async function getCurrentUser() {
 
   if (!userId) return null
 
+  return loadSessionUser(userId)
+}
+
+// Deduplicated per server request: layout, page and actions all ask for the session user,
+// and every lookup is a round trip to the remote database.
+const loadSessionUser = cache(async (userId: string) => {
   const insforge = createServerClient()
 
   try {
@@ -103,7 +110,7 @@ export async function getCurrentUser() {
   } catch {
     return null
   }
-}
+})
 
 export async function registerUser(data: {
   username: string

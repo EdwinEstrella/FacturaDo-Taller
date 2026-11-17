@@ -23,6 +23,7 @@ const ProductSchema = z.object({
     variants: z.string().optional(),
     characteristics: z.string().optional(),
     category: z.enum(["MATERIAL", "ARTICULO", "SERVICIO"]),
+    posCategory: z.string().trim().max(60).nullish(),
     measurementMode: z.enum(["UNIT", "FEET", "CENTIMETERS", "INCHES", "METERS"]).default("UNIT"),
 }).superRefine((data, ctx) => {
     if (data.measurementMode === "UNIT" && !Number.isInteger(data.stock)) {
@@ -92,6 +93,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        posCategory: formData.get("posCategory"),
         measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
         characteristics: formData.get("characteristics"),
@@ -134,6 +136,7 @@ export async function createProduct(prevState: unknown, formData: FormData) {
             unitType,
             measurementUnit,
             isService: category === "SERVICIO",
+            posCategory: rest.posCategory || null,
             hasVariants,
             characteristics: parsedCharacteristics,
         }
@@ -233,6 +236,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
         minStock: formData.get("minStock"),
         sku: formData.get("sku"),
         category: formData.get("category"),
+        posCategory: formData.get("posCategory"),
         measurementMode: formData.get("measurementMode"),
         variants: formData.get("variants"),
         characteristics: formData.get("characteristics"),
@@ -303,6 +307,7 @@ export async function updateProduct(id: string, prevState: unknown, formData: Fo
             unitType,
             measurementUnit,
             isService: category === "SERVICIO",
+            posCategory: rest.posCategory || null,
             hasVariants,
             characteristics: parsedCharacteristics,
         }

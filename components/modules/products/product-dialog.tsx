@@ -30,6 +30,7 @@ import {
     type ProductMeasurementMode,
 } from "@/lib/product-measurements"
 import { formatQuantity } from "@/lib/utils"
+import { POS_CATEGORY_SUGGESTIONS } from "@/lib/pos-categories"
 import { useFormStatus } from "react-dom"
 import { useState } from "react"
 import type { Product, ProductCharacteristic } from "@/types"
@@ -91,6 +92,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const isEdit = !!product
     const [category, setCategory] = useState(product?.category || "ARTICULO")
+    const [posCategory, setPosCategory] = useState(product?.posCategory || "")
     const [measurementMode, setMeasurementMode] = useState<ProductMeasurementMode>(() => getMeasurementModeFromProduct(product))
     const [stockMode, setStockMode] = useState<"ADD" | "SET">("ADD")
     const [stockToAdd, setStockToAdd] = useState<string>("")
@@ -138,6 +140,7 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
             const nextPrice = product?.price || 0
 
             setCategory(nextCategory)
+            setPosCategory(product?.posCategory || "")
             setMeasurementMode(nextMeasurementMode)
             setCost(nextCost)
             setPrice(nextPrice)
@@ -268,6 +271,36 @@ export function ProductDialog({ product }: { product?: Omit<Product, 'price' | '
                                         <SelectItem value="SERVICIO">Servicio</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="posCategory" className="text-right pt-2.5">Categoría en Punto de Venta</Label>
+                            <div className="col-span-3 space-y-2">
+                                <Input
+                                    id="posCategory"
+                                    name="posCategory"
+                                    maxLength={60}
+                                    placeholder="Ej: Puertas, Ventanas..."
+                                    value={posCategory}
+                                    onChange={(e) => setPosCategory(e.target.value)}
+                                />
+                                <div className="flex flex-wrap gap-1.5">
+                                    {POS_CATEGORY_SUGGESTIONS.map((suggestion) => (
+                                        <button
+                                            key={suggestion}
+                                            type="button"
+                                            onClick={() => setPosCategory(suggestion)}
+                                            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                                posCategory === suggestion
+                                                    ? "bg-slate-900 text-white border-slate-900"
+                                                    : "bg-white text-slate-600 hover:bg-slate-100"
+                                            }`}
+                                        >
+                                            {suggestion}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 

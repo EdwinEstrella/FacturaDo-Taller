@@ -11,6 +11,7 @@ export interface Client {
     address: string | null
     phone: string | null
     email: string | null
+    archivedAt?: string | null
     createdAt: string
     updatedAt: string
 }
@@ -25,6 +26,7 @@ export interface Product {
     minStock: number
     sku: string | null
     category: "MATERIAL" | "ARTICULO" | "SERVICIO"
+    posCategory?: string | null
     unitType: "UNIT" | "MEASURE"
     measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService: boolean
@@ -246,6 +248,7 @@ export interface ProductUpdate {
     minStock?: number
     sku?: string | null
     category?: "MATERIAL" | "ARTICULO" | "SERVICIO"
+    posCategory?: string | null
     unitType?: "UNIT" | "MEASURE"
     measurementUnit?: "FEET" | "CENTIMETERS" | "INCHES" | "METERS" | null
     isService?: boolean

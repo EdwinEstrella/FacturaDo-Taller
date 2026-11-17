@@ -12,6 +12,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { formatCurrency } from "@/lib/utils"
+import { UNCATEGORIZED_POS_LABEL } from "@/lib/pos-categories"
 import type { SerializedProduct } from "./pos-types"
 import type { ProductVariant } from "@/types"
 
@@ -21,6 +22,10 @@ interface PosProductPickerProps {
         product: SerializedProduct,
         variant?: { id: string; name: string; price: number; stock: number }
     ) => void
+}
+
+function posCategoryOf(product: SerializedProduct): string {
+    return product.posCategory?.trim() || UNCATEGORIZED_POS_LABEL
 }
 
 const STOCK_DISPLAY_CAP = 100_000
@@ -37,24 +42,21 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
     const [selectedCategory, setSelectedCategory] = useState<string>("all")
     const [variantModalProduct, setVariantModalProduct] = useState<SerializedProduct | null>(null)
 
-    // Extract unique categories
+    // Point of Sale categories (Product.posCategory), with their product counts
     const categories = useMemo(() => {
-        const set = new Set<string>()
+        const counts = new Map<string, number>()
         for (const p of products) {
-            if (p.category && p.category.trim()) {
-                set.add(p.category.trim())
-            }
+            const category = posCategoryOf(p)
+            counts.set(category, (counts.get(category) || 0) + 1)
         }
-        return Array.from(set).sort((a, b) => a.localeCompare(b))
+        return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b, "es"))
     }, [products])
 
     // Filter products
     const filteredProducts = useMemo(() => {
         const query = search.toLowerCase().trim()
         return products.filter((product) => {
-            const matchesCategory =
-                selectedCategory === "all" ||
-                (product.category && product.category.trim() === selectedCategory)
+            const matchesCategory = selectedCategory === "all" || posCategoryOf(product) === selectedCategory
 
             if (!matchesCategory) return false
 
@@ -128,8 +130,7 @@ export function PosProductPicker({ products, onSelectProduct }: PosProductPicker
                     >
                         Todos ({products.length})
                     </button>
-                    {categories.map((cat) => {
-                        const count = products.filter((p) => p.category?.trim() === cat).length
+                    {categories.map(([cat, count]) => {
                         const isSelected = selectedCategory === cat
                         return (
                             <button

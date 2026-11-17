@@ -239,11 +239,16 @@ export async function deleteClient(id: string) {
             .select('*', { count: 'exact', head: true })
             .eq('clientId', id)
 
+        // Clients with invoices or quotes keep their history: archive instead of deleting.
         if ((invoiceCount || 0) > 0 || (quoteCount || 0) > 0) {
-            return {
-                success: false,
-                error: `No se puede eliminar. El cliente tiene registros asociados.`
-            }
+            const { error: archiveError } = await insforge.database
+                .from('Client')
+                .update({ archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+                .eq('id', id)
+            if (archiveError) throw archiveError
+
+            revalidatePath("/clients")
+            return { success: true, archived: true }
         }
 
         const { error } = await insforge.database
@@ -256,7 +261,7 @@ export async function deleteClient(id: string) {
         }
 
         revalidatePath("/clients")
-        return { success: true }
+        return { success: true, archived: false }
     } catch (error) {
         console.error(error)
         return { success: false, error: "Error al eliminar cliente" }
@@ -271,6 +276,7 @@ export async function getClients() {
     const { data, error } = await insforge.database
         .from('Client')
         .select('*')
+        .is('archivedAt', null)
         .order('createdAt', { ascending: false })
 
     if (error) {
