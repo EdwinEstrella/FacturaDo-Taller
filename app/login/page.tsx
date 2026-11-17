@@ -10,7 +10,7 @@ export default function LoginPage() {
     return (
         <>
             {/* The desktop window has no native title bar: this strip lets the user drag it. */}
-            <div aria-hidden className="titlebar-drag fixed inset-x-0 top-0 z-50 h-9" />
+            <div aria-hidden className="titlebar-drag fixed inset-x-0 top-0 z-50 h-12" />
             <LoginScreen />
         </>
     )

@@ -13,9 +13,9 @@ import { getNavSections, isActivePath } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
 const sectionButton =
-    "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
-const sectionIdle = "text-slate-300 hover:bg-white/10 hover:text-white"
-const sectionActive = "bg-white/15 text-white"
+    "flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
+const sectionIdle = "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+const sectionActive = "bg-blue-50 text-blue-700"
 
 /**
  * Top-bar navigation: one button per menu section. A section with a single entry links directly;
@@ -39,7 +39,7 @@ export function TopNav({ role }: { role?: string }) {
                             href={item.href}
                             className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}
                         >
-                            <Icon className="size-3.5" />
+                            <Icon className="size-4" />
                             {item.label}
                         </Link>
                     )
