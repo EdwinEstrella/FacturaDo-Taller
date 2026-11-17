@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { ChevronDown } from "lucide-react"
 import { usePathname } from "next/navigation"
 import {
     DropdownMenu,
@@ -46,6 +47,7 @@ export function TopNav({ role }: { role?: string }) {
                     <DropdownMenu key={section.title} modal={false}>
                         <DropdownMenuTrigger className={cn(sectionButton, "shrink-0", active ? sectionActive : sectionIdle)}>
                             {section.title}
+                            <ChevronDown className="ml-1 size-3 opacity-70" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" sideOffset={6} className="w-60">
                             {section.items.map((item) => {
