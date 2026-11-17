@@ -317,18 +317,3 @@ input[type="number"] {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-
-/* Desktop title bar (Electron titleBarStyle "hidden" + titleBarOverlay).
-   Drag regions move the window; interactive children must opt out. The right padding
-   keeps content clear of the native window buttons (0 in a regular browser). */
-.titlebar-drag {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-.titlebar-no-drag {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-.titlebar-controls-gap {
-  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 1rem);
-}

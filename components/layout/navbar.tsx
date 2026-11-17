@@ -58,11 +58,11 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
     }
 
     return (
-        <header className="titlebar-drag titlebar-controls-gap flex h-12 shrink-0 items-center gap-3 border-b bg-white pl-3 select-none">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b bg-white/90 px-4 backdrop-blur md:px-6">
             {/* Menú en pantallas pequeñas */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
-                    <button type="button" className="titlebar-no-drag -ml-1 rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Abrir menú">
+                    <button type="button" className="-ml-1 rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Abrir menú">
                         <Menu className="size-5" />
                     </button>
                 </SheetTrigger>
@@ -73,8 +73,8 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
             </Sheet>
 
             {/* Marca */}
-            <Link href="/" className="titlebar-no-drag flex shrink-0 items-center gap-2" title="FacturaDo">
-                <div className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white shadow-sm">
+            <Link href="/" className="flex shrink-0 items-center gap-2.5" title="FacturaDo">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     FD
                 </div>
                 <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 lg:inline">FacturaDo</span>
@@ -83,7 +83,7 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
             <div className="hidden h-6 w-px bg-slate-200 md:block" />
 
             {/* Menú principal (pantallas medianas y grandes) */}
-            <div className="titlebar-no-drag hidden min-w-0 md:flex">
+            <div className="hidden min-w-0 md:flex">
                 <TopNav role={role} />
             </div>
 
@@ -92,14 +92,14 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
                 {current?.item.label || "FacturaDo"}
             </span>
 
-            <div className="titlebar-no-drag ml-auto flex items-center gap-2 md:gap-3">
+            <div className="ml-auto flex items-center gap-2 md:gap-3">
                 <TitlebarUpdateButton update={update} />
 
                 {canAccess(role, "/daily-close") && (
                     <Link
                         href="/daily-close"
                         className={cn(
-                            "hidden h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition sm:flex",
+                            "hidden h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition sm:flex",
                             hasActiveShift
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
                                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
@@ -115,7 +115,7 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
 
                 <DropdownMenu modal={false}>
                     <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-lg p-1 pr-2 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500">
-                        <div className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                        <div className="flex size-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
                             {initials || "U"}
                         </div>
                         <div className="hidden text-left leading-tight md:block">
