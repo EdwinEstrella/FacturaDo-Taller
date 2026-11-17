@@ -238,8 +238,10 @@ function createWindow(baseUrl) {
 
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    mainWindow.maximize();
+    // Show before maximizing: maximizing a hidden window on Windows can leave
+    // the renderer viewport at the initial 850px height (blank strip below).
     mainWindow.show();
+    mainWindow.maximize();
   });
 
   mainWindow.on('closed', () => {
