@@ -215,6 +215,9 @@ function createWindow(baseUrl) {
     show: false,
     title: 'FacturaDo',
     autoHideMenuBar: true,
+    // The app draws its own title bar (menu + user) and keeps the native window buttons on the right.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#ffffff', symbolColor: '#334155', height: 48 },
     ...(iconImage ? { icon: iconImage } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

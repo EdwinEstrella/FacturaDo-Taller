@@ -13,7 +13,7 @@ import { getNavSections, isActivePath } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
 const sectionButton =
-    "flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
+    "flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500"
 const sectionIdle = "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
 const sectionActive = "bg-blue-50 text-blue-700"
 
