@@ -15,10 +15,9 @@ interface PosSummaryProps {
     clients: Client[]
     selectedClientId: string
     onSelectClient: (clientId: string) => void
-    ecfEnabled: boolean
     withoutFiscalReceipt: boolean
     onToggleWithoutFiscalReceipt: (value: boolean) => void
-    ecfTypeLabel: string
+    fiscalReceiptDescription: string
     paymentMethod: string
     onChangePaymentMethod: (method: string) => void
     amountTendered: number
@@ -44,10 +43,9 @@ export function PosSummary({
     clients,
     selectedClientId,
     onSelectClient,
-    ecfEnabled,
     withoutFiscalReceipt,
     onToggleWithoutFiscalReceipt,
-    ecfTypeLabel,
+    fiscalReceiptDescription,
     paymentMethod,
     onChangePaymentMethod,
     amountTendered,
@@ -138,39 +136,35 @@ export function PosSummary({
                 </Popover>
             </div>
 
-            {/* Prominent "Sin comprobante" Switch (only when ecfEnabled) */}
-            {ecfEnabled && (
-                <div className={`p-3 rounded-lg border transition-all ${
-                    withoutFiscalReceipt
-                        ? "bg-amber-50/60 border-amber-200/80"
-                        : "bg-blue-50/60 border-blue-200/80"
-                }`}>
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                            <Label
-                                htmlFor="without-receipt-switch"
-                                className="text-xs font-bold text-slate-800 cursor-pointer flex items-center gap-1.5"
-                            >
-                                Sin comprobante
-                            </Label>
-                            <p className="text-[11px] leading-tight font-medium">
-                                {withoutFiscalReceipt ? (
-                                    <span className="text-amber-800">No se envía a la DGII</span>
-                                ) : (
-                                    <span className="text-blue-800">
-                                        Se emitirá comprobante electrónico ({ecfTypeLabel}) y se enviará a la DGII
-                                    </span>
-                                )}
-                            </p>
-                        </div>
-                        <Switch
-                            id="without-receipt-switch"
-                            checked={withoutFiscalReceipt}
-                            onCheckedChange={onToggleWithoutFiscalReceipt}
-                        />
+            {/* Prominent "Sin comprobante" Switch */}
+            <div className={`p-3 rounded-lg border transition-all ${
+                withoutFiscalReceipt
+                    ? "bg-amber-50/60 border-amber-200/80"
+                    : "bg-blue-50/60 border-blue-200/80"
+            }`}>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                        <Label
+                            htmlFor="without-receipt-switch"
+                            className="text-xs font-bold text-slate-800 cursor-pointer flex items-center gap-1.5"
+                        >
+                            Sin comprobante
+                        </Label>
+                        <p className="text-[11px] leading-tight font-medium">
+                            {withoutFiscalReceipt ? (
+                                <span className="text-amber-800">No se emite comprobante fiscal</span>
+                            ) : (
+                                <span className="text-blue-800">{fiscalReceiptDescription}</span>
+                            )}
+                        </p>
                     </div>
+                    <Switch
+                        id="without-receipt-switch"
+                        checked={withoutFiscalReceipt}
+                        onCheckedChange={onToggleWithoutFiscalReceipt}
+                    />
                 </div>
-            )}
+            </div>
 
             {/* Payment Method Selector */}
             <div className="space-y-1.5">

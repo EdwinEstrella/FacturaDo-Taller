@@ -13,9 +13,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClientAction, updateClient } from "@/actions/client-actions"
+import { lookupRnc } from "@/actions/rnc-lookup-actions"
+import { toast } from "sonner"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, Plus, Loader2 } from "lucide-react"
+import { Pencil, Plus, Loader2, Search } from "lucide-react"
 import type { Client } from "@/types"
 
 export function ClientDialog({ client }: { client?: Client }) {
@@ -23,7 +25,41 @@ export function ClientDialog({ client }: { client?: Client }) {
     const [isPending, setIsPending] = useState(false)
     const [phone, setPhone] = useState(client?.phone || "")
     const isSubmittingRef = useRef(false)
+    const nameRef = useRef<HTMLInputElement>(null)
+    const rncRef = useRef<HTMLInputElement>(null)
+    const [isLookingUpRnc, setIsLookingUpRnc] = useState(false)
     const router = useRouter()
+
+    async function handleRncLookup() {
+        const rnc = rncRef.current?.value || ""
+        if (isLookingUpRnc || !rnc.trim()) return
+
+        setIsLookingUpRnc(true)
+        try {
+            const res = await lookupRnc(rnc)
+            if (!res.success) {
+                toast.error(res.error)
+                return
+            }
+            if (rncRef.current) rncRef.current.value = res.data.rnc
+            if (nameRef.current) nameRef.current.value = res.data.name
+            if (res.data.status && res.data.status.toUpperCase() !== "ACTIVO") {
+                toast.warning(`Contribuyente encontrado, pero su estado en la DGII es: ${res.data.status}`)
+            } else {
+                toast.success(`Encontrado: ${res.data.name}`)
+            }
+        } finally {
+            setIsLookingUpRnc(false)
+        }
+    }
+
+    function handleRncBlur() {
+        const digits = (rncRef.current?.value || "").replace(/\D/g, "")
+        const nameIsEmpty = !nameRef.current?.value.trim()
+        if (nameIsEmpty && (digits.length === 9 || digits.length === 11)) {
+            void handleRncLookup()
+        }
+    }
 
     useEffect(() => {
         if (!open) {
@@ -80,11 +116,11 @@ export function ClientDialog({ client }: { client?: Client }) {
                 router.refresh()
             } else {
                 const errorMsg = res?.message || (res?.errors ? Object.values(res.errors).flat().join("\n") : "Error al procesar cliente")
-                alert(errorMsg)
+                toast.error(errorMsg)
             }
         } catch (err) {
             console.error("Error submitting client:", err)
-            alert("Ocurrió un error al guardar el cliente")
+            toast.error("Ocurrió un error al guardar el cliente")
         } finally {
             isSubmittingRef.current = false
             setIsPending(false)
@@ -117,13 +153,32 @@ export function ClientDialog({ client }: { client?: Client }) {
                             <Label htmlFor="name" className="text-right">
                                 Nombre *
                             </Label>
-                            <Input id="name" name="name" defaultValue={client?.name} className="col-span-3" required autoFocus />
+                            <Input ref={nameRef} id="name" name="name" defaultValue={client?.name} className="col-span-3" required autoFocus />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="rnc" className="text-right">
                                 RNC
                             </Label>
-                            <Input id="rnc" name="rnc" defaultValue={client?.rnc || ""} className="col-span-3" placeholder="RNC de la empresa (si aplica)" />
+                            <div className="col-span-3 flex gap-2">
+                                <Input
+                                    ref={rncRef}
+                                    id="rnc"
+                                    name="rnc"
+                                    defaultValue={client?.rnc || ""}
+                                    placeholder="RNC o cédula (si aplica)"
+                                    onBlur={handleRncBlur}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleRncLookup}
+                                    disabled={isLookingUpRnc}
+                                    title="Buscar en la DGII"
+                                >
+                                    {isLookingUpRnc ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                                    Buscar
+                                </Button>
+                            </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="cedula" className="text-right">

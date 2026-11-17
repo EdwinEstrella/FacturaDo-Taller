@@ -4,7 +4,7 @@
 #
 # Secretos requeridos (Settings → Secrets and variables → Actions):
 #   NEXT_PUBLIC_INSFORGE_URL, NEXT_PUBLIC_INSFORGE_ANON_KEY, INSFORGE_ADMIN_KEY,
-#   ECF_ENCRYPTION_KEY (decrypts the stored e-CF signing certificate)
+#   ECF_ENCRYPTION_KEY (optional; decrypts the stored e-CF signing certificate)
 name: Release Windows
 
 on:
@@ -50,12 +50,14 @@ jobs:
             echo "Faltan los secretos de InsForge"
             exit 1
           fi
-          if [ -z "$ECF_KEY" ]; then
-            echo "Falta el secreto ECF_ENCRYPTION_KEY"
-            exit 1
+          printf 'NEXT_PUBLIC_INSFORGE_URL=%s\nNEXT_PUBLIC_INSFORGE_ANON_KEY=%s\nINSFORGE_ADMIN_KEY=%s\n' \
+            "$INSFORGE_URL" "$INSFORGE_ANON" "$INSFORGE_ADMIN" > .env.local
+          # Optional: without it the desktop build cannot sign e-CF, but sales and B01 NCF still work.
+          if [ -n "$ECF_KEY" ]; then
+            printf 'ECF_ENCRYPTION_KEY=%s\n' "$ECF_KEY" >> .env.local
+          else
+            echo "::warning::ECF_ENCRYPTION_KEY no configurado: la firma de e-CF no estará disponible en esta build"
           fi
-          printf 'NEXT_PUBLIC_INSFORGE_URL=%s\nNEXT_PUBLIC_INSFORGE_ANON_KEY=%s\nINSFORGE_ADMIN_KEY=%s\nECF_ENCRYPTION_KEY=%s\n' \
-            "$INSFORGE_URL" "$INSFORGE_ANON" "$INSFORGE_ADMIN" "$ECF_KEY" > .env.local
 
       - name: Compilar y publicar
         run: npm run release:win

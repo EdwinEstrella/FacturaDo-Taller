@@ -222,162 +222,173 @@ export async function createInvoice(data: InvoiceFormData) {
     let storedSnapshot: StoredInvoiceEcfSnapshot | null = null
     let ecfTypeToIssue: "E31" | "E32" | null = null
 
-    if (ecfEnabled) {
-        if (isWithoutFiscalReceipt) {
-            const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
-            const noReceipt = computeNoReceiptTotals(itemsGross, {
+    if (isWithoutFiscalReceipt) {
+        const itemsGross = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)), 0)
+        const noReceipt = computeNoReceiptTotals(itemsGross, {
+            shipping: shippingCost || 0,
+            discount: validated.data.discount || 0,
+        })
+
+        if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
+            return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
+        }
+
+        finalTax = noReceipt.tax
+        finalTotal = noReceipt.total
+        finalHasNcf = false
+    } else if (ecfEnabled) {
+        if (!isPaymentMethod(paymentMethod)) {
+            return { success: false, error: "Método de pago no válido para comprobantes fiscales." }
+        }
+
+        // 1. Load issuer BEFORE inserting anything
+        let issuer: IssuerSnapshot
+        try {
+            issuer = await loadIssuer()
+        } catch (err) {
+            return { success: false, error: mapIssuanceErrorToSpanish(err) }
+        }
+
+        // 2. Load client BEFORE inserting anything
+        let clientData: { id: string; name?: string | null; rnc?: string | null; cedula?: string | null; address?: string | null; phone?: string | null; email?: string | null } | null = null
+        if (clientId) {
+            const { data: clientRes, error: clientErr } = await insforge.database
+                .from('Client')
+                .select('id, name, rnc, cedula, address, phone, email')
+                .eq('id', clientId)
+                .single()
+            if (clientErr || !clientRes) {
+                return { success: false, error: "Cliente no encontrado." }
+            }
+            clientData = clientRes
+        }
+
+        // 3. Load products BEFORE inserting anything (typed rows, no placeholders)
+        const productIds = [...new Set(items.map(i => i.productId))]
+        const { data: dbProducts, error: prodErr } = await insforge.database
+            .from('Product')
+            .select('id, name, isService, category')
+            .in('id', productIds)
+
+        if (prodErr || !dbProducts) {
+            return { success: false, error: "Error al cargar los productos para validar montos fiscales." }
+        }
+
+        const productMap = new Map<string, ProductRow>(dbProducts.map((p: ProductRow) => [p.id, p]))
+        for (const item of items) {
+            if (!productMap.has(item.productId)) {
+                return { success: false, error: "Uno o más productos no existen en la base de datos." }
+            }
+        }
+
+        const mapperLines: InvoiceLineSnapshot[] = items.map((item) => {
+            const dbProd = productMap.get(item.productId)!
+            const isService = isServiceProduct(dbProd)
+            return {
+                name: (item.productName || dbProd.name).trim(),
+                quantity: Number(item.quantity),
+                unitPrice: Number(item.price),
+                taxable: !isService,
+                isService,
+            }
+        })
+
+        let computedTotals: ComputedEcfTotals
+        try {
+            computedTotals = computeEcfTotals(mapperLines, {
                 shipping: shippingCost || 0,
                 discount: validated.data.discount || 0,
             })
+        } catch (err) {
+            return { success: false, error: mapIssuanceErrorToSpanish(err) }
+        }
 
-            if (totalsDrift({ total, tax: validated.data.tax }, { total: noReceipt.total, tax: noReceipt.tax })) {
-                return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
-            }
+        if (totalsDrift({ total, tax: validated.data.tax }, { total: computedTotals.totalAmount, tax: computedTotals.itbisAmount })) {
+            return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
+        }
 
-            finalTax = noReceipt.tax
-            finalTotal = noReceipt.total
-            finalHasNcf = false
-        } else {
-            if (!isPaymentMethod(paymentMethod)) {
-                return { success: false, error: "Método de pago no válido para comprobantes fiscales." }
-            }
-
-            // 1. Load issuer BEFORE inserting anything
-            let issuer: IssuerSnapshot
-            try {
-                issuer = await loadIssuer()
-            } catch (err) {
-                return { success: false, error: mapIssuanceErrorToSpanish(err) }
-            }
-
-            // 2. Load client BEFORE inserting anything
-            let clientData: { id: string; name?: string | null; rnc?: string | null; cedula?: string | null; address?: string | null; phone?: string | null; email?: string | null } | null = null
-            if (clientId) {
-                const { data: clientRes, error: clientErr } = await insforge.database
-                    .from('Client')
-                    .select('id, name, rnc, cedula, address, phone, email')
-                    .eq('id', clientId)
-                    .single()
-                if (clientErr || !clientRes) {
-                    return { success: false, error: "Cliente no encontrado." }
-                }
-                clientData = clientRes
-            }
-
-            // 3. Load products BEFORE inserting anything (typed rows, no placeholders)
-            const productIds = [...new Set(items.map(i => i.productId))]
-            const { data: dbProducts, error: prodErr } = await insforge.database
-                .from('Product')
-                .select('id, name, isService, category')
-                .in('id', productIds)
-
-            if (prodErr || !dbProducts) {
-                return { success: false, error: "Error al cargar los productos para validar montos fiscales." }
-            }
-
-            const productMap = new Map<string, ProductRow>(dbProducts.map((p: ProductRow) => [p.id, p]))
-            for (const item of items) {
-                if (!productMap.has(item.productId)) {
-                    return { success: false, error: "Uno o más productos no existen en la base de datos." }
-                }
-            }
-
-            const mapperLines: InvoiceLineSnapshot[] = items.map((item) => {
+        const now = new Date()
+        const snapshotInput = buildInvoiceSnapshotInput({
+            items: items.map((item) => {
                 const dbProd = productMap.get(item.productId)!
-                const isService = isServiceProduct(dbProd)
                 return {
                     name: (item.productName || dbProd.name).trim(),
                     quantity: Number(item.quantity),
                     unitPrice: Number(item.price),
-                    taxable: !isService,
-                    isService,
+                    isService: isServiceProduct(dbProd),
                 }
-            })
+            }),
+            client: clientData,
+            payment: {
+                method: paymentMethod,
+            },
+            shipping: shippingCost || 0,
+            discount: validated.data.discount || 0,
+            issuedAt: now,
+            totals: {
+                taxableAmount: computedTotals.taxableAmount,
+                exemptAmount: computedTotals.exemptAmount,
+                itbis: computedTotals.itbisAmount,
+                total: computedTotals.totalAmount,
+            },
+        })
 
-            let computedTotals: ComputedEcfTotals
-            try {
-                computedTotals = computeEcfTotals(mapperLines, {
-                    shipping: shippingCost || 0,
-                    discount: validated.data.discount || 0,
-                })
-            } catch (err) {
-                return { success: false, error: mapIssuanceErrorToSpanish(err) }
-            }
+        // Read active sequence to validate availability and get real expiresOn for dry-run
+        const { data: seqRow, error: seqErr } = await insforge.database
+            .from('EcfSequence')
+            .select('ecfType, rangeStart, rangeEnd, nextNumber, expiresOn, active')
+            .eq('ecfType', snapshotInput.ecfType)
+            .maybeSingle()
 
-            if (totalsDrift({ total, tax: validated.data.tax }, { total: computedTotals.totalAmount, tax: computedTotals.itbisAmount })) {
-                return { success: false, error: "Los montos de la factura cambiaron. Revise la factura e intente de nuevo." }
-            }
+        if (seqErr || !seqRow || !seqRow.active) {
+            return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_NOT_CONFIGURED")) }
+        }
 
-            const now = new Date()
-            const snapshotInput = buildInvoiceSnapshotInput({
-                items: items.map((item) => {
-                    const dbProd = productMap.get(item.productId)!
-                    return {
-                        name: (item.productName || dbProd.name).trim(),
-                        quantity: Number(item.quantity),
-                        unitPrice: Number(item.price),
-                        isService: isServiceProduct(dbProd),
-                    }
-                }),
-                client: clientData,
-                payment: {
-                    method: paymentMethod,
-                },
-                shipping: shippingCost || 0,
-                discount: validated.data.discount || 0,
-                issuedAt: now,
-                totals: {
-                    taxableAmount: computedTotals.taxableAmount,
-                    exemptAmount: computedTotals.exemptAmount,
-                    itbis: computedTotals.itbisAmount,
-                    total: computedTotals.totalAmount,
-                },
-            })
+        const todaySd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo' }).format(now)
+        const expiresOn = String(seqRow.expiresOn).slice(0, 10)
+        if (expiresOn < todaySd) {
+            return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXPIRED")) }
+        }
 
-            // Read active sequence to validate availability and get real expiresOn for dry-run
-            const { data: seqRow, error: seqErr } = await insforge.database
-                .from('EcfSequence')
-                .select('ecfType, rangeStart, rangeEnd, nextNumber, expiresOn, active')
-                .eq('ecfType', snapshotInput.ecfType)
-                .maybeSingle()
+        if (Number(seqRow.nextNumber) > Number(seqRow.rangeEnd)) {
+            return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXHAUSTED")) }
+        }
 
-            if (seqErr || !seqRow || !seqRow.active) {
-                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_NOT_CONFIGURED")) }
-            }
+        // Dry-run XML build with placeholder e-NCF and real expiresOn to validate all mapper rules BEFORE reserving or inserting
+        const placeholderEncf = snapshotInput.ecfType === "E31" ? "E310000000001" : "E320000000001"
+        const dryRunInvoice: InvoiceSnapshot = {
+            ...snapshotInput.invoice,
+            encf: placeholderEncf,
+            sequenceExpiresOn: seqRow.expiresOn,
+        }
 
-            const todaySd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo' }).format(now)
-            const expiresOn = String(seqRow.expiresOn).slice(0, 10)
-            if (expiresOn < todaySd) {
-                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXPIRED")) }
-            }
+        try {
+            buildInvoiceEcfXml(issuer, dryRunInvoice, now)
+        } catch (err) {
+            return { success: false, error: mapIssuanceErrorToSpanish(err) }
+        }
 
-            if (Number(seqRow.nextNumber) > Number(seqRow.rangeEnd)) {
-                return { success: false, error: mapIssuanceErrorToSpanish(new IssuanceError("ECF_SEQUENCE_EXHAUSTED")) }
-            }
+        storedSnapshot = {
+            issuer,
+            invoice: snapshotInput.invoice,
+        }
+        ecfTypeToIssue = snapshotInput.ecfType
 
-            // Dry-run XML build with placeholder e-NCF and real expiresOn to validate all mapper rules BEFORE reserving or inserting
-            const placeholderEncf = snapshotInput.ecfType === "E31" ? "E310000000001" : "E320000000001"
-            const dryRunInvoice: InvoiceSnapshot = {
-                ...snapshotInput.invoice,
-                encf: placeholderEncf,
-                sequenceExpiresOn: seqRow.expiresOn,
-            }
-
-            try {
-                buildInvoiceEcfXml(issuer, dryRunInvoice, now)
-            } catch (err) {
-                return { success: false, error: mapIssuanceErrorToSpanish(err) }
-            }
-
-            storedSnapshot = {
-                issuer,
-                invoice: snapshotInput.invoice,
-            }
-            ecfTypeToIssue = snapshotInput.ecfType
-
-            finalTax = computedTotals.itbisAmount
-            finalTotal = computedTotals.totalAmount
-            finalHasNcf = true
+        finalTax = computedTotals.itbisAmount
+        finalTotal = computedTotals.totalAmount
+        finalHasNcf = true
+    } else if (finalTax > 0) {
+        // Legacy NCF mode: a taxed sale gets a B01 (crédito fiscal) NCF from the DB trigger, which requires a buyer RNC.
+        if (!clientId) {
+            return { success: false, error: "Para emitir comprobante fiscal seleccione un cliente con RNC." }
+        }
+        const { data: buyer } = await insforge.database
+            .from('Client')
+            .select('rnc')
+            .eq('id', clientId)
+            .single()
+        if (!buyer?.rnc || !String(buyer.rnc).trim()) {
+            return { success: false, error: "El cliente no tiene RNC. Agregue el RNC del cliente para emitir comprobante fiscal (B01)." }
         }
     }
 

@@ -80,7 +80,9 @@ export function PosTerminal({
         return resolveEcfType(selectedClient)
     }, [selectedClient])
 
-    const ecfTypeLabel = clientEcfType === "E31" ? "Crédito fiscal (E31)" : "Consumo (E32)"
+    const fiscalReceiptDescription = ecfEnabled
+        ? `Se emitirá comprobante electrónico (${clientEcfType === "E31" ? "Crédito fiscal (E31)" : "Consumo (E32)"}) y se enviará a la DGII`
+        : "Se emitirá comprobante fiscal B01 (crédito fiscal). El cliente debe tener RNC."
 
     // Subtotal
     const subtotal = useMemo(() => {
@@ -89,20 +91,20 @@ export function PosTerminal({
 
     // Totals calculation with identical parity to invoice-form
     const totalsCalculation = useMemo(() => {
-        if (ecfEnabled) {
-            if (withoutFiscalReceipt) {
-                const noReceipt = computeNoReceiptTotals(subtotal, {
-                    shipping: 0,
-                    discount: 0,
-                })
-                return {
-                    taxAmount: noReceipt.tax,
-                    activeDiscount: noReceipt.discount,
-                    total: noReceipt.total,
-                    error: null as string | null,
-                }
+        if (withoutFiscalReceipt) {
+            const noReceipt = computeNoReceiptTotals(subtotal, {
+                shipping: 0,
+                discount: 0,
+            })
+            return {
+                taxAmount: noReceipt.tax,
+                activeDiscount: noReceipt.discount,
+                total: noReceipt.total,
+                error: null as string | null,
             }
+        }
 
+        if (ecfEnabled) {
             if (items.length === 0) {
                 return {
                     taxAmount: 0,
@@ -145,7 +147,7 @@ export function PosTerminal({
             }
         }
 
-        // e-CF disabled: calculate standard 18% ITBIS on non-service products
+        // Legacy NCF (B01) mode: calculate standard 18% ITBIS on non-service products
         const taxableSubtotal = items.reduce((acc, item) => {
             const product = productMap.get(item.productId)
             const isService = isServiceProduct(product)
@@ -294,6 +296,11 @@ export function PosTerminal({
             return
         }
 
+        if (!ecfEnabled && !withoutFiscalReceipt && !selectedClient.rnc?.trim()) {
+            setErrorMessage("El cliente no tiene RNC. Seleccione un cliente con RNC para emitir comprobante fiscal (B01).")
+            return
+        }
+
         if (totalsCalculation.error) {
             setErrorMessage(totalsCalculation.error)
             return
@@ -325,8 +332,8 @@ export function PosTerminal({
                         ? amountTendered
                         : undefined,
                 tax: totalsCalculation.taxAmount,
-                hasNcf: ecfEnabled ? !withoutFiscalReceipt : totalsCalculation.taxAmount > 0,
-                withoutFiscalReceipt: ecfEnabled ? withoutFiscalReceipt : undefined,
+                hasNcf: !withoutFiscalReceipt && totalsCalculation.taxAmount > 0,
+                withoutFiscalReceipt,
             }
 
             const res = await createInvoice(payload)
@@ -389,10 +396,9 @@ export function PosTerminal({
                         clients={initialClients}
                         selectedClientId={selectedClientId}
                         onSelectClient={setSelectedClientId}
-                        ecfEnabled={ecfEnabled}
                         withoutFiscalReceipt={withoutFiscalReceipt}
                         onToggleWithoutFiscalReceipt={setWithoutFiscalReceipt}
-                        ecfTypeLabel={ecfTypeLabel}
+                        fiscalReceiptDescription={fiscalReceiptDescription}
                         paymentMethod={paymentMethod}
                         onChangePaymentMethod={setPaymentMethod}
                         amountTendered={amountTendered}
