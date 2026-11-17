@@ -160,7 +160,7 @@ export function InvoiceForm({ initialProducts, initialClients, initialData, sour
         if (dataToUse?.tax !== undefined) return Number(dataToUse.tax) > 0
         return true
     })
-    const [withoutFiscalReceiptState, setWithoutFiscalReceiptState] = useState<boolean>(false)
+    const [withoutFiscalReceiptState, setWithoutFiscalReceiptState] = useState<boolean>(true)
     const withoutFiscalReceipt = usesFiscalReceiptRules ? (isEdit ? true : withoutFiscalReceiptState) : false
 
     // Combobox states

@@ -3,7 +3,8 @@
 # o a mano desde la pestaña Actions.
 #
 # Secretos requeridos (Settings → Secrets and variables → Actions):
-#   NEXT_PUBLIC_INSFORGE_URL, NEXT_PUBLIC_INSFORGE_ANON_KEY, INSFORGE_ADMIN_KEY
+#   NEXT_PUBLIC_INSFORGE_URL, NEXT_PUBLIC_INSFORGE_ANON_KEY, INSFORGE_ADMIN_KEY,
+#   ECF_ENCRYPTION_KEY (decrypts the stored e-CF signing certificate)
 name: Release Windows
 
 on:
@@ -43,13 +44,18 @@ jobs:
           INSFORGE_URL: ${{ secrets.NEXT_PUBLIC_INSFORGE_URL }}
           INSFORGE_ANON: ${{ secrets.NEXT_PUBLIC_INSFORGE_ANON_KEY }}
           INSFORGE_ADMIN: ${{ secrets.INSFORGE_ADMIN_KEY }}
+          ECF_KEY: ${{ secrets.ECF_ENCRYPTION_KEY }}
         run: |
           if [ -z "$INSFORGE_URL" ] || [ -z "$INSFORGE_ANON" ]; then
             echo "Faltan los secretos de InsForge"
             exit 1
           fi
-          printf 'NEXT_PUBLIC_INSFORGE_URL=%s\nNEXT_PUBLIC_INSFORGE_ANON_KEY=%s\nINSFORGE_ADMIN_KEY=%s\n' \
-            "$INSFORGE_URL" "$INSFORGE_ANON" "$INSFORGE_ADMIN" > .env.local
+          if [ -z "$ECF_KEY" ]; then
+            echo "Falta el secreto ECF_ENCRYPTION_KEY"
+            exit 1
+          fi
+          printf 'NEXT_PUBLIC_INSFORGE_URL=%s\nNEXT_PUBLIC_INSFORGE_ANON_KEY=%s\nINSFORGE_ADMIN_KEY=%s\nECF_ENCRYPTION_KEY=%s\n' \
+            "$INSFORGE_URL" "$INSFORGE_ANON" "$INSFORGE_ADMIN" "$ECF_KEY" > .env.local
 
       - name: Compilar y publicar
         run: npm run release:win
