@@ -60,6 +60,9 @@ Provide an auto-printed 80mm thermal receipt ticket after registering an abono (
   - F3: Receipts are generated "as of that payment" by slicing payments up to and including the selected payment and deriving historical balance and total paid via `getPaymentReceipt(paymentId)` using shared private loader `loadInvoicePaymentBase` (`4b89d05`).
   - F4: Extracted unified printer hook and offscreen portal `usePaymentReceiptPrinter` in `components/modules/receivables/use-payment-receipt-printer.tsx`, eliminating `setTimeout` races and ref flags in both `PaymentDialog` and `PaymentHistoryDialog`, with support for consecutive reprints (`4b89d05`).
   - F5: Removed gray background (`bg-slate-100`) from current payment row in `payment-receipt-template.tsx` to prevent thermal dithering artifacts (`4b89d05`).
+- 2026-11-19: Review round 2 completed (commit 9b64f96). Addressed review findings G1–G2:
+  - G1: Simplified `usePaymentReceiptPrinter` hook: stored latest `print` in ref outside effect deps, tracked mount state with `mountedRef`, made effect depend strictly on `printToken` with `finally { if (mountedRef.current) setPrintingId(null) }`, and replaced `ReceiptPortal` component function with direct `receiptElement: React.ReactNode` in hook and consumer dialogs (`9b64f96`).
+  - G2: Removed redundant JavaScript re-sort and intermediate `rawPayments` mapping in `loadInvoicePaymentBase` (`actions/receivables-actions.ts`), relying directly on database ordering (`9b64f96`).
 
 ## Review round 1
 
@@ -69,3 +72,9 @@ Findings resolved:
 - **F3 – Historical receipt as of selected payment**: Server action `getPaymentReceipt(paymentId)` filters payments ordered by `date` asc then `createdAt` asc up to and including the target payment, computing `totalPaid` and `balance` (RESTA) as of that point. Shared private loader `loadInvoicePaymentBase` in `actions/receivables-actions.ts` deduplicates invoice, payments, credit notes, and settings retrieval with fail-fast error checking (`4b89d05`).
 - **F4 – Unified printer hook without setTimeout races**: Implemented `usePaymentReceiptPrinter()` in `components/modules/receivables/use-payment-receipt-printer.tsx` returning `{ printReceipt, printingId, isPrinting, ReceiptPortal }`. Renders offscreen ticket, waits for layout/DOM commit via `requestAnimationFrame`, calls `useInvoicePrint({ format: "ticket" }).print()`, and supports consecutive prints via token counter. Integrated in both `PaymentDialog` and `PaymentHistoryDialog` (`4b89d05`).
 - **F5 – Thermal-friendly highlight**: Removed `bg-slate-100` and rounded border from current payment row in `payment-receipt-template.tsx`, retaining bold font and black `← este abono` to avoid gray dithering on thermal receipt paper (`4b89d05`).
+
+## Review round 2
+
+Findings resolved:
+- **G1 – Reliable receipt printer hook across rerenders**: In `components/modules/receivables/use-payment-receipt-printer.tsx`, eliminated the `activeTokenRef` drop bug where identity changes in `print` cancelled the rAF frame and left buttons stuck in the busy state. Kept `print` in `printRef.current` without listing it as an effect dependency, tied the effect strictly to `printToken`, ensured `setPrintingId(null)` in `finally` via `mountedRef`, allowed consecutive prints of the same receipt, and replaced `useCallback`-generated `ReceiptPortal` with direct `receiptElement: React.ReactNode` consumed in `PaymentDialog` and `PaymentHistoryDialog` (`9b64f96`).
+- **G2 – Removed redundant sort in loadInvoicePaymentBase**: In `actions/receivables-actions.ts`, removed the redundant in-memory `rawPayments.sort()` and intermediate mapping in `loadInvoicePaymentBase`, mapping query rows once directly to `allPayments` since the database query already specifies `.order('date', { ascending: true }).order('createdAt', { ascending: true })` (`9b64f96`).
