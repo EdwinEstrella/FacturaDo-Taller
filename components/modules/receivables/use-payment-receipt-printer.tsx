@@ -26,6 +26,7 @@ export function usePaymentReceiptPrinter(): UsePaymentReceiptPrinterResult {
     printRef.current = print
 
     useEffect(() => {
+        mountedRef.current = true
         return () => {
             mountedRef.current = false
         }
