@@ -213,3 +213,98 @@ export async function getPaymentReceipt(paymentId: string): Promise<{
         return { success: false, error: error instanceof Error ? error.message : "Error al obtener recibo de pago" }
     }
 }
+
+export interface InvoicePaymentHistoryResult {
+    invoice: {
+        id: string
+        sequenceNumber: number
+        createdAt: string
+        clientName: string
+        total: number
+    }
+    payments: Array<{
+        id: string
+        amount: number
+        method: string
+        reference?: string | null
+        notes?: string | null
+        date: string
+    }>
+    totalPaid: number
+    balance: number
+    credited: number
+    settings?: CompanySettings
+}
+
+export async function getInvoicePaymentHistory(invoiceId: string): Promise<{
+    success: boolean
+    data?: InvoicePaymentHistoryResult
+    error?: string
+}> {
+    await requireAuth()
+
+    const insforge = createServerClient()
+
+    try {
+        const { data: invoice, error: invoiceError } = await insforge.database
+            .from('Invoice')
+            .select('id, sequenceNumber, createdAt, clientName, total')
+            .eq('id', invoiceId)
+            .single()
+
+        if (invoiceError || !invoice) {
+            return { success: false, error: "Factura no encontrada" }
+        }
+
+        const { data: paymentRows, error: paymentsError } = await insforge.database
+            .from('Payment')
+            .select('id, amount, method, reference, notes, date, createdAt')
+            .eq('invoiceId', invoiceId)
+            .order('date', { ascending: true })
+
+        if (paymentsError) {
+            console.error("Error loading payment history:", paymentsError)
+        }
+
+        const payments = (paymentRows || []).map((p: {
+            id: string
+            amount: number | string
+            method: string
+            reference?: string | null
+            notes?: string | null
+            date?: string | null
+            createdAt?: string | null
+        }) => ({
+            id: p.id,
+            amount: Number(p.amount || 0),
+            method: p.method,
+            reference: p.reference ?? null,
+            notes: p.notes ?? null,
+            date: p.date || p.createdAt || '',
+        }))
+
+        const balanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
+        const settings = await getCompanySettings()
+
+        return {
+            success: true,
+            data: {
+                invoice: {
+                    id: invoice.id,
+                    sequenceNumber: Number(invoice.sequenceNumber),
+                    createdAt: invoice.createdAt,
+                    clientName: invoice.clientName || "Consumidor Final",
+                    total: Number(invoice.total || 0),
+                },
+                payments,
+                totalPaid: balanceInfo.paid,
+                balance: balanceInfo.balance,
+                credited: balanceInfo.credited,
+                settings,
+            }
+        }
+    } catch (error) {
+        console.error("getInvoicePaymentHistory error:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Error al obtener historial de pagos" }
+    }
+}
