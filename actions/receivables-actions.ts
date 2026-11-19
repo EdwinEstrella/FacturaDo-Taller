@@ -1,8 +1,8 @@
 "use server"
 
-
-import { requireAuth } from "@/actions/auth-actions";
+import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
+import { computeInvoiceBalance } from "@/lib/receivables/invoice-balance"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
@@ -13,13 +13,13 @@ const PaymentSchema = z.object({
     method: z.string(),
     reference: z.string().optional(),
     notes: z.string().optional(),
-    date: z.date().optional(),
+    date: z.coerce.date().optional(),
 })
 
 type PaymentFormData = z.infer<typeof PaymentSchema>
 
 export async function registerPayment(data: PaymentFormData) {
-    await requireAuth();
+    await requireAuth()
 
     const user = await getCurrentUser()
     if (!user) throw new Error("Unauthorized")
@@ -42,51 +42,62 @@ export async function registerPayment(data: PaymentFormData) {
     }
 
     try {
-        // Get invoice
-        const { data: invoice } = await insforge.database
-            .from('Invoice')
-            .select('*')
-            .eq('id', invoiceId)
-            .single()
+        // Derive current balance from total, existing payments, and credit notes
+        const currentBalanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
 
-        if (!invoice) {
-            throw new Error("Factura no encontrada")
+        if (amount > currentBalanceInfo.balance + 0.01) {
+            return { success: false, error: "El monto excede el balance pendiente" }
         }
 
-        const currentBalance = Number(invoice.balance)
-        const newBalance = currentBalance - amount
-
-        if (newBalance < -0.01) {
-            throw new Error("El monto excede el balance pendiente")
-        }
-
-        // Create Payment
-        await insforge.database
+        // Create Payment and verify error
+        const { data: newPayment, error: paymentError } = await insforge.database
             .from('Payment')
             .insert([{
                 invoiceId,
                 amount,
                 method,
-                reference,
-                notes,
+                reference: reference || null,
+                notes: notes || null,
                 date: (date || new Date()).toISOString(),
             }])
+            .select()
+            .single()
 
-        // Update Invoice
-        const { data: updatedInvoice } = await insforge.database
+        if (paymentError || !newPayment) {
+            console.error("Payment insert error:", paymentError)
+            return { success: false, error: paymentError?.message || "Error al registrar el pago" }
+        }
+
+        // Recompute balance after payment insert
+        const newBalanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
+
+        // Update Invoice with recomputed balance and status
+        const { data: updatedInvoice, error: updateError } = await insforge.database
             .from('Invoice')
             .update({
-                balance: newBalance,
-                status: newBalance <= 0.01 ? "PAID" : "PENDING"
+                balance: newBalanceInfo.balance,
+                status: newBalanceInfo.status,
             })
             .eq('id', invoiceId)
             .select()
             .single()
 
+        if (updateError || !updatedInvoice) {
+            console.error("Invoice balance update error:", updateError)
+            return { success: false, error: updateError?.message || "Error al actualizar balance de la factura" }
+        }
+
         revalidatePath("/receivables")
         revalidatePath("/invoices")
-        return { success: true, invoice: updatedInvoice }
 
+        return {
+            success: true,
+            paymentId: newPayment.id,
+            invoice: updatedInvoice,
+            balance: newBalanceInfo.balance,
+            status: newBalanceInfo.status,
+            totalPaid: newBalanceInfo.paid,
+        }
     } catch (error) {
         console.error("Payment error:", error)
         return { success: false, error: error instanceof Error ? error.message : "Error al registrar pago" }

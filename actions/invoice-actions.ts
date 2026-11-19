@@ -23,6 +23,7 @@ import {
     type StoredInvoiceEcfSnapshot,
 } from "@/lib/fiscal/issuance/types"
 import type { InvoiceItem, InvoicePayment } from "@/types"
+import { computeInvoiceBalance } from "@/lib/receivables/invoice-balance"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
@@ -922,6 +923,12 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
             .delete()
             .eq('invoiceId', id)
 
+        // Derive balance and status from payments and credit notes
+        const balanceInfo = await computeInvoiceBalance(id, {
+            newTotal: updateTotal,
+            insforge,
+        })
+
         // Update invoice
         await insforge.database
             .from('Invoice')
@@ -929,6 +936,8 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
                 clientId,
                 clientName,
                 total: updateTotal,
+                balance: balanceInfo.balance,
+                status: balanceInfo.status,
                 shippingCost: shippingCost || 0,
                 deliveryDate: deliveryDate?.toISOString(),
                 notes: notes,
