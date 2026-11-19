@@ -3,6 +3,7 @@
 import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
 import { computeInvoiceBalance } from "@/lib/receivables/invoice-balance"
+import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
 import { z } from "zod"
@@ -101,5 +102,114 @@ export async function registerPayment(data: PaymentFormData) {
     } catch (error) {
         console.error("Payment error:", error)
         return { success: false, error: error instanceof Error ? error.message : "Error al registrar pago" }
+    }
+}
+
+export interface PaymentReceiptResult {
+    invoice: {
+        id: string
+        sequenceNumber: number
+        createdAt: string
+        clientName: string
+        total: number
+    }
+    payments: Array<{
+        id: string
+        amount: number
+        method: string
+        reference?: string | null
+        notes?: string | null
+        date: string
+    }>
+    paymentId: string
+    totalPaid: number
+    balance: number
+    credited: number
+    settings?: CompanySettings
+}
+
+export async function getPaymentReceipt(paymentId: string): Promise<{
+    success: boolean
+    data?: PaymentReceiptResult
+    error?: string
+}> {
+    await requireAuth()
+
+    const insforge = createServerClient()
+
+    try {
+        const { data: payment, error: paymentError } = await insforge.database
+            .from('Payment')
+            .select('*')
+            .eq('id', paymentId)
+            .single()
+
+        if (paymentError || !payment) {
+            return { success: false, error: "Pago no encontrado" }
+        }
+
+        const invoiceId = payment.invoiceId
+
+        const { data: invoice, error: invoiceError } = await insforge.database
+            .from('Invoice')
+            .select('id, sequenceNumber, createdAt, clientName, total')
+            .eq('id', invoiceId)
+            .single()
+
+        if (invoiceError || !invoice) {
+            return { success: false, error: "Factura no encontrada" }
+        }
+
+        const { data: paymentRows, error: paymentsError } = await insforge.database
+            .from('Payment')
+            .select('id, amount, method, reference, notes, date, createdAt')
+            .eq('invoiceId', invoiceId)
+            .order('date', { ascending: true })
+
+        if (paymentsError) {
+            console.error("Error loading payments for receipt:", paymentsError)
+        }
+
+        const payments = (paymentRows || []).map((p: {
+            id: string
+            amount: number | string
+            method: string
+            reference?: string | null
+            notes?: string | null
+            date?: string | null
+            createdAt?: string | null
+        }) => ({
+            id: p.id,
+            amount: Number(p.amount || 0),
+            method: p.method,
+            reference: p.reference ?? null,
+            notes: p.notes ?? null,
+            date: p.date || p.createdAt || '',
+        }))
+
+        const balanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
+        const settings = await getCompanySettings()
+
+        return {
+            success: true,
+            data: {
+                invoice: {
+                    id: invoice.id,
+                    sequenceNumber: Number(invoice.sequenceNumber),
+                    createdAt: invoice.createdAt,
+                    clientName: invoice.clientName || "Consumidor Final",
+                    total: Number(invoice.total || 0),
+                },
+                payments,
+                paymentId,
+                totalPaid: balanceInfo.paid,
+                balance: balanceInfo.balance,
+                credited: balanceInfo.credited,
+                settings,
+            }
+        }
+    } catch (error) {
+        console.error("getPaymentReceipt error:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Error al obtener recibo de pago" }
     }
 }

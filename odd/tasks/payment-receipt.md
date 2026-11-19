@@ -37,8 +37,8 @@ Provide an auto-printed 80mm thermal receipt ticket after registering an abono (
 
 ## Tasks
 - [x] T0 — Feature document `odd/tasks/payment-receipt.md` and Engram initialization (`odd/payment-receipt/tasks`)
-- [x] T1 — Derive invoice balance from real payments and credit notes (`fix(receivables): derive invoice balance from payments and credit notes`)
-- [ ] T2 — Payment receipt ticket auto-printed after an abono (`feat(receivables): print a payment receipt ticket after each abono`)
+- [x] T1 — Derive invoice balance from real payments and credit notes (`fix(receivables): derive invoice balance from payments and credit notes` - 7a4274d)
+- [x] T2 — Payment receipt ticket auto-printed after an abono (`feat(receivables): print a payment receipt ticket after each abono`)
 - [ ] T3 — Payment history with receipt reprint (`feat(receivables): show payment history with receipt reprint`)
 
 ## Acceptance Criteria
@@ -51,4 +51,5 @@ Provide an auto-printed 80mm thermal receipt ticket after registering an abono (
 
 ## Progress
 - 2026-11-19: T0 completed. Task specification created and Engram mirror initialized.
-- 2026-11-19: T1 completed. Implemented `lib/receivables/invoice-balance.ts` with `computeInvoiceBalance` and batch helper; wired `updateInvoice` to recompute balance/status on update; updated `registerPayment` to validate against derived balance, handle insert error, and write recomputed balance. tsc and eslint pass.
+- 2026-11-19: T1 completed (commit 7a4274d). Implemented `lib/receivables/invoice-balance.ts` with `computeInvoiceBalance` and batch helper; wired `updateInvoice` to recompute balance/status on update; updated `registerPayment` to validate against derived balance, handle insert error, and write recomputed balance. tsc and eslint pass.
+- 2026-11-19: T2 completed. Created `components/modules/receivables/payment-receipt-template.tsx` (80mm thermal ticket); added `getPaymentReceipt` server action; updated `PaymentDialog` with auto-print, success state (reprint & close), and fixed `balance || total` bug. tsc and eslint pass.
