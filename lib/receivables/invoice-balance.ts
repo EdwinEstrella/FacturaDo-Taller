@@ -20,6 +20,49 @@ export function roundCurrency(val: number): number {
 }
 
 /**
+ * Pure calculation deriving balance and status from total, paid, and credited amounts.
+ * balance = max(round2(total - paid - credited), 0)
+ * status = balance <= 0.01 ? "PAID" : "PENDING"
+ */
+export function deriveBalance(
+    total: number,
+    paid: number,
+    credited: number
+): { balance: number; status: "PAID" | "PENDING" } {
+    const totalNum = roundCurrency(Number(total || 0))
+    const paidNum = roundCurrency(Number(paid || 0))
+    const creditedNum = roundCurrency(Number(credited || 0))
+    const rawBalance = roundCurrency(totalNum - paidNum - creditedNum)
+    const clamped = Math.max(rawBalance, 0)
+    const balance = clamped <= 0.01 ? 0 : roundCurrency(clamped)
+    const status: "PAID" | "PENDING" = balance <= 0.01 ? "PAID" : "PENDING"
+    return { balance, status }
+}
+
+/**
+ * Calculates new balance and status when invoice total is edited,
+ * preserving legacy paid statuses and existing payment deltas
+ * without requiring payment ledger rows.
+ */
+export function rebalanceAfterTotalChange(
+    oldTotal: number,
+    oldBalance: number,
+    newTotal: number
+): { balance: number; status: "PAID" | "PENDING" } {
+    const safeOldTotal = Number(oldTotal || 0)
+    const safeOldBalance = Number(oldBalance || 0)
+    const safeNewTotal = Number(newTotal || 0)
+
+    const delta = safeNewTotal - safeOldTotal
+    const rawBalance = roundCurrency(safeOldBalance + delta)
+    const clamped = Math.min(Math.max(rawBalance, 0), safeNewTotal)
+    const balance = clamped <= 0.01 ? 0 : roundCurrency(clamped)
+    const status: "PAID" | "PENDING" = balance <= 0.01 ? "PAID" : "PENDING"
+
+    return { balance, status }
+}
+
+/**
  * Calculates the derived balance and status for an invoice
  * based on its total, all registered payments, and credit notes.
  *
@@ -53,7 +96,7 @@ export async function computeInvoiceBalance(
         .eq('invoiceId', invoiceId)
 
     if (paymentsError) {
-        console.error(`Error loading payments for invoice ${invoiceId}:`, paymentsError)
+        throw new Error(`Error loading payments for invoice ${invoiceId}: ${paymentsError.message}`)
     }
 
     // Load credit notes for this invoice (CreditNote.invoiceId is text)
@@ -63,7 +106,7 @@ export async function computeInvoiceBalance(
         .eq('invoiceId', invoiceId)
 
     if (creditNotesError) {
-        console.error(`Error loading credit notes for invoice ${invoiceId}:`, creditNotesError)
+        throw new Error(`Error loading credit notes for invoice ${invoiceId}: ${creditNotesError.message}`)
     }
 
     const totalPaid = roundCurrency(
@@ -73,9 +116,7 @@ export async function computeInvoiceBalance(
         (creditNotes || []).reduce((sum, c) => sum + Number(c.total || 0), 0)
     )
 
-    const rawBalance = roundCurrency(Number(total) - totalPaid - totalCredited)
-    const balance = rawBalance <= 0.01 ? 0 : rawBalance
-    const status: "PAID" | "PENDING" = balance <= 0.01 ? "PAID" : "PENDING"
+    const { balance, status } = deriveBalance(Number(total), totalPaid, totalCredited)
 
     return {
         total: roundCurrency(Number(total)),
@@ -111,6 +152,13 @@ export async function computeBatchInvoiceBalances(
             .in('invoiceId', invoiceIds)
     ])
 
+    if (paymentsRes.error) {
+        throw new Error(`Error loading batch payments: ${paymentsRes.error.message}`)
+    }
+    if (creditNotesRes.error) {
+        throw new Error(`Error loading batch credit notes: ${creditNotesRes.error.message}`)
+    }
+
     const paymentsByInvoice = new Map<string, number>()
     for (const p of paymentsRes.data || []) {
         if (!p.invoiceId) continue
@@ -129,9 +177,7 @@ export async function computeBatchInvoiceBalances(
         const total = roundCurrency(Number(inv.total || 0))
         const paid = roundCurrency(paymentsByInvoice.get(inv.id) || 0)
         const credited = roundCurrency(creditNotesByInvoice.get(inv.id) || 0)
-        const rawBalance = roundCurrency(total - paid - credited)
-        const balance = rawBalance <= 0.01 ? 0 : rawBalance
-        const status: "PAID" | "PENDING" = balance <= 0.01 ? "PAID" : "PENDING"
+        const { balance, status } = deriveBalance(total, paid, credited)
 
         resultMap.set(inv.id, {
             total,

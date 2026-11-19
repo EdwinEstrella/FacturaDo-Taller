@@ -23,7 +23,7 @@ import {
     type StoredInvoiceEcfSnapshot,
 } from "@/lib/fiscal/issuance/types"
 import type { InvoiceItem, InvoicePayment } from "@/types"
-import { computeInvoiceBalance } from "@/lib/receivables/invoice-balance"
+import { rebalanceAfterTotalChange } from "@/lib/receivables/invoice-balance"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getCurrentUser } from "./auth-actions"
@@ -863,7 +863,7 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
     try {
         const { data: existingInvoice } = await insforge.database
             .from('Invoice')
-            .select('id, fiscalDocumentId, ncf')
+            .select('id, fiscalDocumentId, ncf, total, balance')
             .eq('id', id)
             .single()
 
@@ -923,11 +923,12 @@ export async function updateInvoice(id: string, data: InvoiceFormData) {
             .delete()
             .eq('invoiceId', id)
 
-        // Derive balance and status from payments and credit notes
-        const balanceInfo = await computeInvoiceBalance(id, {
-            newTotal: updateTotal,
-            insforge,
-        })
+        // Recompute balance and status using delta against existing invoice to preserve legacy paid status
+        const balanceInfo = rebalanceAfterTotalChange(
+            Number(existingInvoice.total || 0),
+            Number(existingInvoice.balance || 0),
+            updateTotal
+        )
 
         // Update invoice
         await insforge.database

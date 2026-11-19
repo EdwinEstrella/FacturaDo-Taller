@@ -1,7 +1,10 @@
 import { createServerClient } from "@/lib/insforge/client"
 import { PaymentDialog } from "@/components/modules/receivables/payment-dialog"
 import { PaymentHistoryDialog } from "@/components/modules/receivables/payment-history-dialog"
-import { computeBatchInvoiceBalances } from "@/lib/receivables/invoice-balance"
+import {
+    computeBatchInvoiceBalances,
+    type InvoiceBalanceResult,
+} from "@/lib/receivables/invoice-balance"
 import {
     Table,
     TableBody,
@@ -25,10 +28,15 @@ export default async function ReceivablesPage() {
         .order('createdAt', { ascending: false })
 
     const rawInvoices = invoices || []
-    const balancesMap = await computeBatchInvoiceBalances(
-        rawInvoices.map((inv) => ({ id: inv.id, total: Number(inv.total) })),
-        { insforge }
-    )
+    let balancesMap = new Map<string, InvoiceBalanceResult>()
+    try {
+        balancesMap = await computeBatchInvoiceBalances(
+            rawInvoices.map((inv) => ({ id: inv.id, total: Number(inv.total) })),
+            { insforge }
+        )
+    } catch (error) {
+        console.error("Error computing batch invoice balances:", error)
+    }
 
     const serializedInvoices = rawInvoices.map((inv) => {
         const derived = balancesMap.get(inv.id)
