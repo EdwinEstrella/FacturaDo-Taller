@@ -46,7 +46,7 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
     const [history, setHistory] = useState<InvoicePaymentHistoryResult | null>(null)
     const [fetchingReceiptId, setFetchingReceiptId] = useState<string | null>(null)
 
-    const { printReceipt, printingId, ReceiptPortal } = usePaymentReceiptPrinter()
+    const { printReceipt, printingId, receiptElement } = usePaymentReceiptPrinter()
 
     const loadHistory = () => {
         startTransition(async () => {
@@ -222,7 +222,7 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
                     </Button>
                 </DialogFooter>
 
-                <ReceiptPortal />
+                {receiptElement}
             </DialogContent>
         </Dialog>
     )

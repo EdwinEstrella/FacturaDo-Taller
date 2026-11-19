@@ -56,7 +56,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const [receipt, setReceipt] = useState<PaymentReceiptData | null>(null)
 
     const router = useRouter()
-    const { printReceipt, isPrinting, ReceiptPortal } = usePaymentReceiptPrinter()
+    const { printReceipt, isPrinting, receiptElement } = usePaymentReceiptPrinter()
 
     const resetForm = () => {
         setAmount(balance)
@@ -275,7 +275,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
                     </>
                 )}
 
-                <ReceiptPortal />
+                {receiptElement}
             </DialogContent>
         </Dialog>
     )

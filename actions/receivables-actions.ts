@@ -194,7 +194,7 @@ async function loadInvoicePaymentBase(
         (creditNotes || []).reduce((sum, c) => sum + Number(c.total || 0), 0)
     )
 
-    const rawPayments = (paymentRows || []).map((p: {
+    const allPayments = (paymentRows || []).map((p: {
         id: string
         amount: number | string
         method: string
@@ -209,26 +209,6 @@ async function loadInvoicePaymentBase(
         reference: p.reference ?? null,
         notes: p.notes ?? null,
         date: p.date || p.createdAt || '',
-        createdAt: p.createdAt || '',
-    }))
-
-    // Deterministic sort: date asc, then createdAt asc
-    rawPayments.sort((a, b) => {
-        const da = new Date(a.date || 0).getTime()
-        const db = new Date(b.date || 0).getTime()
-        if (da !== db) return da - db
-        const ca = new Date(a.createdAt || 0).getTime()
-        const cb = new Date(b.createdAt || 0).getTime()
-        return ca - cb
-    })
-
-    const allPayments = rawPayments.map((p) => ({
-        id: p.id,
-        amount: p.amount,
-        method: p.method,
-        reference: p.reference,
-        notes: p.notes,
-        date: p.date,
     }))
     const settings = await getCompanySettings()
 

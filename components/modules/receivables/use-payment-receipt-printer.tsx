@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useInvoicePrint } from "@/hooks/use-invoice-print"
 import {
     PaymentReceiptTemplate,
@@ -11,7 +11,7 @@ export interface UsePaymentReceiptPrinterResult {
     printReceipt: (data: PaymentReceiptData) => void
     printingId: string | null
     isPrinting: boolean
-    ReceiptPortal: () => React.JSX.Element | null
+    receiptElement: ReactNode
 }
 
 export function usePaymentReceiptPrinter(): UsePaymentReceiptPrinterResult {
@@ -19,36 +19,37 @@ export function usePaymentReceiptPrinter(): UsePaymentReceiptPrinterResult {
     const [printingId, setPrintingId] = useState<string | null>(null)
     const [printToken, setPrintToken] = useState<number>(0)
     const contentRef = useRef<HTMLDivElement>(null)
-    const activeTokenRef = useRef<number>(0)
+    const mountedRef = useRef(true)
 
     const { print } = useInvoicePrint({ contentRef, format: "ticket" })
+    const printRef = useRef(print)
+    printRef.current = print
 
     useEffect(() => {
-        if (!receipt || printToken === 0) return
-        if (activeTokenRef.current === printToken) return
-        activeTokenRef.current = printToken
+        return () => {
+            mountedRef.current = false
+        }
+    }, [])
 
-        let cancelled = false
+    useEffect(() => {
+        if (printToken === 0) return
 
-        // Wait for DOM commit and layout
         const handle = requestAnimationFrame(async () => {
             try {
-                if (cancelled) return
-                await print()
+                await printRef.current()
             } catch (err) {
                 console.error("Error during receipt printing:", err)
             } finally {
-                if (!cancelled) {
+                if (mountedRef.current) {
                     setPrintingId(null)
                 }
             }
         })
 
         return () => {
-            cancelled = true
             cancelAnimationFrame(handle)
         }
-    }, [receipt, printToken, print])
+    }, [printToken])
 
     const printReceipt = useCallback((data: PaymentReceiptData) => {
         setPrintingId(data.paymentId)
@@ -56,24 +57,21 @@ export function usePaymentReceiptPrinter(): UsePaymentReceiptPrinterResult {
         setPrintToken((prev) => prev + 1)
     }, [])
 
-    const ReceiptPortal = useCallback(() => {
-        if (!receipt) return null
-        return (
-            <div
-                style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
-                aria-hidden="true"
-            >
-                <div ref={contentRef}>
-                    <PaymentReceiptTemplate receipt={receipt} />
-                </div>
+    const receiptElement = receipt ? (
+        <div
+            style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
+            aria-hidden="true"
+        >
+            <div ref={contentRef}>
+                <PaymentReceiptTemplate receipt={receipt} />
             </div>
-        )
-    }, [receipt])
+        </div>
+    ) : null
 
     return {
         printReceipt,
         printingId,
         isPrinting: Boolean(printingId),
-        ReceiptPortal,
+        receiptElement,
     }
 }
