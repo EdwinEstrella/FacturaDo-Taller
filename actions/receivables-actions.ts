@@ -2,7 +2,11 @@
 
 import { requireAuth } from "@/actions/auth-actions"
 import { createServerClient } from "@/lib/insforge/client"
-import { computeInvoiceBalance } from "@/lib/receivables/invoice-balance"
+import {
+    computeInvoiceBalance,
+    deriveBalance,
+    roundCurrency,
+} from "@/lib/receivables/invoice-balance"
 import { getCompanySettings, type CompanySettings } from "@/actions/settings-actions"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "./auth-actions"
@@ -128,6 +132,123 @@ export interface PaymentReceiptResult {
     settings?: CompanySettings
 }
 
+interface InvoicePaymentBaseData {
+    invoice: {
+        id: string
+        sequenceNumber: number
+        createdAt: string
+        clientName: string
+        total: number
+    }
+    allPayments: Array<{
+        id: string
+        amount: number
+        method: string
+        reference?: string | null
+        notes?: string | null
+        date: string
+    }>
+    credited: number
+    settings: CompanySettings
+}
+
+/**
+ * Shared private loader for invoice details, ordered payments, credit notes, and settings.
+ * Fails fast on any query error so callers never silently render partial payments.
+ */
+async function loadInvoicePaymentBase(
+    invoiceId: string,
+    insforge: ReturnType<typeof createServerClient>
+): Promise<{ success: true; data: InvoicePaymentBaseData } | { success: false; error: string }> {
+    const { data: invoice, error: invoiceError } = await insforge.database
+        .from('Invoice')
+        .select('id, sequenceNumber, createdAt, clientName, total')
+        .eq('id', invoiceId)
+        .single()
+
+    if (invoiceError || !invoice) {
+        return { success: false, error: invoiceError?.message || "Factura no encontrada" }
+    }
+
+    const { data: paymentRows, error: paymentsError } = await insforge.database
+        .from('Payment')
+        .select('id, amount, method, reference, notes, date, createdAt')
+        .eq('invoiceId', invoiceId)
+        .order('date', { ascending: true })
+        .order('createdAt', { ascending: true })
+
+    if (paymentsError) {
+        return { success: false, error: paymentsError.message || "Error al cargar pagos" }
+    }
+
+    const { data: creditNotes, error: creditNotesError } = await insforge.database
+        .from('CreditNote')
+        .select('total')
+        .eq('invoiceId', invoiceId)
+
+    if (creditNotesError) {
+        return { success: false, error: creditNotesError.message || "Error al cargar notas de crédito" }
+    }
+
+    const credited = roundCurrency(
+        (creditNotes || []).reduce((sum, c) => sum + Number(c.total || 0), 0)
+    )
+
+    const rawPayments = (paymentRows || []).map((p: {
+        id: string
+        amount: number | string
+        method: string
+        reference?: string | null
+        notes?: string | null
+        date?: string | null
+        createdAt?: string | null
+    }) => ({
+        id: p.id,
+        amount: Number(p.amount || 0),
+        method: p.method,
+        reference: p.reference ?? null,
+        notes: p.notes ?? null,
+        date: p.date || p.createdAt || '',
+        createdAt: p.createdAt || '',
+    }))
+
+    // Deterministic sort: date asc, then createdAt asc
+    rawPayments.sort((a, b) => {
+        const da = new Date(a.date || 0).getTime()
+        const db = new Date(b.date || 0).getTime()
+        if (da !== db) return da - db
+        const ca = new Date(a.createdAt || 0).getTime()
+        const cb = new Date(b.createdAt || 0).getTime()
+        return ca - cb
+    })
+
+    const allPayments = rawPayments.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        method: p.method,
+        reference: p.reference,
+        notes: p.notes,
+        date: p.date,
+    }))
+    const settings = await getCompanySettings()
+
+    return {
+        success: true,
+        data: {
+            invoice: {
+                id: invoice.id,
+                sequenceNumber: Number(invoice.sequenceNumber),
+                createdAt: invoice.createdAt,
+                clientName: invoice.clientName || "Consumidor Final",
+                total: Number(invoice.total || 0),
+            },
+            allPayments,
+            credited,
+            settings,
+        }
+    }
+}
+
 export async function getPaymentReceipt(paymentId: string): Promise<{
     success: boolean
     data?: PaymentReceiptResult
@@ -140,7 +261,7 @@ export async function getPaymentReceipt(paymentId: string): Promise<{
     try {
         const { data: payment, error: paymentError } = await insforge.database
             .from('Payment')
-            .select('*')
+            .select('id, invoiceId')
             .eq('id', paymentId)
             .single()
 
@@ -148,63 +269,34 @@ export async function getPaymentReceipt(paymentId: string): Promise<{
             return { success: false, error: "Pago no encontrado" }
         }
 
-        const invoiceId = payment.invoiceId
-
-        const { data: invoice, error: invoiceError } = await insforge.database
-            .from('Invoice')
-            .select('id, sequenceNumber, createdAt, clientName, total')
-            .eq('id', invoiceId)
-            .single()
-
-        if (invoiceError || !invoice) {
-            return { success: false, error: "Factura no encontrada" }
+        const baseRes = await loadInvoicePaymentBase(payment.invoiceId, insforge)
+        if (!baseRes.success) {
+            return { success: false, error: baseRes.error }
         }
 
-        const { data: paymentRows, error: paymentsError } = await insforge.database
-            .from('Payment')
-            .select('id, amount, method, reference, notes, date, createdAt')
-            .eq('invoiceId', invoiceId)
-            .order('date', { ascending: true })
+        const { invoice, allPayments, credited, settings } = baseRes.data
 
-        if (paymentsError) {
-            console.error("Error loading payments for receipt:", paymentsError)
+        const targetIndex = allPayments.findIndex((p) => p.id === paymentId)
+        if (targetIndex === -1) {
+            return { success: false, error: "Pago no encontrado en el historial de la factura" }
         }
 
-        const payments = (paymentRows || []).map((p: {
-            id: string
-            amount: number | string
-            method: string
-            reference?: string | null
-            notes?: string | null
-            date?: string | null
-            createdAt?: string | null
-        }) => ({
-            id: p.id,
-            amount: Number(p.amount || 0),
-            method: p.method,
-            reference: p.reference ?? null,
-            notes: p.notes ?? null,
-            date: p.date || p.createdAt || '',
-        }))
-
-        const balanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
-        const settings = await getCompanySettings()
+        // Payments up to and including the receipt's payment
+        const paymentsAsOf = allPayments.slice(0, targetIndex + 1)
+        const totalPaid = roundCurrency(
+            paymentsAsOf.reduce((sum, p) => sum + p.amount, 0)
+        )
+        const { balance } = deriveBalance(invoice.total, totalPaid, credited)
 
         return {
             success: true,
             data: {
-                invoice: {
-                    id: invoice.id,
-                    sequenceNumber: Number(invoice.sequenceNumber),
-                    createdAt: invoice.createdAt,
-                    clientName: invoice.clientName || "Consumidor Final",
-                    total: Number(invoice.total || 0),
-                },
-                payments,
+                invoice,
+                payments: paymentsAsOf,
                 paymentId,
-                totalPaid: balanceInfo.paid,
-                balance: balanceInfo.balance,
-                credited: balanceInfo.credited,
+                totalPaid,
+                balance,
+                credited,
                 settings,
             }
         }
@@ -246,60 +338,25 @@ export async function getInvoicePaymentHistory(invoiceId: string): Promise<{
     const insforge = createServerClient()
 
     try {
-        const { data: invoice, error: invoiceError } = await insforge.database
-            .from('Invoice')
-            .select('id, sequenceNumber, createdAt, clientName, total')
-            .eq('id', invoiceId)
-            .single()
-
-        if (invoiceError || !invoice) {
-            return { success: false, error: "Factura no encontrada" }
+        const baseRes = await loadInvoicePaymentBase(invoiceId, insforge)
+        if (!baseRes.success) {
+            return { success: false, error: baseRes.error }
         }
 
-        const { data: paymentRows, error: paymentsError } = await insforge.database
-            .from('Payment')
-            .select('id, amount, method, reference, notes, date, createdAt')
-            .eq('invoiceId', invoiceId)
-            .order('date', { ascending: true })
-
-        if (paymentsError) {
-            console.error("Error loading payment history:", paymentsError)
-        }
-
-        const payments = (paymentRows || []).map((p: {
-            id: string
-            amount: number | string
-            method: string
-            reference?: string | null
-            notes?: string | null
-            date?: string | null
-            createdAt?: string | null
-        }) => ({
-            id: p.id,
-            amount: Number(p.amount || 0),
-            method: p.method,
-            reference: p.reference ?? null,
-            notes: p.notes ?? null,
-            date: p.date || p.createdAt || '',
-        }))
-
-        const balanceInfo = await computeInvoiceBalance(invoiceId, { insforge })
-        const settings = await getCompanySettings()
+        const { invoice, allPayments, credited, settings } = baseRes.data
+        const totalPaid = roundCurrency(
+            allPayments.reduce((sum, p) => sum + p.amount, 0)
+        )
+        const { balance } = deriveBalance(invoice.total, totalPaid, credited)
 
         return {
             success: true,
             data: {
-                invoice: {
-                    id: invoice.id,
-                    sequenceNumber: Number(invoice.sequenceNumber),
-                    createdAt: invoice.createdAt,
-                    clientName: invoice.clientName || "Consumidor Final",
-                    total: Number(invoice.total || 0),
-                },
-                payments,
-                totalPaid: balanceInfo.paid,
-                balance: balanceInfo.balance,
-                credited: balanceInfo.credited,
+                invoice,
+                payments: allPayments,
+                totalPaid,
+                balance,
+                credited,
                 settings,
             }
         }

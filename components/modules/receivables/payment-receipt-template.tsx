@@ -129,7 +129,7 @@ export function PaymentReceiptTemplate({ receipt }: PaymentReceiptTemplateProps)
                             <div
                                 key={p.id}
                                 className={`flex justify-between items-start ${
-                                    isCurrent ? "font-bold bg-slate-100 p-1 rounded" : ""
+                                    isCurrent ? "font-bold" : ""
                                 }`}
                             >
                                 <div className="text-left pr-1">
@@ -138,7 +138,7 @@ export function PaymentReceiptTemplate({ receipt }: PaymentReceiptTemplateProps)
                                             {p.date ? formatDate(p.date) : ""} - {formatPaymentMethod(p.method)}
                                         </span>
                                         {isCurrent && (
-                                            <span className="ml-1 text-[11px] font-bold uppercase text-slate-800">
+                                            <span className="ml-1 text-[11px] font-bold uppercase text-black">
                                                 ← este abono
                                             </span>
                                         )}

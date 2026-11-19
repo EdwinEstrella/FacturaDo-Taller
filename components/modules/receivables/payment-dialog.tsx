@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,11 +27,8 @@ import { toast } from "sonner"
 import { Check, CheckCircle2, DollarSign, Printer } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useShiftGuard } from "@/components/modules/cash-close/closed-shift-dialog"
-import {
-    PaymentReceiptTemplate,
-    type PaymentReceiptData,
-} from "./payment-receipt-template"
-import { useInvoicePrint } from "@/hooks/use-invoice-print"
+import type { PaymentReceiptData } from "./payment-receipt-template"
+import { usePaymentReceiptPrinter } from "./use-payment-receipt-printer"
 
 interface SerializedInvoice {
     id: string
@@ -57,22 +54,9 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
     const [notes, setNotes] = useState("")
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [receipt, setReceipt] = useState<PaymentReceiptData | null>(null)
-    const autoPrintRef = useRef(false)
-    const contentRef = useRef<HTMLDivElement>(null)
 
     const router = useRouter()
-    const { print } = useInvoicePrint({ contentRef, format: "ticket" })
-
-    // Auto-print receipt ticket once rendered in DOM
-    useEffect(() => {
-        if (receipt && autoPrintRef.current) {
-            autoPrintRef.current = false
-            const timer = setTimeout(() => {
-                print()
-            }, 150)
-            return () => clearTimeout(timer)
-        }
-    }, [receipt, print])
+    const { printReceipt, isPrinting, ReceiptPortal } = usePaymentReceiptPrinter()
 
     const resetForm = () => {
         setAmount(balance)
@@ -102,8 +86,8 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
                 toast.success("Pago registrado correctamente")
                 const receiptRes = await getPaymentReceipt(res.paymentId)
                 if (receiptRes.success && receiptRes.data) {
-                    autoPrintRef.current = true
                     setReceipt(receiptRes.data)
+                    printReceipt(receiptRes.data)
                 } else {
                     setOpen(false)
                     resetForm()
@@ -198,7 +182,8 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => print()}
+                                onClick={() => receipt && printReceipt(receipt)}
+                                disabled={isPrinting}
                                 className="font-semibold flex items-center justify-center gap-2 border-slate-300"
                             >
                                 <Printer className="size-4" />
@@ -290,17 +275,7 @@ export function PaymentDialog({ invoice }: { invoice: SerializedInvoice }) {
                     </>
                 )}
 
-                {/* Offscreen container for silent/dialog ticket printing */}
-                {receipt && (
-                    <div
-                        style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
-                        aria-hidden="true"
-                    >
-                        <div ref={contentRef}>
-                            <PaymentReceiptTemplate receipt={receipt} />
-                        </div>
-                    </div>
-                )}
+                <ReceiptPortal />
             </DialogContent>
         </Dialog>
     )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -23,15 +23,12 @@ import { formatCurrency } from "@/lib/utils"
 import { formatPaymentMethod } from "@/lib/payment-methods"
 import {
     getInvoicePaymentHistory,
+    getPaymentReceipt,
     type InvoicePaymentHistoryResult,
 } from "@/actions/receivables-actions"
 import { History, Loader2, Printer } from "lucide-react"
-import {
-    PaymentReceiptTemplate,
-    type PaymentReceiptData,
-    type PaymentReceiptItem,
-} from "./payment-receipt-template"
-import { useInvoicePrint } from "@/hooks/use-invoice-print"
+import type { PaymentReceiptItem } from "./payment-receipt-template"
+import { usePaymentReceiptPrinter } from "./use-payment-receipt-printer"
 import { toast } from "sonner"
 
 interface PaymentHistoryDialogProps {
@@ -47,11 +44,9 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
     const [open, setOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
     const [history, setHistory] = useState<InvoicePaymentHistoryResult | null>(null)
-    const [activeReceipt, setActiveReceipt] = useState<PaymentReceiptData | null>(null)
-    const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(null)
+    const [fetchingReceiptId, setFetchingReceiptId] = useState<string | null>(null)
 
-    const contentRef = useRef<HTMLDivElement>(null)
-    const { print } = useInvoicePrint({ contentRef, format: "ticket" })
+    const { printReceipt, printingId, ReceiptPortal } = usePaymentReceiptPrinter()
 
     const loadHistory = () => {
         startTransition(async () => {
@@ -69,32 +64,25 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
         if (val) {
             loadHistory()
         } else {
-            setActiveReceipt(null)
-            setPrintingPaymentId(null)
+            setFetchingReceiptId(null)
         }
     }
 
-    const handleReprint = (payment: PaymentReceiptItem) => {
-        if (!history) return
-        setPrintingPaymentId(payment.id)
-        setActiveReceipt({
-            invoice: history.invoice,
-            payments: history.payments,
-            paymentId: payment.id,
-            totalPaid: history.totalPaid,
-            balance: history.balance,
-            credited: history.credited,
-            settings: history.settings,
-        })
-
-        // Allow receipt template to mount in DOM before printing
-        setTimeout(async () => {
-            try {
-                await print()
-            } finally {
-                setPrintingPaymentId(null)
+    const handleReprint = async (payment: PaymentReceiptItem) => {
+        setFetchingReceiptId(payment.id)
+        try {
+            const res = await getPaymentReceipt(payment.id)
+            if (res.success && res.data) {
+                printReceipt(res.data)
+            } else {
+                toast.error(res.error || "Error al obtener recibo de pago")
             }
-        }, 150)
+        } catch (err) {
+            console.error("Error fetching payment receipt:", err)
+            toast.error("Error al obtener recibo de pago")
+        } finally {
+            setFetchingReceiptId(null)
+        }
     }
 
     const formatDate = (date: Date | string) => {
@@ -209,11 +197,11 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => handleReprint(p)}
-                                                disabled={printingPaymentId === p.id}
+                                                disabled={fetchingReceiptId === p.id || printingId === p.id}
                                                 className="h-8 px-2 text-xs border-slate-300 hover:bg-slate-100"
                                                 title="Reimprimir recibo de este pago"
                                             >
-                                                {printingPaymentId === p.id ? (
+                                                {fetchingReceiptId === p.id || printingId === p.id ? (
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                                                 ) : (
                                                     <Printer className="h-3.5 w-3.5 mr-1 text-slate-600" />
@@ -234,17 +222,7 @@ export function PaymentHistoryDialog({ invoice }: PaymentHistoryDialogProps) {
                     </Button>
                 </DialogFooter>
 
-                {/* Offscreen container for silent/dialog reprint */}
-                {activeReceipt && (
-                    <div
-                        style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
-                        aria-hidden="true"
-                    >
-                        <div ref={contentRef}>
-                            <PaymentReceiptTemplate receipt={activeReceipt} />
-                        </div>
-                    </div>
-                )}
+                <ReceiptPortal />
             </DialogContent>
         </Dialog>
     )
