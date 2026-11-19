@@ -39,7 +39,7 @@ Provide an auto-printed 80mm thermal receipt ticket after registering an abono (
 - [x] T0 — Feature document `odd/tasks/payment-receipt.md` and Engram initialization (`odd/payment-receipt/tasks`)
 - [x] T1 — Derive invoice balance from real payments and credit notes (`fix(receivables): derive invoice balance from payments and credit notes` - 7a4274d)
 - [x] T2 — Payment receipt ticket auto-printed after an abono (`feat(receivables): print a payment receipt ticket after each abono` - ae717fa)
-- [x] T3 — Payment history with receipt reprint (`feat(receivables): show payment history with receipt reprint` - 7e4c972)
+- [x] T3 — Payment history with receipt reprint (`feat(receivables): show payment history with receipt reprint` - 0bcff21)
 
 ## Acceptance Criteria
 - Editing an invoice recalculates `balance` and `status` based on existing payments and credit notes.
@@ -53,4 +53,4 @@ Provide an auto-printed 80mm thermal receipt ticket after registering an abono (
 - 2026-11-19: T0 completed. Task specification created and Engram mirror initialized.
 - 2026-11-19: T1 completed (commit 7a4274d). Implemented `lib/receivables/invoice-balance.ts` with `computeInvoiceBalance` and batch helper; wired `updateInvoice` to recompute balance/status on update; updated `registerPayment` to validate against derived balance, handle insert error, and write recomputed balance. tsc and eslint pass.
 - 2026-11-19: T2 completed (commit ae717fa). Created `components/modules/receivables/payment-receipt-template.tsx` (80mm thermal ticket); added `getPaymentReceipt` server action; updated `PaymentDialog` with auto-print, success state (reprint & close), and fixed `balance || total` bug. tsc and eslint pass.
-- 2026-11-19: T3 completed (commit 7e4c972). Added `getInvoicePaymentHistory` in `actions/receivables-actions.ts`. Created `components/modules/receivables/payment-history-dialog.tsx` displaying all invoice payments, totals (Total factura, Total abonado, Resta), and reprint per payment. Updated `app/(dashboard)/receivables/page.tsx` with batch-derived pending balance and added "Historial" button. Verified no invoice detail page with payments section exists (invoices page uses list + preview modal; noted and skipped invoice detail page integration). tsc and eslint pass.
+- 2026-11-19: T3 completed (commit 0bcff21). Added `getInvoicePaymentHistory` in `actions/receivables-actions.ts`. Created `components/modules/receivables/payment-history-dialog.tsx` displaying all invoice payments, totals (Total factura, Total abonado, Resta), and reprint per payment. Updated `app/(dashboard)/receivables/page.tsx` with batch-derived pending balance and added "Historial" button. Verified no invoice detail page with payments section exists (invoices page uses list + preview modal; noted and skipped invoice detail page integration). tsc and eslint pass.
