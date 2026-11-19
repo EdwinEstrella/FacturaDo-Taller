@@ -78,3 +78,5 @@ Findings resolved:
 Findings resolved:
 - **G1 – Reliable receipt printer hook across rerenders**: In `components/modules/receivables/use-payment-receipt-printer.tsx`, eliminated the `activeTokenRef` drop bug where identity changes in `print` cancelled the rAF frame and left buttons stuck in the busy state. Kept `print` in `printRef.current` without listing it as an effect dependency, tied the effect strictly to `printToken`, ensured `setPrintingId(null)` in `finally` via `mountedRef`, allowed consecutive prints of the same receipt, and replaced `useCallback`-generated `ReceiptPortal` with direct `receiptElement: React.ReactNode` consumed in `PaymentDialog` and `PaymentHistoryDialog` (`9b64f96`).
 - **G2 – Removed redundant sort in loadInvoicePaymentBase**: In `actions/receivables-actions.ts`, removed the redundant in-memory `rawPayments.sort()` and intermediate mapping in `loadInvoicePaymentBase`, mapping query rows once directly to `allPayments` since the database query already specifies `.order('date', { ascending: true }).order('createdAt', { ascending: true })` (`9b64f96`).
+
+Review round 3: StrictMode mounted flag fix (552a76c)
