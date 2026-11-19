@@ -17,6 +17,7 @@ import {
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { TopNav } from "@/components/layout/top-nav"
 import { TitlebarUpdateButton } from "@/components/modules/updates/titlebar-update-button"
+import { UpdateAvailableDialog } from "@/components/modules/updates/update-available-dialog"
 import { useAppUpdate } from "@/hooks/use-app-update"
 import { canAccess, findNavItem } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
@@ -91,6 +92,7 @@ export function Navbar({ user, hasActiveShift }: { user: UserProps | null; hasAc
 
             <div className="titlebar-no-drag ml-auto flex items-center gap-2 md:gap-3">
                 <TitlebarUpdateButton update={update} />
+                <UpdateAvailableDialog update={update} />
 
                 {canAccess(role, "/daily-close") && (
                     <Link
